@@ -1400,16 +1400,15 @@ def apply_music_theme():
 
 
 def inject_page_html(html_fragment: str, height: int = 0):
-    """Injeta HTML/JS na página (st.html se disponível, senão componente iframe)."""
+    """Injeta HTML/JS — components.html (compatível com Streamlit Cloud)."""
     body = html_fragment.strip()
     if not body:
         return
-    if hasattr(st, "html"):
-        st.html(body, height=height)
-        return
     import streamlit.components.v1 as components
 
-    components.html(body, height=height)
+    # height=0 em st.html quebra em algumas versões do Streamlit Cloud
+    iframe_h = 0 if height <= 0 else height
+    components.html(body, height=iframe_h, scrolling=False)
 
 
 def inject_mobile_app_shell():
