@@ -1,9 +1,11 @@
-# Dados locais
-/data/
-
-# Python caches
-__pycache__/
-*.py[cod]
-
-# Streamlit
-.streamlit/
+# Dados locais (catálogo de louvores é versionado)
+/data/*
+!/data/louvores.csv
+
+# Python caches
+__pycache__/
+*.py[cod]
+
+# Streamlit — secrets locais (nunca commitar chaves)
+.streamlit/secrets.toml
+

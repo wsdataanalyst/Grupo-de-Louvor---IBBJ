@@ -1,28 +1,80 @@
-# Organização Grupo de Louvor
+# Grupo de Louvor — IBBJ
 
-App em Streamlit para organizar membros, escalas, playlist e chat do grupo de louvor.
+App em Streamlit para escalas, catálogo de louvores, chat do grupo e **notificações no celular** (sem Play Store / App Store).
 
-## Como rodar
+## Início rápido
+
+```powershell
+cd "C:\Users\wsana\Projeto python\Grupo de Louvor - IBBJ"
+.\iniciar.ps1
+```
+
+Ou manualmente:
 
 ```powershell
 pip install -r requirements.txt
+python setup_onesignal.py    # primeira vez — configura push
 streamlit run app.py
 ```
 
-## Funções
+Acesse: `http://localhost:8501`
 
-- Cadastro de membro com múltiplas funções
-- Login e logout
-- Escalas por evento
-- Playlist de músicas
-- Chat simples
+**Conta desenvolvedor (testes):** usuário `wsdataanalyst` — senha em `.streamlit/secrets.toml` (`dev_default_password`).
 
-## Próximo passo
+---
 
-Adicionar repositório remoto e subir para o GitHub:
+## App no celular + notificações
 
-```powershell
-git remote add origin https://github.com/SEU_USUARIO/SEU_REPO.git
-git branch -M main
-git push -u origin main
+| Recurso | Arquivo |
+|---------|---------|
+| Configurar OneSignal (passo a passo) | `CONFIGURAR_ONESIGNAL.md` |
+| Assistente automático | `python setup_onesignal.py` |
+| PWA, APK Android, iPhone | `MOBILE.md` |
+
+**Resumo:** configure OneSignal → rode `setup_onesignal.py` → publique em HTTPS (Streamlit Cloud) → cada integrante toca **🔔 Ativar notificações** no app.
+
+---
+
+## Publicar na internet (ainda não está no Streamlit?)
+
+**Guia completo:** `PUBLICAR.md` — GitHub + Streamlit Cloud grátis, ou uso só no PC / Wi‑Fi local.
+
+Resumo Streamlit Cloud:
+
+1. Suba o projeto no GitHub.
+2. [share.streamlit.io](https://share.streamlit.io) → **Create app** → `app.py`.
+3. **Settings → Secrets:** cole o `.streamlit/secrets.toml`.
+4. `public_url` = URL do app; mesma URL no OneSignal.
+
+---
+
+## Funções principais
+
+- Cadastro e login de integrantes
+- Escalas completas (equipe + louvores por parte do culto)
+- Chat do grupo com **push**
+- **Nova escala** com **push** para todos inscritos
+- Catálogo de louvores, playlist, perfil
+- Gerenciar escalas (líderes / organizadores / desenvolvedor)
+
+---
+
+## Estrutura
+
 ```
+app.py                 # aplicativo principal
+push_notifications.py  # envio OneSignal
+setup_onesignal.py     # assistente de configuração
+static/                # PWA (manifest, ícones, service worker)
+.streamlit/
+  config.toml
+  secrets.toml.example
+data/                  # CSVs (local, não versionados exceto louvores)
+```
+
+---
+
+## Segurança
+
+- **Nunca** commite `.streamlit/secrets.toml` (contém chaves OneSignal).
+- Use senhas fortes em produção e altere `dev_default_password`.

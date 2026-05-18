@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 60" preserveAspectRatio="none">
+  <path d="M0,30 Q50,5 100,30 T200,30 T300,30 T400,30 V60 H0 Z" fill="rgba(212,175,55,0.12)"/>
+  <path d="M0,40 Q60,55 120,40 T240,40 T360,40 T400,40 V60 H0 Z" fill="rgba(139,92,246,0.1)"/>
+</svg>

@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <script src="https://unpkg.com/streamlit-component-lib@2.0.0/dist/streamlit-component-lib.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Source Sans Pro", sans-serif;
+      background: transparent;
+      color: #f3e8ff;
+    }
+    .search-wrap { position: relative; }
+    #lsearch {
+      width: 100%;
+      padding: 0.65rem 0.85rem 0.65rem 2.35rem;
+      border-radius: 10px;
+      border: 1px solid rgba(167, 139, 250, 0.45);
+      background: rgba(28, 18, 48, 0.95);
+      color: #f3e8ff;
+      font-size: 0.95rem;
+      outline: none;
+    }
+    #lsearch:focus {
+      border-color: rgba(251, 191, 36, 0.65);
+      box-shadow: 0 0 0 2px rgba(251, 191, 36, 0.15);
+    }
+    .search-wrap::before {
+      content: "🔍";
+      position: absolute;
+      left: 0.75rem;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 0.9rem;
+      pointer-events: none;
+    }
+    #lmeta {
+      margin: 0.4rem 0 0.35rem;
+      font-size: 0.8rem;
+      color: #a89bc4;
+      min-height: 1.1rem;
+    }
+    #lresults {
+      background: rgba(28, 18, 48, 0.98);
+      border: 1px solid rgba(251, 191, 36, 0.4);
+      border-radius: 12px;
+      max-height: 260px;
+      overflow-y: auto;
+      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+    }
+    .litem {
+      display: block;
+      width: 100%;
+      text-align: left;
+      padding: 0.55rem 0.75rem;
+      border: none;
+      border-bottom: 1px solid rgba(167, 139, 250, 0.12);
+      background: rgba(139, 92, 246, 0.12);
+      color: #f3e8ff;
+      cursor: pointer;
+      font-size: 0.88rem;
+      line-height: 1.35;
+    }
+    .litem:hover { background: rgba(139, 92, 246, 0.28); }
+    .litem .sub {
+      display: block;
+      color: #a89bc4;
+      font-size: 0.78rem;
+      margin-top: 0.15rem;
+    }
+    .litem .tom { color: #fbbf24; font-size: 0.78rem; }
+    .empty {
+      padding: 0.85rem;
+      color: #a89bc4;
+      font-size: 0.85rem;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="search-wrap">
+    <input id="lsearch" type="text" autocomplete="off"
+      placeholder="Digite o nome ou artista — resultados na hora" />
+  </div>
+  <p id="lmeta"></p>
+  <div id="lresults"></div>
+
+  <script>
+    const STORAGE_KEY = "ibbj_louvor_q";
+    let ITEMS = [];
+    let PICKED = new Set();
+    let MAX = 15;
+    let visibleMatches = [];
+    let inputReady = false;
+    let resultsReady = false;
+
+    function esc(s) {
+      return String(s || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+    }
+
+    function norm(s) {
+      return String(s || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .trim();
+    }
+
+    function getSavedQuery() {
+      try { return sessionStorage.getItem(STORAGE_KEY) || ""; } catch (e) { return ""; }
+    }
+
+    function saveQuery(q) {
+      try { sessionStorage.setItem(STORAGE_KEY, q); } catch (e) {}
+    }
+
+    function currentQuery() {
+      const input = document.getElementById("lsearch");
+      return input ? input.value : getSavedQuery();
+    }
+
+    function filterItems(q, limit) {
+      const nq = norm(q);
+      if (!nq) return [];
+      const out = [];
+      for (const it of ITEMS) {
+        if (PICKED.has(it.label)) continue;
+        const t = norm(it.title);
+        const a = norm(it.artist);
+        const starts = t.startsWith(nq) || (a && a.startsWith(nq));
+        const contains = t.includes(nq) || (a && a.includes(nq));
+        if (!starts && !contains) continue;
+        const prio = (starts ? 2 : 0) + (t.includes(nq) ? 1 : 0);
+        out.push({ ...it, prio });
+      }
+      out.sort((a, b) => b.prio - a.prio || a.title.localeCompare(b.title, "pt"));
+      if (!limit || limit <= 0) return out;
+      return out.slice(0, limit);
+    }
+
+    function catalogIndex(it) {
+      return ITEMS.findIndex((x) => x.label === it.label);
+    }
+
+    function setHeight() {
+      const h = Math.max(document.body.scrollHeight, 140);
+      Streamlit.setFrameHeight(h + 16);
+    }
+
+    function renderResults(q) {
+      const meta = document.getElementById("lmeta");
+      const box = document.getElementById("lresults");
+      const trimmed = (q || "").trim();
+      if (trimmed.length < 1) {
+        visibleMatches = [];
+        meta.textContent = "Digite para ver sugestões do catálogo.";
+        box.innerHTML = '<div class="empty">A lista aparece enquanto você digita.</div>';
+        setHeight();
+        return;
+      }
+      const all = filterItems(trimmed, 0);
+      visibleMatches = filterItems(trimmed, MAX);
+      if (!visibleMatches.length) {
+        meta.textContent = "Nenhum louvor encontrado.";
+        box.innerHTML = '<div class="empty">Tente outras letras ou o nome do artista.</div>';
+        setHeight();
+        return;
+      }
+      const extra = all.length > visibleMatches.length
+        ? " (mostrando " + visibleMatches.length + " de " + all.length + ")"
+        : "";
+      meta.textContent = all.length + " encontrado(s)" + extra + " · toque para adicionar";
+      box.innerHTML = visibleMatches.map((it) => {
+        const tom = it.key ? '<span class="tom"> · Tom ' + esc(it.key) + "</span>" : "";
+        const sub = it.artist
+          ? '<span class="sub">' + esc(it.artist) + tom + "</span>"
+          : (it.key ? '<span class="sub"><span class="tom">Tom ' + esc(it.key) + "</span></span>" : "");
+        const ci = catalogIndex(it);
+        return (
+          '<button type="button" class="litem" data-ci="' + ci + '">' +
+          "➕ " + esc(it.title) + sub +
+          "</button>"
+        );
+      }).join("");
+      setHeight();
+    }
+
+    function setupInput() {
+      if (inputReady) return;
+      const input = document.getElementById("lsearch");
+      if (!input) return;
+      inputReady = true;
+      const saved = getSavedQuery();
+      if (saved) input.value = saved;
+      input.addEventListener("input", (e) => {
+        saveQuery(e.target.value);
+        renderResults(e.target.value);
+      });
+    }
+
+    function setupResultsClick() {
+      if (resultsReady) return;
+      const box = document.getElementById("lresults");
+      if (!box) return;
+      resultsReady = true;
+      box.addEventListener("click", (e) => {
+        const btn = e.target.closest(".litem");
+        if (!btn) return;
+        e.preventDefault();
+        const ci = parseInt(btn.getAttribute("data-ci"), 10);
+        if (Number.isNaN(ci) || ci < 0) return;
+        Streamlit.setComponentValue(String(ci));
+      });
+    }
+
+    function onRender(event) {
+      const args = (event && event.detail && event.detail.args) || Streamlit.args || {};
+      ITEMS = args.items || [];
+      PICKED = new Set(args.picked || []);
+      MAX = args.max_results || 15;
+      setupInput();
+      setupResultsClick();
+      renderResults(currentQuery());
+    }
+
+    function init() {
+      Streamlit.events.addEventListener(Streamlit.RENDER_EVENT, onRender);
+      Streamlit.setComponentReady();
+      onRender();
+    }
+
+    if (window.Streamlit) {
+      init();
+    } else {
+      window.addEventListener("load", init);
+    }
+  </script>
+</body>
+</html>
