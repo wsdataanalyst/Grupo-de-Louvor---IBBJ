@@ -41,8 +41,8 @@ Acesse: `http://localhost:8501`
 
 Resumo Streamlit Cloud:
 
-1. Suba o projeto no GitHub.
-2. [share.streamlit.io](https://share.streamlit.io) → **Create app** → `app.py`.
+1. Repositório: [github.com/wsdataanalyst/Grupo-de-Louvor---IBBJ](https://github.com/wsdataanalyst/Grupo-de-Louvor---IBBJ)
+2. [share.streamlit.io](https://share.streamlit.io) → **Create app** → `wsdataanalyst/Grupo-de-Louvor---IBBJ` → `app.py`.
 3. **Settings → Secrets:** cole o `.streamlit/secrets.toml`.
 4. `public_url` = URL do app; mesma URL no OneSignal.
 

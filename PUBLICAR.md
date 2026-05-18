@@ -40,7 +40,7 @@ Antes, crie o repositório **vazio** em: https://github.com/new
 ### Passo 3 — Criar o app no Streamlit
 
 1. [https://share.streamlit.io](https://share.streamlit.io) → login com **GitHub**.
-2. **Create app** → escolha o repositório `grupo-louvor-ibbj`.
+2. **Create app** → repositório: `wsdataanalyst/Grupo-de-Louvor---IBBJ`.
 3. **Main file:** `app.py` → **Deploy**.
 4. Aguarde 2–5 minutos. A URL será algo como:  
    `https://grupo-louvor-ibbj.streamlit.app`
