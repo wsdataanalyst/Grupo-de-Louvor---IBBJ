@@ -1,7 +1,9 @@
 import base64
 import hashlib
 import inspect
+import io
 import os
+import re
 import unicodedata
 import uuid
 import streamlit as st
@@ -46,6 +48,9 @@ PROGRAMA_FILE = DATA_DIR / "programa_culto.csv"
 EQUIPE_FILE = DATA_DIR / "escala_equipe.csv"
 PLAYLIST_FILE = DATA_DIR / "playlist.csv"
 LOUVORES_FILE = DATA_DIR / "louvores.csv"
+EVENTOS_FILE = DATA_DIR / "eventos.csv"
+SUGESTOES_FILE = DATA_DIR / "sugestoes_louvor.csv"
+CHAT_ENSAIO_FILE = DATA_DIR / "chat_ensaio.csv"
 
 CULTO_PARTES = [
     "Abertura / Entrada",
@@ -81,6 +86,7 @@ ESCALA_COLUMNS = (
     "member_email",
     "member_name",
     "notes",
+    "rehearsal_date",
 )
 TROCA_COLUMNS = (
     "id",
@@ -94,24 +100,54 @@ TROCA_COLUMNS = (
     "message",
     "created_at",
     "responded_at",
+    "tipo",
+    "accepter_email",
+    "accepter_name",
 )
 CHAT_COLUMNS = ("timestamp", "email", "name", "message")
+CHAT_ENSAIO_COLUMNS = ("timestamp", "escala_id", "email", "name", "message")
+EVENTO_COLUMNS = (
+    "id",
+    "title",
+    "description",
+    "event_date",
+    "end_date",
+    "image_url",
+    "created_at",
+    "created_by_email",
+    "created_by_name",
+)
+SUGESTAO_COLUMNS = (
+    "id",
+    "title",
+    "youtube_url",
+    "suggester_email",
+    "suggester_name",
+    "status",
+    "created_at",
+    "review_notes",
+)
+FUNCAO_MINISTRADOR = "Ministrador"
 
 MENU_ITEMS_BASE = [
-    ("Dashboard", "🎼", "Escalados, louvores e programação do culto"),
+    ("Dashboard", "🎼", "Sua semana, equipe e novidades"),
     ("Gerenciar Escalas", "🎯", "Montar cultos, equipe e louvores"),
     ("Catálogo", "🎶", "Repertório de louvores"),
-    ("Escalas", "🎤", "Eventos e trocas"),
+    ("Escalas", "🎤", "Escalas, ensaio e trocas"),
+    ("Eventos", "📅", "Próximos eventos do ministério"),
+    ("Sugestão de louvor", "💡", "Sugerir música para o catálogo"),
     ("Playlist", "🎧", "Músicas do grupo"),
     ("Chat", "💬", "Comunicação"),
     ("Membros", "🎹", "Integrantes do ministério"),
     ("Perfil", "👤", "Sua foto e dados cadastrais"),
 ]
 MENU_HEADERS = {
-    "Dashboard": "Escala e programação da semana",
+    "Dashboard": "Sua semana no ministério",
     "Gerenciar Escalas": "Painel de gestão de escalas",
     "Catálogo": "Catálogo de louvores",
-    "Escalas": "Escalas de louvor",
+    "Escalas": "Escalas, ensaio e trocas",
+    "Eventos": "Eventos e novidades",
+    "Sugestão de louvor": "Sugerir música ao catálogo",
     "Playlist": "Playlist do grupo",
     "Chat": "Chat do grupo",
     "Membros": "Integrantes do grupo",
@@ -122,6 +158,8 @@ MENU_ACCENTS = {
     "Gerenciar Escalas": "#f59e0b",
     "Catálogo": "#fbbf24",
     "Escalas": "#60a5fa",
+    "Eventos": "#38bdf8",
+    "Sugestão de louvor": "#4ade80",
     "Playlist": "#f472b6",
     "Chat": "#34d399",
     "Membros": "#fb923c",
@@ -213,8 +251,12 @@ def sync_recognized_member_roles(members_df: pd.DataFrame) -> pd.DataFrame:
 
 
 def get_menu_items_for_user(roles: str) -> list:
-    items = [item for item in MENU_ITEMS_BASE if item[0] != "Gerenciar Escalas"]
+    hidden_for_members = {"Gerenciar Escalas", "Catálogo", "Membros"}
+    items = [
+        item for item in MENU_ITEMS_BASE if item[0] not in hidden_for_members
+    ]
     if is_scale_manager(roles):
+        items = [item for item in MENU_ITEMS_BASE if item[0] != "Gerenciar Escalas"]
         items.insert(1, ("Gerenciar Escalas", "🎯", "Montar cultos, equipe e louvores"))
     labels = {f"{icon}  {name}": name for name, icon, _ in items}
     icons = {name: icon for name, icon, _ in items}
@@ -383,6 +425,11 @@ def profile_photo_file(email: str, stored_name: str = "") -> Path | None:
 
 def save_profile_photo(email: str, uploaded_file) -> str:
     PROFILE_PHOTOS_DIR.mkdir(parents=True, exist_ok=True)
+    raw = uploaded_file.getvalue()
+    if not raw:
+        raise ValueError("Arquivo de imagem vazio.")
+    if len(raw) > 5 * 1024 * 1024:
+        raise ValueError("Imagem muito grande (máx. 5 MB).")
     ext = Path(uploaded_file.name).suffix.lower()
     if ext not in (".jpg", ".jpeg", ".png", ".webp"):
         ext = ".jpg"
@@ -390,8 +437,58 @@ def save_profile_photo(email: str, uploaded_file) -> str:
     for old in PROFILE_PHOTOS_DIR.glob(f"{slug}.*"):
         old.unlink(missing_ok=True)
     filename = f"{slug}{ext}"
-    (PROFILE_PHOTOS_DIR / filename).write_bytes(uploaded_file.getvalue())
+    dest = PROFILE_PHOTOS_DIR / filename
+    try:
+        from PIL import Image
+
+        img = Image.open(io.BytesIO(raw))
+        img = img.convert("RGB")
+        img.thumbnail((800, 800))
+        if ext in (".png", ".webp"):
+            img.save(dest, format="PNG", optimize=True)
+            filename = f"{slug}.png"
+            dest = PROFILE_PHOTOS_DIR / filename
+        else:
+            img.save(dest, format="JPEG", quality=88, optimize=True)
+            filename = f"{slug}.jpg"
+            dest = PROFILE_PHOTOS_DIR / filename
+    except Exception:
+        dest.write_bytes(raw)
     return filename
+
+
+def profile_photo_to_data_uri(email: str, stored_name: str = "") -> str | None:
+    path = profile_photo_file(email, stored_name)
+    if not path:
+        return None
+    mime = "image/jpeg"
+    if path.suffix.lower() == ".png":
+        mime = "image/png"
+    elif path.suffix.lower() == ".webp":
+        mime = "image/webp"
+    b64 = base64.b64encode(path.read_bytes()).decode()
+    return f"data:{mime};base64,{b64}"
+
+
+def member_photo_html(email: str, members_df: pd.DataFrame, size: int = 56) -> str:
+    email_l = email.strip().lower()
+    stored = ""
+    if not members_df.empty and "email" in members_df.columns:
+        match = members_df[members_df["email"].astype(str).str.lower() == email_l]
+        if not match.empty:
+            stored = str(match.iloc[0].get("profile_photo", ""))
+    uri = profile_photo_to_data_uri(email_l, stored)
+    if uri:
+        return (
+            f'<img class="member-avatar" src="{uri}" alt="" '
+            f'style="width:{size}px;height:{size}px;border-radius:50%;object-fit:cover;" />'
+        )
+    return (
+        f'<motion-placeholder class="member-avatar-ph" '
+        f'style="width:{size}px;height:{size}px;border-radius:50%;'
+        f"display:inline-flex;align-items:center;justify-content:center;"
+        f'background:rgba(139,92,246,0.35);font-size:{size//2}px;">🎤</motion-placeholder>'
+    ).replace("motion-placeholder", "span")
 
 
 def split_member_roles(roles_str: str) -> tuple[list[str], list[str]]:
@@ -426,7 +523,9 @@ def roles_for_public_display(roles_str: str) -> str:
 def normalize_funcao_escala(funcao: str) -> str:
     """Converte função salva antiga (ex.: Desenvolvedor) para Integrante ou Banda."""
     f = str(funcao).strip()
-    if f in ("Integrante", "Banda", "Responsável"):
+    if f in ("Integrante", "Banda", "Responsável", FUNCAO_MINISTRADOR):
+        if f == "Responsável":
+            return FUNCAO_MINISTRADOR
         return f
     if f in LEADERSHIP_ROLES:
         return "Integrante"
@@ -528,6 +627,154 @@ def prepare_trocas(df: pd.DataFrame) -> pd.DataFrame:
         if column not in df.columns:
             df[column] = ""
     return df[list(TROCA_COLUMNS)].copy()
+
+
+def prepare_chat_ensaio(df: pd.DataFrame) -> pd.DataFrame:
+    for column in CHAT_ENSAIO_COLUMNS:
+        if column not in df.columns:
+            df[column] = ""
+    return df[list(CHAT_ENSAIO_COLUMNS)].copy()
+
+
+def prepare_eventos(df: pd.DataFrame) -> pd.DataFrame:
+    for column in EVENTO_COLUMNS:
+        if column not in df.columns:
+            df[column] = ""
+    return df[list(EVENTO_COLUMNS)].copy()
+
+
+def prepare_sugestoes(df: pd.DataFrame) -> pd.DataFrame:
+    for column in SUGESTAO_COLUMNS:
+        if column not in df.columns:
+            df[column] = ""
+    return df[list(SUGESTAO_COLUMNS)].copy()
+
+
+def user_on_escala_semana(
+    escalas_df: pd.DataFrame, equipe_df: pd.DataFrame, email: str, start: date, end: date
+) -> list[dict]:
+    """Escalas da semana em que o usuário participa (ministrador ou equipe)."""
+    email = email.strip().lower()
+    semana = escalas_na_semana(escalas_df, start, end)
+    found = []
+    for _, row in semana.iterrows():
+        escala_id = str(row.get("id", ""))
+        principal_email = str(row.get("member_email", "")).strip().lower()
+        if principal_email == email:
+            found.append({"escala": row, "funcao": FUNCAO_MINISTRADOR})
+            continue
+        eq = equipe_por_escala(equipe_df, escala_id)
+        for _, er in eq.iterrows():
+            if str(er.get("member_email", "")).strip().lower() == email:
+                found.append(
+                    {
+                        "escala": row,
+                        "funcao": normalize_funcao_escala(str(er.get("funcao", "Integrante"))),
+                    }
+                )
+                break
+    return found
+
+
+def trocas_abertas_pendentes(trocas_df: pd.DataFrame) -> pd.DataFrame:
+    if trocas_df.empty:
+        return trocas_df
+    pend = trocas_df[trocas_df["status"].astype(str).str.lower() == "pendente"].copy()
+    if "tipo" not in pend.columns:
+        pend["tipo"] = ""
+    tipo_l = pend["tipo"].astype(str).str.lower()
+    target_empty = pend["target_email"].astype(str).str.strip() == ""
+    return pend[(tipo_l == "aberta") | target_empty]
+
+
+def accept_open_swap(
+    troca_row,
+    accepter_email: str,
+    accepter_name: str,
+    escalas_df: pd.DataFrame,
+    equipe_df: pd.DataFrame,
+    trocas_df: pd.DataFrame,
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """Aceita troca aberta ou assume vaga — atualiza escala e encerra pedidos relacionados."""
+    escala_id = str(troca_row["escala_id_origem"])
+    dest_id = str(troca_row.get("escala_id_destino", "")).strip()
+    tipo = str(troca_row.get("tipo", "")).lower()
+
+    if dest_id and tipo in ("direta", "com_escala", ""):
+        escalas_df = execute_swap(escalas_df, escala_id, dest_id)
+    else:
+        idx = escalas_df.index[escalas_df["id"].astype(str) == escala_id]
+        if len(idx):
+            escalas_df.loc[idx[0], ["member_email", "member_name", "responsible"]] = [
+                accepter_email,
+                accepter_name,
+                accepter_name,
+            ]
+
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    tid = str(troca_row["id"])
+    trocas_df.loc[trocas_df["id"].astype(str) == tid, "status"] = "aceita"
+    trocas_df.loc[trocas_df["id"].astype(str) == tid, "responded_at"] = now
+    trocas_df.loc[trocas_df["id"].astype(str) == tid, "accepter_email"] = accepter_email
+    trocas_df.loc[trocas_df["id"].astype(str) == tid, "accepter_name"] = accepter_name
+    # Encerra outras solicitações pendentes para a mesma escala de origem
+    pend_mask = (
+        (trocas_df["escala_id_origem"].astype(str) == escala_id)
+        & (trocas_df["status"].astype(str).str.lower() == "pendente")
+        & (trocas_df["id"].astype(str) != tid)
+    )
+    trocas_df.loc[pend_mask, "status"] = "cancelada"
+    trocas_df.loc[pend_mask, "responded_at"] = now
+    return escalas_df, equipe_df, trocas_df
+
+
+def enrich_programa_from_catalog(
+    programa_df: pd.DataFrame, louvores_df: pd.DataFrame
+) -> pd.DataFrame:
+    """Preenche youtube/cifra do catálogo quando ausentes na programação."""
+    if programa_df.empty or louvores_df.empty:
+        return programa_df
+    df = programa_df.copy()
+    titles = louvores_df["title"].astype(str).str.strip().str.lower()
+    for idx, row in df.iterrows():
+        titulo = str(row.get("louvor_title", "")).strip().lower()
+        if not titulo:
+            continue
+        match = louvores_df[titles == titulo]
+        if match.empty:
+            match = louvores_df[titles.str.contains(re.escape(titulo[:20]), na=False, regex=True)]
+        if match.empty:
+            continue
+        cat = match.iloc[0]
+        if not str(row.get("youtube_url", "")).strip():
+            df.at[idx, "youtube_url"] = str(cat.get("youtube_url", ""))
+        if not str(row.get("cifra_url", "")).strip():
+            df.at[idx, "cifra_url"] = str(cat.get("cifra_url", ""))
+    return df
+
+
+def fix_louvor_display_title(title: str) -> str:
+    """Correções ortográficas leves para exibição."""
+    t = str(title).strip()
+    fixes = {
+        "Aclame ao senhor": "Aclame ao Senhor",
+        "a alegria esta no coracao": "A alegria está no coração",
+        "A alegria esta no coracao": "A alegria está no coração",
+        "Autor da,nha fé": "Autor da minha fé",
+        "a começar em": "A começar em",
+    }
+    tl = t.lower()
+    for wrong, right in fixes.items():
+        if tl == wrong.lower():
+            return right
+    if t and t[0].islower():
+        t = t[0].upper() + t[1:]
+    return t
+
+
+def cifra_search_url(title: str, artist: str = "") -> str:
+    q = f"{title} {artist}".strip()
+    return f"https://www.cifraclub.com.br/?q={q.replace(' ', '+')}"
 
 
 def escala_label(row) -> str:
@@ -661,7 +908,7 @@ def integrantes_escalados(
 
     principal = {
         "nome": str(escala_row.get("member_name") or escala_row.get("responsible", "")),
-        "funcao": "Responsável",
+        "funcao": FUNCAO_MINISTRADOR,
         "email": str(escala_row.get("member_email", "")),
     }
     if principal["nome"]:
@@ -1393,6 +1640,124 @@ def apply_music_theme():
             font-size: 0.95rem;
             margin: 0 0 0.5rem;
         }
+
+        /* Dashboard moderno */
+        .welcome-card {
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.22), rgba(251, 191, 36, 0.12));
+            border: 1px solid rgba(167, 139, 250, 0.45);
+            border-radius: 18px;
+            padding: 1.35rem 1.5rem;
+            margin-bottom: 1.25rem;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+        }
+        .welcome-card h3 { color: #faf8ff; margin: 0 0 0.35rem; font-size: 1.35rem; }
+        .welcome-card p { color: #c4b5fd; margin: 0; font-size: 0.95rem; }
+        .status-escalado {
+            background: rgba(52, 211, 153, 0.12);
+            border: 1px solid rgba(52, 211, 153, 0.45);
+            border-radius: 14px;
+            padding: 1rem 1.25rem;
+            margin-bottom: 1rem;
+        }
+        .status-nao-escalado {
+            background: rgba(251, 191, 36, 0.08);
+            border: 1px solid rgba(251, 191, 36, 0.35);
+            border-radius: 14px;
+            padding: 1rem 1.25rem;
+            margin-bottom: 1rem;
+        }
+        .team-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 0.85rem;
+            margin: 0.75rem 0 1rem;
+        }
+        .team-member-card {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(167, 139, 250, 0.3);
+            border-radius: 14px;
+            padding: 0.85rem 0.65rem;
+            text-align: center;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .team-member-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 24px rgba(139, 92, 246, 0.25);
+        }
+        .team-member-card .tm-name {
+            color: #faf8ff;
+            font-weight: 600;
+            font-size: 0.88rem;
+            margin: 0.45rem 0 0.15rem;
+        }
+        .team-member-card .tm-role {
+            color: #a89bc4;
+            font-size: 0.75rem;
+        }
+        .event-feed-card {
+            background: rgba(56, 189, 248, 0.08);
+            border: 1px solid rgba(56, 189, 248, 0.35);
+            border-radius: 14px;
+            padding: 1rem 1.15rem;
+            margin-bottom: 0.75rem;
+        }
+        .event-feed-card h4 { color: #7dd3fc; margin: 0 0 0.35rem; }
+        .event-feed-card .ev-date { color: #fbbf24; font-size: 0.82rem; }
+        .swap-banner {
+            background: rgba(96, 165, 250, 0.12);
+            border: 1px solid rgba(96, 165, 250, 0.4);
+            border-radius: 12px;
+            padding: 0.85rem 1rem;
+            margin-bottom: 0.65rem;
+        }
+        .prog-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+        .prog-btn {
+            display: inline-block;
+            padding: 0.35rem 0.75rem;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-decoration: none !important;
+        }
+        .prog-btn-yt { background: #dc2626; color: #fff !important; }
+        .prog-btn-cifra { background: #059669; color: #fff !important; }
+        .prog-btn-letra { background: #7c3aed; color: #fff !important; }
+        .catalog-table-wrap {
+            overflow-x: auto;
+            border-radius: 14px;
+            border: 1px solid rgba(167, 139, 250, 0.35);
+            margin: 0.75rem 0;
+        }
+        table.catalog-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.88rem;
+        }
+        table.catalog-table th {
+            background: rgba(139, 92, 246, 0.35);
+            color: #faf8ff;
+            padding: 0.65rem 0.75rem;
+            text-align: center;
+            font-weight: 600;
+        }
+        table.catalog-table td {
+            padding: 0.55rem 0.75rem;
+            text-align: center;
+            border-bottom: 1px solid rgba(167, 139, 250, 0.15);
+            color: #e9e4f5;
+        }
+        table.catalog-table tr:nth-child(even) td {
+            background: rgba(255, 255, 255, 0.03);
+        }
+        table.catalog-table tr:hover td {
+            background: rgba(139, 92, 246, 0.12);
+        }
+        table.catalog-table td:first-child { text-align: left; font-weight: 500; }
         </style>
         """,
         unsafe_allow_html=True,
@@ -1814,11 +2179,36 @@ def show_group_chat(chat_df: pd.DataFrame, members_df: pd.DataFrame):
         st.rerun()
 
 
+def render_team_grid_html(
+    escala_row,
+    equipe_df: pd.DataFrame,
+    members_df: pd.DataFrame,
+) -> str:
+    team = integrantes_escalados(escala_row, equipe_df, members_df)
+    if not team:
+        return ""
+    parts = []
+    for p in team:
+        email = str(p.get("email", "")).strip()
+        foto = member_photo_html(email, members_df, 64) if email else ""
+        funcao = normalize_funcao_escala(str(p.get("funcao", "Integrante")))
+        parts.append(
+            f'<motion class="team-member-card">{foto}'
+            f'<p class="tm-name">{p["nome"]}</p>'
+            f'<p class="tm-role">{funcao}</p></div>'
+        )
+    return '<div class="team-grid">' + "".join(
+        x.replace('<motion class="team-member-card">', '<div class="team-member-card">')
+        for x in parts
+    ) + "</div>"
+
+
 def render_culto_programa(
     escala_row,
     programa_df: pd.DataFrame,
     equipe_df: pd.DataFrame,
     members_df: pd.DataFrame,
+    louvores_df: pd.DataFrame | None = None,
 ):
     escala_id = str(escala_row.get("id", ""))
     event = str(escala_row.get("event", "Culto"))
@@ -1830,25 +2220,35 @@ def render_culto_programa(
     except (ValueError, TypeError):
         date_fmt = culto_date
 
-    team = integrantes_escalados(escala_row, equipe_df, members_df)
-    chips = "".join(
-        f'<span class="team-chip"><strong>{p["nome"]}</strong> · {p["funcao"]}</span>'
-        for p in team
-    )
+    rehearsal = str(escala_row.get("rehearsal_date", "")).strip()
+    ensaio_fmt = ""
+    if rehearsal:
+        try:
+            rd = pd.to_datetime(rehearsal)
+            ensaio_fmt = f" · Ensaio: {dias[rd.weekday()]}, {rd.strftime('%d/%m/%Y')}"
+        except (ValueError, TypeError):
+            ensaio_fmt = f" · Ensaio: {rehearsal}"
 
     st.markdown(
         f"""
         <div class="culto-week-card">
             <h3>🎤 {event}</h3>
-            <p class="culto-date">📅 {date_fmt}</p>
-            <p style="color:#a89bc4;margin:0 0 0.5rem;">👥 Escalados:</p>
-            {chips or '<span class="team-chip">Equipe a definir</span>'}
+            <p class="culto-date">📅 {date_fmt}{ensaio_fmt}</p>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
+    team_html = render_team_grid_html(escala_row, equipe_df, members_df)
+    if team_html:
+        st.markdown("**👥 Equipe escalada**")
+        st.markdown(team_html, unsafe_allow_html=True)
+    else:
+        st.caption("Equipe ainda em formação.")
+
     prog = programa_por_escala(programa_df, escala_id)
+    if louvores_df is not None and not louvores_df.empty:
+        prog = enrich_programa_from_catalog(prog, louvores_df)
     if prog.empty:
         st.caption(
             "🎶 Programação do culto ainda não montada — configure em **Gerenciar Escalas**."
@@ -1858,18 +2258,25 @@ def render_culto_programa(
     st.markdown("**🎶 Sequência do culto**")
     for _, item in prog.iterrows():
         artist = str(item.get("artist", "")).strip()
-        louvor = str(item.get("louvor_title", ""))
+        louvor = fix_louvor_display_title(str(item.get("louvor_title", "")))
         titulo = f"{louvor} — {artist}" if artist else louvor
         tom = str(item.get("key", "")).strip()
         leader = str(item.get("leader_name", "")).strip()
         yt = str(item.get("youtube_url", "")).strip()
         cifra = str(item.get("cifra_url", "")).strip()
-        links = []
+        if cifra and not cifra.startswith("http"):
+            cifra = ""
+        if not cifra:
+            cifra = cifra_search_url(louvor, artist)
+        btns = []
         if yt:
-            links.append(f'<a href="{yt}" target="_blank">▶ YouTube</a>')
-        if cifra and cifra.startswith("http"):
-            links.append(f'<a href="{cifra}" target="_blank">🎸 Cifra</a>')
-        links_html = " · ".join(links) if links else ""
+            btns.append(
+                f'<a class="prog-btn prog-btn-yt" href="{yt}" target="_blank" rel="noopener">▶ YouTube</a>'
+            )
+        btns.append(
+            f'<a class="prog-btn prog-btn-letra" href="{cifra}" target="_blank" rel="noopener">📜 Letra / Cifra</a>'
+        )
+        btns_html = f'<div class="prog-actions">{"".join(btns)}</div>' if btns else ""
         meta = " · ".join(x for x in [f"Tom: {tom}" if tom else "", f"🎤 {leader}" if leader else ""] if x)
         st.markdown(
             f"""
@@ -1878,7 +2285,75 @@ def render_culto_programa(
                 <span class="prog-parte">{item['parte']}</span>
                 <p class="prog-louvor">{titulo}</p>
                 <p class="prog-meta">{meta}</p>
-                {f'<p class="prog-meta">{links_html}</p>' if links_html else ''}
+                {btns_html}
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+
+def render_dashboard_swap_alerts(
+    trocas_df: pd.DataFrame,
+    escalas_df: pd.DataFrame,
+):
+    abertas = trocas_abertas_pendentes(trocas_df)
+    if abertas.empty:
+        return
+    my_email = st.session_state.user_email.strip().lower()
+    st.markdown('<p class="music-panel-title">🔄 Trocas disponíveis</p>', unsafe_allow_html=True)
+    for _, t in abertas.iterrows():
+        if str(t.get("requester_email", "")).strip().lower() == my_email:
+            continue
+        o = escalas_df[escalas_df["id"].astype(str) == str(t["escala_id_origem"])]
+        label = escala_label(o.iloc[0]) if not o.empty else "Escala"
+        st.markdown(
+            f'<div class="swap-banner"><strong>{t["requester_name"]}</strong> '
+            f"solicitou troca · <em>{label}</em></div>",
+            unsafe_allow_html=True,
+        )
+        if t.get("message"):
+            st.caption(str(t["message"]))
+        if st.button(
+            "✅ Assumir esta troca",
+            key=f"dash_swap_{t['id']}",
+            use_container_width=True,
+        ):
+            name = st.session_state.user_full_name or st.session_state.user_name
+            escalas_df, _, trocas_df = accept_open_swap(
+                t, my_email, name, escalas_df, pd.DataFrame(), trocas_df
+            )
+            save_data(escalas_df, ESCALAS_FILE)
+            save_data(trocas_df, TROCAS_FILE)
+            st.success("Troca realizada! A solicitação saiu do painel de todos.")
+            st.rerun()
+
+
+def render_events_feed(eventos_df: pd.DataFrame, limit: int = 5):
+    if eventos_df.empty:
+        return
+    st.markdown('<p class="music-panel-title">📰 Próximos eventos</p>', unsafe_allow_html=True)
+    df = eventos_df.copy()
+    df["_d"] = pd.to_datetime(df["event_date"], errors="coerce")
+    df = df.sort_values("_d").head(limit)
+    for _, ev in df.iterrows():
+        try:
+            d = pd.to_datetime(ev["event_date"]).strftime("%d/%m/%Y")
+        except (ValueError, TypeError):
+            d = str(ev.get("event_date", ""))
+        img = str(ev.get("image_url", "")).strip()
+        img_html = (
+            f'<img src="{img}" style="max-width:100%;border-radius:10px;margin:0.5rem 0;" />'
+            if img.startswith("http")
+            else ""
+        )
+        desc = str(ev.get("description", "")).replace("<", "&lt;")[:280]
+        st.markdown(
+            f"""
+            <div class="event-feed-card">
+                <h4>{ev.get('title', 'Evento')}</h4>
+                <p class="ev-date">📅 {d}</p>
+                {img_html}
+                <p style="color:#c4b5fd;margin:0.35rem 0 0;font-size:0.88rem;">{desc}</p>
             </div>
             """,
             unsafe_allow_html=True,
@@ -1893,13 +2368,56 @@ def show_dashboard(
     members_df: pd.DataFrame,
     chat_df: pd.DataFrame,
     playlist_df: pd.DataFrame,
+    trocas_df: pd.DataFrame,
+    eventos_df: pd.DataFrame,
 ):
     if "week_offset" not in st.session_state:
         st.session_state.week_offset = 0
 
-    st.markdown('<p class="music-panel-title">📅 Escala da semana</p>', unsafe_allow_html=True)
+    nome = st.session_state.user_name
+    is_mgr = is_scale_manager(st.session_state.user_roles)
+    st.markdown(
+        f"""
+        <div class="welcome-card">
+            <h3>Olá, {nome}! 👋</h3>
+            <p>Bem-vindo(a) ao painel do {GROUP_NAME}. Aqui você acompanha sua escala e o ministério.</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
     start, end = week_bounds(st.session_state.week_offset)
+    my_email = st.session_state.user_email.strip().lower()
+    minhas = user_on_escala_semana(escalas_df, equipe_df, my_email, start, end)
+
+    if minhas:
+        blocos = []
+        for item in minhas:
+            row = item["escala"]
+            ev = str(row.get("event", "Culto"))
+            dt = str(row.get("date", ""))
+            try:
+                dtf = pd.to_datetime(dt).strftime("%d/%m/%Y")
+            except (ValueError, TypeError):
+                dtf = dt
+            blocos.append(f"**{ev}** ({dtf}) — {item['funcao']}")
+        st.markdown(
+            '<div class="status-escalado">✅ <strong>Você está escalado(a) esta semana!</strong><br>'
+            + "<br>".join(blocos)
+            + "</div>",
+            unsafe_allow_html=True,
+        )
+    else:
+        st.markdown(
+            '<div class="status-nao-escalado">ℹ️ <strong>Você não está escalado(a) nesta semana.</strong> '
+            "Quando for escalado, a informação aparecerá aqui no início do painel.</div>",
+            unsafe_allow_html=True,
+        )
+
+    render_dashboard_swap_alerts(trocas_df, escalas_df)
+    render_events_feed(eventos_df)
+
+    st.markdown('<p class="music-panel-title">📅 Cultos da semana</p>', unsafe_allow_html=True)
     st.markdown(
         f"<p style='text-align:center;color:#fbbf24;font-weight:600;margin:0.25rem 0 0.75rem'>"
         f"Semana {start.strftime('%d/%m')} — {end.strftime('%d/%m/%Y')}</p>",
@@ -1921,14 +2439,22 @@ def show_dashboard(
 
     semana = escalas_na_semana(escalas_df, start, end)
 
-    render_music_stats(
-        [
-            ("🎤", "Cultos na semana", len(semana)),
-            ("🎹", "Integrantes", len(members_df)),
-            ("🎶", "Louvores catálogo", len(louvores_df)),
-            ("💬", "Mensagens chat", len(chat_df)),
-        ]
-    )
+    if is_mgr:
+        render_music_stats(
+            [
+                ("🎤", "Cultos na semana", len(semana)),
+                ("🎹", "Integrantes", len(members_df)),
+                ("🎶", "Louvores catálogo", len(louvores_df)),
+                ("💬", "Mensagens chat", len(chat_df)),
+            ]
+        )
+    else:
+        render_music_stats(
+            [
+                ("💬", "Mensagens chat", len(chat_df)),
+                ("🎧", "Playlist", len(playlist_df)),
+            ]
+        )
 
     if semana.empty:
         st.info(
@@ -1937,7 +2463,7 @@ def show_dashboard(
         return
 
     for _, escala in semana.iterrows():
-        render_culto_programa(escala, programa_df, equipe_df, members_df)
+        render_culto_programa(escala, programa_df, equipe_df, members_df, louvores_df)
 
 
 def show_user_profile(
@@ -1972,16 +2498,24 @@ def show_user_profile(
             type=["jpg", "jpeg", "png", "webp"],
             key="profile_photo_upload",
         )
+        if uploaded is not None:
+            st.session_state["_pending_profile_photo"] = uploaded
         if st.button("💾 Salvar foto", use_container_width=True, key="save_profile_photo"):
-            if not uploaded:
+            pending = st.session_state.pop("_pending_profile_photo", None) or uploaded
+            if pending is None:
                 st.warning("Escolha uma imagem antes de salvar.")
             else:
-                filename = save_profile_photo(email, uploaded)
-                members_df.at[idx, "profile_photo"] = filename
-                save_data(members_df, MEMBERS_FILE)
-                st.session_state.user_profile_photo = filename
-                st.success("Foto atualizada!")
-                st.rerun()
+                try:
+                    filename = save_profile_photo(email, pending)
+                    members_df.at[idx, "profile_photo"] = filename
+                    save_data(members_df, MEMBERS_FILE)
+                    st.session_state.user_profile_photo = filename
+                    st.success("Foto atualizada!")
+                    st.rerun()
+                except ValueError as exc:
+                    st.error(str(exc))
+                except Exception:
+                    st.error("Não foi possível salvar a foto. Tente JPG ou PNG menores que 5 MB.")
         if photo_path and st.button("🗑️ Remover foto", use_container_width=True, key="rm_profile_photo"):
             photo_path.unlink(missing_ok=True)
             members_df.at[idx, "profile_photo"] = ""
@@ -2372,7 +2906,7 @@ def render_equipe_editor(
     if not escala_row.empty:
         row0 = escala_row.iloc[0]
         st.markdown(
-            f"**Responsável do culto:** {row0.get('member_name', row0.get('responsible', '—'))}"
+            f"**{FUNCAO_MINISTRADOR} do culto:** {row0.get('member_name', row0.get('responsible', '—'))}"
         )
 
     if not eq.empty:
@@ -2541,6 +3075,7 @@ def show_escala_completa_editor(
     equipe_df: pd.DataFrame,
     louvores_df: pd.DataFrame,
     members_df: pd.DataFrame,
+    chat_ensaio_df: pd.DataFrame | None = None,
 ):
     st.write(
         "Monte a escala completa: integrantes, louvores e salve. "
@@ -2562,8 +3097,9 @@ def show_escala_completa_editor(
         st.markdown("#### 📅 Novo culto")
         culto_date = st.date_input("Data do culto", key="nova_esc_data")
         culto_event = st.text_input("Evento / Culto", key="nova_esc_event")
+        data_ensaio = st.date_input("Data do ensaio", key="nova_esc_ensaio")
         responsavel = st.selectbox(
-            "Responsável principal",
+            f"{FUNCAO_MINISTRADOR} (todos os integrantes)",
             list(member_map.keys()),
             key="nova_esc_resp",
         )
@@ -2600,6 +3136,7 @@ def show_escala_completa_editor(
                     "member_email": email,
                     "member_name": name,
                     "notes": notas.strip(),
+                    "rehearsal_date": data_ensaio.strftime("%Y-%m-%d"),
                 }
                 escalas_df = pd.concat(
                     [escalas_df, pd.DataFrame([new_escala])], ignore_index=True
@@ -2710,7 +3247,14 @@ def show_escala_completa_editor(
         idx_resp = next(
             (i for i, l in enumerate(labels_resp) if l.startswith(resp_atual)), 0
         )
-        novo_resp = st.selectbox("Responsável principal", labels_resp, index=idx_resp)
+        novo_resp = st.selectbox(
+            f"{FUNCAO_MINISTRADOR} (todos os integrantes)", labels_resp, index=idx_resp
+        )
+        dt_ensaio = pd.to_datetime(escala_row.get("rehearsal_date", ""), errors="coerce")
+        nova_data_ensaio = st.date_input(
+            "Data do ensaio",
+            value=dt_ensaio.date() if pd.notna(dt_ensaio) else date.today(),
+        )
         novas_notas = st.text_area("Notas", value=str(escala_row.get("notes", "")))
         salvar_meta = st.form_submit_button("💾 Salvar dados do culto", use_container_width=True)
 
@@ -2725,6 +3269,7 @@ def show_escala_completa_editor(
         escalas_df.loc[idx, "member_email"] = email
         escalas_df.loc[idx, "member_name"] = name
         escalas_df.loc[idx, "notes"] = novas_notas.strip()
+        escalas_df.loc[idx, "rehearsal_date"] = nova_data_ensaio.strftime("%Y-%m-%d")
         save_data(escalas_df, ESCALAS_FILE)
         st.success("Dados do culto atualizados.")
         st.rerun()
@@ -2733,9 +3278,50 @@ def show_escala_completa_editor(
     render_equipe_editor(escala_id, equipe_df, members_df, escalas_df, f"ed_{escala_id}")
 
     st.markdown("---")
+    if chat_ensaio_df is not None:
+        render_ensaio_chat(escala_id, chat_ensaio_df)
+
+    st.markdown("---")
     render_programa_louvores_editor(
         escala_id, programa_df, louvores_df, members_df, f"ed_{escala_id}"
     )
+
+
+def render_ensaio_chat(escala_id: str, chat_ensaio_df: pd.DataFrame):
+    st.subheader("💬 Chat do ensaio")
+    st.caption("Registro compartilhado com quem está nesta escala — acertos e anotações do ensaio.")
+    subset = chat_ensaio_df[
+        chat_ensaio_df["escala_id"].astype(str) == str(escala_id)
+    ].copy()
+    if subset.empty:
+        st.caption("Nenhuma mensagem ainda. Inicie a conversa do ensaio.")
+    else:
+        subset["_ts"] = pd.to_datetime(subset["timestamp"], errors="coerce")
+        subset = subset.sort_values("_ts", ascending=True)
+        for _, row in subset.iterrows():
+            who = str(row.get("name", "Integrante"))
+            ts = row["_ts"].strftime("%d/%m %H:%M") if pd.notna(row["_ts"]) else ""
+            msg = str(row.get("message", "")).replace("<", "&lt;")
+            st.markdown(f"**{who}** · {ts}\n\n{msg}\n\n---")
+    with st.form(key=f"ensaio_chat_{escala_id}", clear_on_submit=True):
+        msg = st.text_area("Anotação / mensagem do ensaio", height=80)
+        send = st.form_submit_button("Enviar ao chat do ensaio", use_container_width=True)
+    if send:
+        if not msg.strip():
+            st.error("Digite uma mensagem.")
+        else:
+            nova = {
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "escala_id": escala_id,
+                "email": st.session_state.user_email,
+                "name": st.session_state.user_full_name or st.session_state.user_name,
+                "message": msg.strip(),
+            }
+            save_data(
+                pd.concat([chat_ensaio_df, pd.DataFrame([nova])], ignore_index=True),
+                CHAT_ENSAIO_FILE,
+            )
+            st.rerun()
 
 
 def show_gerenciar_escalas(
@@ -2744,6 +3330,7 @@ def show_gerenciar_escalas(
     equipe_df: pd.DataFrame,
     louvores_df: pd.DataFrame,
     members_df: pd.DataFrame,
+    chat_ensaio_df: pd.DataFrame,
 ):
     primary = st.session_state.get("user_primary_role", "membro")
     if is_leader(st.session_state.user_roles):
@@ -2768,7 +3355,12 @@ def show_gerenciar_escalas(
 
     with tab_montar:
         show_escala_completa_editor(
-            escalas_df, programa_df, equipe_df, louvores_df, members_df
+            escalas_df,
+            programa_df,
+            equipe_df,
+            louvores_df,
+            members_df,
+            chat_ensaio_df,
         )
 
     with tab_membros:
@@ -2794,104 +3386,112 @@ def show_escalas_page(
     programa_df: pd.DataFrame,
     equipe_df: pd.DataFrame,
     louvores_df: pd.DataFrame,
+    chat_ensaio_df: pd.DataFrame,
 ):
     if is_scale_manager(st.session_state.user_roles):
         st.info(
-            "🎯 Use **Gerenciar Escalas** para montar cultos, equipe, louvores e alterações em qualquer escala."
+            "🎯 Líderes e organizadores montam escalas em **Gerenciar Escalas**. "
+            "Aqui você solicita trocas e acompanha o chat do ensaio."
         )
 
-    if is_scale_manager(st.session_state.user_roles):
-        tab_trocar, tab_pedidos = st.tabs(["🔄 Trocar escala", "📬 Solicitações"])
-    else:
-        tab_escalas, tab_trocar, tab_pedidos = st.tabs(
-            ["📅 Escalas", "🔄 Trocar escala", "📬 Solicitações"]
-        )
+    tab_equipe, tab_trocar, tab_pedidos, tab_ensaio = st.tabs(
+        ["👥 Minha equipe", "🔄 Trocar escala", "📬 Solicitações", "💬 Chat do ensaio"]
+    )
 
     member_map = members_options_escala(members_df)
     my_email = st.session_state.user_email.strip().lower()
+    start, end = week_bounds(st.session_state.get("week_offset", 0))
 
-    if not is_scale_manager(st.session_state.user_roles):
-        with tab_escalas:
-            st.write("Cadastre cultos e ensaios vinculando o integrante responsável.")
-            with st.form(key="escala_form"):
-                date = st.date_input("Data do evento")
-                event = st.text_input("Evento / Descrição")
-                labels = list(member_map.keys())
-                idx = next((i for i, e in enumerate(member_map.values()) if e == my_email), 0)
-                assign_label = st.selectbox("Integrante escalado", labels, index=idx)
-                notes = st.text_area("Notas adicionais")
-                submit = st.form_submit_button("📅 Adicionar escala", type="primary")
-            if submit:
-                if not event:
-                    st.error("Informe o evento.")
-                else:
-                    email = member_map[assign_label]
-                    row = members_df[members_df["email"].astype(str).str.lower() == email].iloc[0]
-                    name = member_display_name(row)
-                    new_row = {
-                        "id": new_id(),
-                        "date": date.strftime("%Y-%m-%d"),
-                        "event": event.strip(),
-                        "responsible": name,
-                        "member_email": email,
-                        "member_name": name,
-                        "notes": notes.strip(),
-                    }
-                    save_data(
-                        pd.concat([escalas_df, pd.DataFrame([new_row])], ignore_index=True),
-                        ESCALAS_FILE,
-                    )
-                    st.success("Escala adicionada.")
-                    st.rerun()
-            if not escalas_df.empty:
-                disp = escalas_df.copy()
-                disp["_d"] = pd.to_datetime(disp["date"], errors="coerce")
-                disp = disp.sort_values("_d")[["date", "event", "member_name", "notes"]]
-                disp.columns = ["Data", "Evento", "Integrante", "Notas"]
-                st.dataframe(disp, use_container_width=True, hide_index=True)
-            else:
-                st.info("Nenhuma escala registrada.")
+    with tab_equipe:
+        minhas = user_on_escala_semana(escalas_df, equipe_df, my_email, start, end)
+        if not minhas:
+            st.info("Você não está escalado(a) nesta semana ou a escala ainda não foi publicada.")
+        for item in minhas:
+            render_culto_programa(
+                item["escala"], programa_df, equipe_df, members_df, louvores_df
+            )
 
     with tab_trocar:
-        st.write("Solicite troca com outro integrante. A troca só vale após **aceite**.")
+        st.write("Escolha como deseja solicitar a troca. A escala atualiza após aceite ou quando alguém assumir.")
         minhas = user_escalas(escalas_df, my_email)
         if minhas.empty:
             st.warning("Você não tem escala vinculada ao seu login.")
-        elif len(member_map) < 2:
-            st.warning("Cadastre pelo menos 2 integrantes.")
         else:
             minhas_opts = {escala_label(r): r["id"] for _, r in minhas.iterrows()}
-            with st.form(key="troca_form"):
+            with st.form(key="troca_form_v2"):
                 minha = st.selectbox("Minha escala", list(minhas_opts.keys()))
-                outros = [l for l, e in member_map.items() if e != my_email]
-                outro = st.selectbox("Integrante", outros)
-                target_email = member_map[outro]
-                outras = escalas_df[escalas_df["member_email"].astype(str).str.lower() == target_email]
-                tipo = st.radio("Tipo", ["Trocar com escala do integrante", "Pedir para assumir minha vaga"])
+                modo = st.radio(
+                    "Tipo de troca",
+                    [
+                        "Divulgar para qualquer integrante assumir",
+                        "Trocar diretamente com outro integrante",
+                        "Pedir que integrante específico assuma",
+                    ],
+                )
+                target_email = ""
+                target_name = ""
                 dest_id = ""
-                if tipo.startswith("Trocar") and not outras.empty:
-                    oopts = {escala_label(r): r["id"] for _, r in outras.iterrows()}
-                    dest_id = oopts[st.selectbox("Escala do integrante", list(oopts.keys()))]
+                tipo = "aberta"
+                outros = [l for l, e in member_map.items() if e != my_email]
+                if modo.startswith("Trocar diretamente"):
+                    tipo = "direta"
+                    outro = st.selectbox("Integrante", outros)
+                    target_email = member_map[outro]
+                    tr = members_df[
+                        members_df["email"].astype(str).str.lower() == target_email
+                    ].iloc[0]
+                    target_name = member_display_name(tr)
+                    outras = escalas_df[
+                        escalas_df["member_email"].astype(str).str.lower() == target_email
+                    ]
+                    if not outras.empty:
+                        oopts = {escala_label(r): r["id"] for _, r in outras.iterrows()}
+                        dest_id = oopts[
+                            st.selectbox("Escala do integrante", list(oopts.keys()))
+                        ]
+                elif modo.startswith("Pedir que integrante"):
+                    tipo = "direcionada"
+                    outro = st.selectbox("Integrante que deve assumir", outros)
+                    target_email = member_map[outro]
+                    tr = members_df[
+                        members_df["email"].astype(str).str.lower() == target_email
+                    ].iloc[0]
+                    target_name = member_display_name(tr)
                 msg = st.text_input("Mensagem (opcional)")
                 go = st.form_submit_button("📨 Enviar solicitação", type="primary")
             if go:
                 oid = minhas_opts[minha]
-                if tipo.startswith("Trocar") and not dest_id:
-                    st.error("Escolha a escala do integrante ou 'assumir minha vaga'.")
-                elif not trocas_df[(trocas_df["status"] == "pendente") & (trocas_df["escala_id_origem"] == oid)].empty:
+                if tipo == "direta" and not dest_id:
+                    st.error("Escolha a escala do integrante para troca direta.")
+                elif not trocas_df[
+                    (trocas_df["status"] == "pendente")
+                    & (trocas_df["escala_id_origem"].astype(str) == str(oid))
+                ].empty:
                     st.warning("Já existe solicitação pendente para esta escala.")
                 else:
-                    tr = members_df[members_df["email"].astype(str).str.lower() == target_email].iloc[0]
                     nova = {
-                        "id": new_id(), "escala_id_origem": oid, "escala_id_destino": dest_id,
+                        "id": new_id(),
+                        "escala_id_origem": oid,
+                        "escala_id_destino": dest_id,
                         "requester_email": my_email,
-                        "requester_name": st.session_state.user_full_name or st.session_state.user_name,
-                        "target_email": target_email, "target_name": member_display_name(tr),
-                        "status": "pendente", "message": msg.strip(),
-                        "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "responded_at": "",
+                        "requester_name": st.session_state.user_full_name
+                        or st.session_state.user_name,
+                        "target_email": target_email,
+                        "target_name": target_name,
+                        "status": "pendente",
+                        "message": msg.strip(),
+                        "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        "responded_at": "",
+                        "tipo": tipo,
+                        "accepter_email": "",
+                        "accepter_name": "",
                     }
-                    save_data(pd.concat([trocas_df, pd.DataFrame([nova])], ignore_index=True), TROCAS_FILE)
-                    st.success("Solicitação enviada!"); st.rerun()
+                    save_data(
+                        pd.concat([trocas_df, pd.DataFrame([nova])], ignore_index=True),
+                        TROCAS_FILE,
+                    )
+                    st.success("Solicitação enviada! Todos verão no Dashboard se for divulgação aberta.")
+                    st.rerun()
 
     with tab_pedidos:
         pend = trocas_df[trocas_df["status"] == "pendente"]
@@ -2899,7 +3499,7 @@ def show_escalas_page(
         env = pend[pend["requester_email"].astype(str).str.lower() == my_email]
         st.subheader("📥 Recebidos")
         if rec.empty:
-            st.info("Nenhum pedido para você.")
+            st.info("Nenhum pedido direcionado a você.")
         for _, t in rec.iterrows():
             o = escalas_df[escalas_df["id"] == t["escala_id_origem"]]
             ot = escala_label(o.iloc[0]) if not o.empty else "—"
@@ -2909,37 +3509,59 @@ def show_escalas_page(
                 txt = f"Troca: {ot} ↔ {dt}"
             else:
                 txt = f"Assumir: {ot}"
-            st.markdown(f'<div class="swap-card"><b>{t["requester_name"]}</b><br>{txt}</div>', unsafe_allow_html=True)
-            if t["message"]: st.caption(t["message"])
+            st.markdown(
+                f'<div class="swap-card"><b>{t["requester_name"]}</b><br>{txt}</div>',
+                unsafe_allow_html=True,
+            )
+            if t["message"]:
+                st.caption(t["message"])
             c1, c2 = st.columns(2)
             with c1:
                 if st.button("✅ Aceitar", key=f"a{t['id']}", use_container_width=True):
-                    eu = escalas_df.copy()
-                    if str(t["escala_id_destino"]).strip():
-                        eu = execute_swap(eu, t["escala_id_origem"], t["escala_id_destino"])
-                    else:
-                        ix = eu.index[eu["id"] == t["escala_id_origem"]]
-                        if len(ix):
-                            eu.loc[ix[0], ["member_email", "member_name", "responsible"]] = [
-                                t["target_email"], t["target_name"], t["target_name"]
-                            ]
-                    trocas_df.loc[trocas_df["id"] == t["id"], "status"] = "aceita"
-                    trocas_df.loc[trocas_df["id"] == t["id"], "responded_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    save_data(eu, ESCALAS_FILE); save_data(trocas_df, TROCAS_FILE); st.rerun()
+                    name = st.session_state.user_full_name or st.session_state.user_name
+                    escalas_df, _, trocas_df = accept_open_swap(
+                        t, my_email, name, escalas_df, equipe_df, trocas_df
+                    )
+                    save_data(escalas_df, ESCALAS_FILE)
+                    save_data(trocas_df, TROCAS_FILE)
+                    st.rerun()
             with c2:
                 if st.button("❌ Recusar", key=f"r{t['id']}", use_container_width=True):
                     trocas_df.loc[trocas_df["id"] == t["id"], "status"] = "recusada"
-                    trocas_df.loc[trocas_df["id"] == t["id"], "responded_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    save_data(trocas_df, TROCAS_FILE); st.rerun()
+                    trocas_df.loc[trocas_df["id"] == t["id"], "responded_at"] = (
+                        datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    )
+                    save_data(trocas_df, TROCAS_FILE)
+                    st.rerun()
         st.subheader("📤 Enviados")
         if env.empty:
             st.info("Nenhum pedido enviado pendente.")
         for _, t in env.iterrows():
             o = escalas_df[escalas_df["id"] == t["escala_id_origem"]]
-            st.caption(f"Aguardando {t['target_name']} · {escala_label(o.iloc[0]) if not o.empty else '—'}")
+            alvo = t.get("target_name") or "o grupo"
+            st.caption(
+                f"Aguardando {alvo} · {escala_label(o.iloc[0]) if not o.empty else '—'}"
+            )
             if st.button("Cancelar", key=f"c{t['id']}"):
                 trocas_df.loc[trocas_df["id"] == t["id"], "status"] = "cancelada"
-                save_data(trocas_df, TROCAS_FILE); st.rerun()
+                save_data(trocas_df, TROCAS_FILE)
+                st.rerun()
+
+    with tab_ensaio:
+        minhas_ids = {
+            str(item["escala"]["id"])
+            for item in user_on_escala_semana(escalas_df, equipe_df, my_email, start, end)
+        }
+        if not minhas_ids:
+            st.info("Participe de uma escala desta semana para acessar o chat do ensaio.")
+        else:
+            labels = {}
+            for eid in minhas_ids:
+                row = escalas_df[escalas_df["id"].astype(str) == eid]
+                if not row.empty:
+                    labels[escala_label(row.iloc[0])] = eid
+            escolha = st.selectbox("Escala / culto", list(labels.keys()))
+            render_ensaio_chat(labels[escolha], chat_ensaio_df)
 
 
 def show_louvores_catalog(louvores_df: pd.DataFrame):
@@ -3005,7 +3627,159 @@ def show_louvores_catalog(louvores_df: pd.DataFrame):
         "Fonte",
     ]
     page_df = paginate_dataframe(display, CATALOG_PAGE_SIZE, "catalogo")
-    st.dataframe(page_df, use_container_width=True, hide_index=True)
+    rows_html = []
+    for _, r in page_df.iterrows():
+        yt = str(r.get("YouTube", "")).strip()
+        cif = str(r.get("Cifra", "")).strip()
+        yt_l = f'<a href="{yt}" target="_blank">▶</a>' if yt.startswith("http") else "—"
+        cif_l = f'<a href="{cif}" target="_blank">🎸</a>' if cif.startswith("http") else "—"
+        rows_html.append(
+            "<tr>"
+            f"<td>{r['Música']}</td><td>{r['Artista']}</td><td>{r['Tom']}</td>"
+            f"<td>{r['Ritmo']}</td><td>{yt_l}</td><td>{cif_l}</td><td>{r['Fonte']}</td>"
+            "</tr>"
+        )
+    table = (
+        '<div class="catalog-table-wrap"><table class="catalog-table">'
+        "<thead><tr><th>Música</th><th>Artista</th><th>Tom</th><th>Ritmo</th>"
+        "<th>YouTube</th><th>Cifra</th><th>Fonte</th></tr></thead><tbody>"
+        + "".join(rows_html)
+        + "</tbody></table></div>"
+    )
+    st.markdown(table, unsafe_allow_html=True)
+
+
+
+def show_eventos_page(eventos_df: pd.DataFrame, members_df: pd.DataFrame):
+    st.markdown('<p class="music-panel-title">📅 Eventos do ministério</p>', unsafe_allow_html=True)
+    mgr = is_scale_manager(st.session_state.user_roles)
+
+    if mgr:
+        with st.expander("➕ Cadastrar / editar evento", expanded=False):
+            with st.form(key="evento_form"):
+                titulo = st.text_input("Título do evento")
+                desc = st.text_area("Descrição")
+                d1 = st.date_input("Data do evento")
+                d2 = st.date_input("Data final (opcional)", value=None)
+                img = st.text_input("URL da imagem (opcional)", placeholder="https://...")
+                salvar = st.form_submit_button("Publicar evento", type="primary")
+            if salvar:
+                if not titulo.strip():
+                    st.error("Informe o título.")
+                else:
+                    end = d2.strftime("%Y-%m-%d") if d2 else ""
+                    nova = {
+                        "id": new_id(),
+                        "title": titulo.strip(),
+                        "description": desc.strip(),
+                        "event_date": d1.strftime("%Y-%m-%d"),
+                        "end_date": end,
+                        "image_url": img.strip(),
+                        "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        "created_by_email": st.session_state.user_email,
+                        "created_by_name": st.session_state.user_full_name
+                        or st.session_state.user_name,
+                    }
+                    save_data(
+                        pd.concat([eventos_df, pd.DataFrame([nova])], ignore_index=True),
+                        EVENTOS_FILE,
+                    )
+                    st.success("Evento publicado!")
+                    st.rerun()
+
+    if eventos_df.empty:
+        st.info("Nenhum evento cadastrado ainda.")
+        return
+
+    df = eventos_df.copy()
+    df["_d"] = pd.to_datetime(df["event_date"], errors="coerce")
+    df = df.sort_values("_d", ascending=False)
+    for _, ev in df.iterrows():
+        try:
+            d = pd.to_datetime(ev["event_date"]).strftime("%d/%m/%Y")
+        except (ValueError, TypeError):
+            d = str(ev.get("event_date", ""))
+        img = str(ev.get("image_url", "")).strip()
+        if img.startswith("http"):
+            st.image(img, use_container_width=True)
+        st.subheader(str(ev.get("title", "Evento")))
+        st.caption(f"📅 {d}")
+        st.write(str(ev.get("description", "")))
+        if mgr and st.button("🗑️ Remover", key=f"del_ev_{ev['id']}"):
+            eventos_df = eventos_df[eventos_df["id"].astype(str) != str(ev["id"])]
+            save_data(eventos_df, EVENTOS_FILE)
+            st.rerun()
+        st.markdown("---")
+
+
+def show_sugestao_louvor(sugestoes_df: pd.DataFrame, louvores_df: pd.DataFrame):
+    st.markdown('<p class="music-panel-title">💡 Sugerir louvor</p>', unsafe_allow_html=True)
+    st.write(
+        "Envie o link do YouTube e o nome da música. Líderes e organizadores analisam para incluir no catálogo."
+    )
+
+    with st.form(key="sugestao_form"):
+        titulo = st.text_input("Nome da música")
+        yt = st.text_input("Link do YouTube")
+        enviar = st.form_submit_button("Enviar sugestão", type="primary")
+    if enviar:
+        if not titulo.strip() or not yt.strip():
+            st.error("Informe nome e link do YouTube.")
+        elif "youtube" not in yt.lower() and "youtu.be" not in yt.lower():
+            st.warning("Use um link válido do YouTube.")
+        else:
+            nova = {
+                "id": new_id(),
+                "title": titulo.strip().title(),
+                "youtube_url": yt.strip(),
+                "suggester_email": st.session_state.user_email,
+                "suggester_name": st.session_state.user_full_name
+                or st.session_state.user_name,
+                "status": "pendente",
+                "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "review_notes": "",
+            }
+            save_data(
+                pd.concat([sugestoes_df, pd.DataFrame([nova])], ignore_index=True),
+                SUGESTOES_FILE,
+            )
+            st.success("Sugestão enviada! Aguarde análise da liderança.")
+            st.rerun()
+
+    if is_scale_manager(st.session_state.user_roles):
+        st.markdown("---")
+        st.subheader("📋 Sugestões pendentes (liderança)")
+        pend = sugestoes_df[sugestoes_df["status"].astype(str).str.lower() == "pendente"]
+        if pend.empty:
+            st.caption("Nenhuma sugestão pendente.")
+        for _, s in pend.iterrows():
+            st.markdown(f"**{s['title']}** — {s['suggester_name']}")
+            st.link_button("YouTube", str(s["youtube_url"]))
+            c1, c2 = st.columns(2)
+            with c1:
+                if st.button("✅ Aprovar", key=f"ap_{s['id']}", use_container_width=True):
+                    row = {
+                        "title": s["title"],
+                        "artist": "",
+                        "key": "",
+                        "youtube_url": s["youtube_url"],
+                        "cifra_url": "",
+                        "ritmo": "",
+                        "letter": s["title"][0].upper() if s["title"] else "A",
+                        "source": "sugestao",
+                    }
+                    save_data(
+                        pd.concat([louvores_df, pd.DataFrame([row])], ignore_index=True),
+                        LOUVORES_FILE,
+                    )
+                    sugestoes_df.loc[sugestoes_df["id"] == s["id"], "status"] = "aprovada"
+                    save_data(sugestoes_df, SUGESTOES_FILE)
+                    st.rerun()
+            with c2:
+                if st.button("❌ Recusar", key=f"rj_{s['id']}", use_container_width=True):
+                    sugestoes_df.loc[sugestoes_df["id"] == s["id"], "status"] = "recusada"
+                    save_data(sugestoes_df, SUGESTOES_FILE)
+                    st.rerun()
 
 
 def main():
@@ -3033,6 +3807,10 @@ def main():
         LOUVORES_FILE,
         ("title", "artist", "key", "youtube_url", "cifra_url", "ritmo", "letter", "source"),
     )
+    louvores_df["title"] = louvores_df["title"].astype(str).apply(fix_louvor_display_title)
+    eventos_df = prepare_eventos(load_data(EVENTOS_FILE, EVENTO_COLUMNS))
+    sugestoes_df = prepare_sugestoes(load_data(SUGESTOES_FILE, SUGESTAO_COLUMNS))
+    chat_ensaio_df = prepare_chat_ensaio(load_data(CHAT_ENSAIO_FILE, CHAT_ENSAIO_COLUMNS))
 
     inject_mobile_app_shell()
 
@@ -3056,12 +3834,20 @@ def main():
 
     if menu == "Gerenciar Escalas":
         show_gerenciar_escalas(
-            escalas_df, programa_df, equipe_df, louvores_df, members_df
+            escalas_df, programa_df, equipe_df, louvores_df, members_df, chat_ensaio_df
         )
 
     elif menu == "Dashboard":
         show_dashboard(
-            escalas_df, programa_df, equipe_df, louvores_df, members_df, chat_df, playlist_df
+            escalas_df,
+            programa_df,
+            equipe_df,
+            louvores_df,
+            members_df,
+            chat_df,
+            playlist_df,
+            trocas_df,
+            eventos_df,
         )
 
     elif menu == "Catálogo":
@@ -3069,8 +3855,20 @@ def main():
 
     elif menu == "Escalas":
         show_escalas_page(
-            escalas_df, trocas_df, members_df, programa_df, equipe_df, louvores_df
+            escalas_df,
+            trocas_df,
+            members_df,
+            programa_df,
+            equipe_df,
+            louvores_df,
+            chat_ensaio_df,
         )
+
+    elif menu == "Eventos":
+        show_eventos_page(eventos_df, members_df)
+
+    elif menu == "Sugestão de louvor":
+        show_sugestao_louvor(sugestoes_df, louvores_df)
 
     elif menu == "Playlist":
         st.markdown('<p class="music-panel-title">🎧 Sua playlist</p>', unsafe_allow_html=True)
