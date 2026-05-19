@@ -636,7 +636,7 @@ def default_funcao_para_escala(row) -> str:
 def members_options_escala(members_df: pd.DataFrame) -> dict[str, str]:
     """Lista de integrantes para escalas — apenas nome, sem cargos de liderança."""
     options = {}
-    for _, row in members_df.iterrows():
+    for _, row in members_visible_to_group(members_df).iterrows():
         email = str(row["email"]).strip().lower()
         if email:
             options[member_display_name(row)] = email
@@ -685,7 +685,7 @@ def member_label(row) -> str:
 
 def members_options(members_df: pd.DataFrame) -> dict[str, str]:
     options = {}
-    for _, row in members_df.iterrows():
+    for _, row in members_visible_to_group(members_df).iterrows():
         email = str(row["email"]).strip().lower()
         if email:
             options[member_label(row)] = email
@@ -1036,8 +1036,12 @@ def is_valid_email(email: str) -> bool:
     return "@" in email and "." in email.split("@")[-1] and len(email) >= 5
 
 
+# Contas técnicas (não aparecem em listas do ministério; só login de manutenção)
+TECHNICAL_DEV_EMAILS = frozenset({"wsdataanalyst"})
+
+
 def get_developer_emails() -> list[str]:
-    """Emails com acesso total de Desenvolvedor (menu Gerenciar Escalas, etc.)."""
+    """E-mails com acesso total de Desenvolvedor (menu Gerenciar Escalas, etc.)."""
     emails = ["wsdataanalyst", "willsousaa7x@gmail.com"]
     extra = os.environ.get("DEVELOPER_EMAILS", "")
     if extra.strip():
@@ -2558,7 +2562,7 @@ def render_chat_messages(chat_df: pd.DataFrame):
 def show_group_chat(chat_df: pd.DataFrame, members_df: pd.DataFrame):
     st.markdown('<p class="music-panel-title">💬 Conversa do grupo</p>', unsafe_allow_html=True)
     st.write("Chat para integrantes logados — todos do grupo veem as mensagens.")
-    st.caption(f"🟢 {len(members_df)} integrante(s) cadastrado(s)")
+    st.caption(f"🟢 {len(members_visible_to_group(members_df))} integrante(s) cadastrado(s)")
     render_chat_messages(chat_df)
     with st.form(key="chat_form", clear_on_submit=True):
         message = st.text_area("Sua mensagem", height=100, placeholder="Escreva para o grupo...")
@@ -2845,7 +2849,7 @@ def show_dashboard(
         render_music_stats(
             [
                 ("🎤", "Cultos na semana", len(semana)),
-                ("🎹", "Integrantes", len(members_df)),
+                ("🎹", "Integrantes", len(members_visible_to_group(members_df))),
                 ("🎶", "Louvores catálogo", len(louvores_df)),
                 ("💬", "Mensagens chat", len(chat_df)),
             ]
@@ -3005,14 +3009,88 @@ def show_user_profile(
             st.success("Senha alterada com sucesso!")
 
 
+def normalize_member_email(raw) -> str:
+    if raw is None or (isinstance(raw, float) and pd.isna(raw)):
+        return ""
+    text = str(raw).strip().lower()
+    if text in ("", "nan", "none"):
+        return ""
+    return text
+
+
+def is_technical_dev_account(row) -> bool:
+    """Conta só de manutenção — oculta em listas públicas do ministério."""
+    email = normalize_member_email(row.get("email"))
+    if email in TECHNICAL_DEV_EMAILS:
+        return True
+    if email and "@" not in email and email in get_developer_emails():
+        return True
+    fn = normalize_first_name(str(row.get("first_name", "")))
+    ln = str(row.get("last_name", "")).strip().lower()
+    if fn == "desenvolvedor" and ln == "admin":
+        return True
+    return False
+
+
+def members_visible_to_group(members_df: pd.DataFrame) -> pd.DataFrame:
+    """Integrantes do louvor (sem conta técnica de desenvolvedor)."""
+    if members_df.empty:
+        return members_df
+    mask = ~members_df.apply(is_technical_dev_account, axis=1)
+    return members_df.loc[mask].copy()
+
+
+def reload_members_df() -> pd.DataFrame:
+    """Recarrega members.csv do disco (evita lista desatualizada no painel dev)."""
+    load_data.clear()
+    df = load_data(MEMBERS_FILE, MEMBER_COLUMNS)
+    df = sync_recognized_member_roles(df)
+    return ensure_developer_access(df)
+
+
+def build_password_reset_options(
+    members_df: pd.DataFrame, *, include_all_accounts: bool
+) -> dict[str, str]:
+    """Rótulo na lista → referência (e-mail ou row:índice)."""
+    options: dict[str, str] = {}
+    for idx, row in members_df.iterrows():
+        if is_technical_dev_account(row):
+            continue
+        em = normalize_member_email(row.get("email"))
+        if not em and not include_all_accounts:
+            continue
+        name = member_display_name(row) or f"Integrante {idx}"
+        if em:
+            label = f"{name} ({em})"
+            ref = em
+        else:
+            label = f"{name} (sem e-mail)"
+            ref = f"row:{idx}"
+        if label in options:
+            label = f"{label} · #{idx}"
+        options[label] = ref
+    return options
+
+
 def admin_set_member_password(
-    members_df: pd.DataFrame, email: str, new_password: str
+    members_df: pd.DataFrame, member_ref: str, new_password: str
 ) -> tuple[bool, str]:
-    """Líder/organizador redefine senha sem e-mail."""
-    email = email.strip().lower()
+    """Líder/organizador/desenvolvedor redefine senha sem e-mail."""
     if len(new_password) < 6:
         return False, "A senha deve ter pelo menos 6 caracteres."
-    emails = members_df["email"].astype(str).str.strip().str.lower()
+
+    if str(member_ref).startswith("row:"):
+        try:
+            idx = int(str(member_ref).split(":", 1)[1])
+        except (ValueError, IndexError):
+            return False, "Referência de integrante inválida."
+        if idx not in members_df.index:
+            return False, "Integrante não encontrado."
+        members_df.at[idx, "password_hash"] = hash_password(new_password)
+        return True, ""
+
+    email = str(member_ref).strip().lower()
+    emails = members_df["email"].apply(normalize_member_email)
     idx_list = members_df.index[emails == email].tolist()
     if not idx_list:
         return False, "Integrante não encontrado."
@@ -3024,28 +3102,46 @@ def render_password_reset_panel(
     members_df: pd.DataFrame, *, form_key_prefix: str = "admin"
 ):
     """Formulário de redefinição (líder ou desenvolvedor)."""
+    show_all = is_current_developer()
+    if show_all:
+        members_df = reload_members_df()
+
     st.caption(
         "Escolha o integrante, defina uma senha nova e avise a pessoa. "
         "Não precisa configurar e-mail."
     )
+    if show_all:
+        n_vis = len(members_visible_to_group(members_df))
+        st.caption(
+            f"Modo desenvolvedor: **{n_vis}** integrante(s) do ministério "
+            "(conta técnica de manutenção não aparece nas listas)."
+        )
+
     if members_df.empty:
         st.info("Nenhum membro cadastrado.")
         return
 
-    options = {}
-    for _, row in members_df.iterrows():
-        em = str(row.get("email", "")).strip().lower()
-        if not em:
-            continue
-        label = f"{member_display_name(row)} ({em})"
-        options[label] = em
+    options = build_password_reset_options(
+        members_df, include_all_accounts=show_all
+    )
 
     if not options:
         st.warning("Nenhum integrante cadastrado.")
         return
 
+    labels = sorted(options.keys(), key=str.casefold)
+    if show_all and len(labels) > 6:
+        busca = st.text_input(
+            "Buscar por nome ou e-mail",
+            key=f"{form_key_prefix}_pw_search",
+            placeholder="Ex.: will ou @gmail.com",
+        )
+        if busca.strip():
+            q = busca.strip().lower()
+            labels = [lb for lb in labels if q in lb.lower()]
+
     with st.form(key=f"{form_key_prefix}_reset_password_form"):
-        chosen = st.selectbox("Integrante", list(options.keys()))
+        chosen = st.selectbox("Integrante", labels)
         nova = st.text_input("Nova senha", type="password")
         conf = st.text_input("Confirmar nova senha", type="password")
         submit = st.form_submit_button(
@@ -3082,7 +3178,8 @@ def show_members_overview(members_df: pd.DataFrame, louvores_df: pd.DataFrame):
     if can_reset_member_passwords():
         render_admin_password_reset(members_df)
 
-    display = members_df[["first_name", "last_name", "email", "roles", "created_at"]].copy()
+    visible = members_visible_to_group(members_df)
+    display = visible[["first_name", "last_name", "email", "roles", "created_at"]].copy()
     display["roles"] = display["roles"].apply(roles_for_public_display)
     display.columns = ["Nome", "Sobrenome", "Email", "Funções", "Cadastro"]
     st.dataframe(display, use_container_width=True, hide_index=True)
@@ -3818,7 +3915,7 @@ def show_gerenciar_escalas(
 
     render_music_stats(
         [
-            ("👥", "Integrantes", len(members_df)),
+            ("👥", "Integrantes", len(members_visible_to_group(members_df))),
             ("🎶", "Louvores", len(louvores_df)),
             ("📅", "Escalas", len(escalas_df)),
             ("🎤", "Cultos c/ programação", programa_df["escala_id"].nunique() if not programa_df.empty else 0),
@@ -4395,8 +4492,9 @@ def main():
         else:
             st.markdown('<p class="music-panel-title">🎹 Equipe de louvor</p>', unsafe_allow_html=True)
             st.write("Integrantes do ministério.")
-            if not members_df.empty:
-                display_df = members_df.drop(
+            visible = members_visible_to_group(members_df)
+            if not visible.empty:
+                display_df = visible.drop(
                     columns=["password_hash", "profile_photo"], errors="ignore"
                 )
                 page_members = paginate_dataframe(display_df, 15, "membros")
