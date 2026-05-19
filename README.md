@@ -77,6 +77,13 @@ data/                  # CSVs (local, não versionados exceto louvores)
 
 ---
 
+## Dados e cadastros
+
+- Contas, escalas e chat ficam em **`data/*.csv`** (não vão para o Git).
+- O app faz **backup automático** em `data/backups/` e **não apaga** contas em massa por engano ao atualizar o código.
+- Guia completo: **`DADOS_E_BACKUP.md`**
+- No **Streamlit Cloud**, os cadastros permanecem no mesmo app publicado; criar um app novo do zero começa sem dados.
+
 ## Segurança
 
 - **Nunca** commite `.streamlit/secrets.toml` (contém chaves OneSignal).

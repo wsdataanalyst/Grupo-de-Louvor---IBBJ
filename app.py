@@ -11,6 +11,12 @@ import pandas as pd
 from pathlib import Path
 from datetime import date, datetime, timedelta
 
+from data_persistence import (
+    backup_csv_if_exists,
+    load_csv_preserve_rows,
+    members_save_allowed,
+    snapshot_data_folder,
+)
 from password_reset import (
     apply_password_reset,
     create_password_reset_request,
@@ -469,27 +475,26 @@ def render_register_form(members_df: pd.DataFrame) -> pd.DataFrame:
 
 @st.cache_data
 def load_data(file_path: Path, columns: tuple):
-    if not file_path.exists():
-        return pd.DataFrame(columns=list(columns))
-    try:
-        df = pd.read_csv(file_path)
-    except (pd.errors.EmptyDataError, pd.errors.ParserError):
-        return pd.DataFrame(columns=list(columns))
-    if df.empty:
-        return pd.DataFrame(columns=list(columns))
-    for column in columns:
-        if column not in df.columns:
-            df[column] = ""
-    df = df[list(columns)].copy()
-    if file_path == MEMBERS_FILE and "email" in df.columns:
+    df = load_csv_preserve_rows(file_path, columns)
+    if file_path == MEMBERS_FILE and not df.empty and "email" in df.columns:
         df["email"] = df["email"].astype(str).str.strip().str.lower()
     return df
 
 
-def save_data(df: pd.DataFrame, file_path: Path):
+def save_data(df: pd.DataFrame, file_path: Path, *, force: bool = False) -> bool:
+    """Grava CSV com backup prévio. Retorna False se proteção bloquear members."""
     file_path.parent.mkdir(parents=True, exist_ok=True)
+
+    if file_path == MEMBERS_FILE:
+        ok, msg = members_save_allowed(df, file_path, force=force)
+        if not ok:
+            st.error(msg)
+            return False
+
+    backup_csv_if_exists(file_path, DATA_DIR)
     df.to_csv(file_path, index=False)
     load_data.clear()
+    return True
 
 
 def new_id() -> str:
@@ -1078,7 +1083,7 @@ def add_developer_role(roles_str: str) -> str:
 
 
 def ensure_developer_access(members_df: pd.DataFrame) -> pd.DataFrame:
-    """Garante conta técnica e papel Desenvolvedor nos emails configurados."""
+    """Garante conta técnica e papel Desenvolvedor — só adiciona/atualiza dev, nunca remove contas."""
     dev_emails = get_developer_emails()
     default_password = get_dev_default_password()
     password_hash = hash_password(default_password)
@@ -4362,6 +4367,10 @@ def main():
     )
     apply_music_theme()
     ensure_session_state()
+
+    if "data_guard_initialized" not in st.session_state:
+        snapshot_data_folder(DATA_DIR)
+        st.session_state.data_guard_initialized = True
 
     members_df = load_data(MEMBERS_FILE, MEMBER_COLUMNS)
     members_df = ensure_developer_access(members_df)
