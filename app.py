@@ -2162,21 +2162,17 @@ def render_sidebar_navigation() -> str:
     group_legend = " · ".join(g for g, _ in groups)
     st.sidebar.caption(group_legend)
 
-    # Sincronizar atalhos do dashboard (app_menu) antes de criar o radio
-    if st.session_state.app_menu in names:
-        st.session_state.sidebar_nav_main = st.session_state.app_menu
-
     try:
         idx = names.index(st.session_state.app_menu)
     except ValueError:
         idx = 0
 
+    # Sem key no widget: navegação só via app_menu (compatível com atalhos do Dashboard)
     picked = st.sidebar.radio(
         "Ir para",
         names,
         index=idx,
         format_func=lambda n, ic=icons: f"{ic.get(n, '🎵')}  {n}",
-        key="sidebar_nav_main",
         label_visibility="collapsed",
     )
     if picked != st.session_state.app_menu:
