@@ -51,6 +51,7 @@ Resumo Streamlit Cloud:
 ## Funções principais
 
 - Cadastro e login de integrantes
+- **Esqueci minha senha** — link por e-mail (SMTP em `secrets.toml`, guia: `CONFIGURAR_EMAIL.md`)
 - Escalas completas (equipe + louvores por parte do culto)
 - Chat do grupo com **push**
 - **Nova escala** com **push** para todos inscritos
@@ -64,6 +65,7 @@ Resumo Streamlit Cloud:
 ```
 app.py                 # aplicativo principal
 push_notifications.py  # envio OneSignal
+password_reset.py      # recuperação de senha por e-mail
 setup_onesignal.py     # assistente de configuração
 static/                # PWA (manifest, ícones, service worker)
 .streamlit/

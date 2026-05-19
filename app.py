@@ -11,6 +11,12 @@ import pandas as pd
 from pathlib import Path
 from datetime import date, datetime, timedelta
 
+from password_reset import (
+    apply_password_reset,
+    create_password_reset_request,
+    smtp_is_configured,
+    validate_reset_token,
+)
 from push_notifications import (
     notify_chat_message,
     notify_new_escala,
@@ -26,8 +32,11 @@ _TEXT_INPUT_HAS_BIND = "bind" in inspect.signature(st.text_input).parameters
 CROSS_IMAGE = ASSETS_DIR / "cruz.svg"
 GROUP_NAME = "Grupo de Louvor - IBBJ"
 CADASTRO_QUERY_PARAM = "cadastro"
+FORGOT_PASSWORD_QUERY_PARAM = "esqueci"
+RESET_PASSWORD_QUERY_PARAM = "redefinir"
 
 DATA_DIR = Path("data")
+RESET_TOKENS_FILE = DATA_DIR / "password_reset_tokens.csv"
 PROFILE_PHOTOS_DIR = DATA_DIR / "profile_photos"
 MEMBERS_FILE = DATA_DIR / "members.csv"
 MEMBER_COLUMNS = (
@@ -166,6 +175,24 @@ MENU_ACCENTS = {
     "Perfil": "#c084fc",
 }
 
+# Organização do menu por áreas (sidebar)
+NAV_GROUP_ORDER = (
+    ("Início", ("Dashboard",)),
+    ("Culto & escalas", ("Escalas", "Gerenciar Escalas")),
+    ("Repertório", ("Catálogo", "Playlist", "Sugestão de louvor")),
+    ("Comunidade", ("Chat", "Eventos", "Membros")),
+    ("Conta", ("Perfil",)),
+)
+
+DASHBOARD_QUICK_LINKS = (
+    "Escalas",
+    "Chat",
+    "Eventos",
+    "Playlist",
+    "Catálogo",
+    "Perfil",
+)
+
 ROLE_LIDER = "Líder"
 ROLE_ORG_MUSICAL = "Organizador Musical"
 ROLE_ORG_VOCAL = "Organizador Vocal"
@@ -263,6 +290,27 @@ def get_menu_items_for_user(roles: str) -> list:
     return items, labels, icons
 
 
+def build_nav_groups_for_user(roles: str) -> list[tuple[str, list[tuple[str, str, str]]]]:
+    """Agrupa itens do menu em seções para navegação na sidebar."""
+    items, _, _ = get_menu_items_for_user(roles)
+    by_name = {name: (name, icon, desc) for name, icon, desc in items}
+    groups: list[tuple[str, list[tuple[str, str, str]]]] = []
+    for group_label, names in NAV_GROUP_ORDER:
+        section = [by_name[n] for n in names if n in by_name]
+        if section:
+            groups.append((group_label, section))
+    placed = {n for _, section in groups for n, _, _ in section}
+    rest = [item for item in items if item[0] not in placed]
+    if rest:
+        groups.append(("Mais", rest))
+    return groups
+
+
+def menu_icons_map(roles: str) -> dict[str, str]:
+    _, _, icons = get_menu_items_for_user(roles)
+    return icons
+
+
 def hash_password(password: str) -> str:
     return hashlib.sha256(password.encode("utf-8")).hexdigest()
 
@@ -280,6 +328,36 @@ def is_register_page() -> bool:
         return True
     page = _query_param_value("page").lower()
     return page in ("cadastro", "cadastrar", "register", "signup")
+
+
+def is_forgot_password_page() -> bool:
+    esqueci = _query_param_value(FORGOT_PASSWORD_QUERY_PARAM).lower()
+    if esqueci in ("1", "true", "sim", "yes"):
+        return True
+    page = _query_param_value("page").lower()
+    return page in ("esqueci", "esqueci-senha", "forgot", "recuperar")
+
+
+def get_reset_password_token() -> str:
+    return _query_param_value(RESET_PASSWORD_QUERY_PARAM)
+
+
+def is_reset_password_page() -> bool:
+    return len(get_reset_password_token()) >= 20
+
+
+def get_password_reset_base_url() -> str:
+    base = get_public_app_url()
+    if base:
+        return base
+    try:
+        port = int(st.get_option("server.port") or 8501)
+        addr = str(st.get_option("server.address") or "localhost")
+        if addr in ("0.0.0.0", ""):
+            addr = "localhost"
+        return f"http://{addr}:{port}"
+    except Exception:
+        return ""
 
 
 def get_public_app_url() -> str:
@@ -1115,43 +1193,95 @@ def apply_music_theme():
     st.markdown(
         """
         <style>
-        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+
+        :root {
+            --bg-deep: #07060d;
+            --bg-surface: #12101c;
+            --bg-elevated: #1a1728;
+            --border-subtle: rgba(255, 255, 255, 0.08);
+            --border-accent: rgba(167, 139, 250, 0.35);
+            --text-primary: #f4f2fa;
+            --text-secondary: #a8a3b8;
+            --accent-gold: #f5c842;
+            --accent-violet: #8b5cf6;
+            --radius-lg: 18px;
+            --radius-md: 12px;
+            --shadow-card: 0 12px 40px rgba(0, 0, 0, 0.35);
+        }
 
         html, body, [class*="css"] {
-            font-family: 'Outfit', 'Segoe UI', sans-serif;
+            font-family: 'Plus Jakarta Sans', 'Segoe UI', sans-serif;
         }
 
         [data-testid="stAppViewContainer"] {
             background:
-                radial-gradient(circle at 8% 12%, rgba(139, 92, 246, 0.18) 0%, transparent 42%),
-                radial-gradient(circle at 92% 88%, rgba(251, 191, 36, 0.12) 0%, transparent 40%),
-                linear-gradient(165deg, #0a0812 0%, #12101f 40%, #1a1530 100%);
+                radial-gradient(ellipse 80% 50% at 0% 0%, rgba(139, 92, 246, 0.14) 0%, transparent 50%),
+                radial-gradient(ellipse 60% 40% at 100% 100%, rgba(245, 200, 66, 0.08) 0%, transparent 45%),
+                linear-gradient(180deg, var(--bg-deep) 0%, #0e0c16 50%, #14121f 100%);
         }
-        [data-testid="stAppViewContainer"]::before {
-            content: "♪  ♫  ♩  ♬  ♪  ♫  ♩  ♬";
-            position: fixed;
-            top: 0; left: 0; right: 0;
-            font-size: 1.1rem;
-            letter-spacing: 2.5rem;
-            color: rgba(212, 175, 55, 0.06);
-            padding: 1.5rem 2rem;
-            pointer-events: none;
-            z-index: 0;
-            white-space: nowrap;
-            overflow: hidden;
-        }
+        [data-testid="stAppViewContainer"]::before { display: none; }
         [data-testid="stHeader"] { background: transparent !important; }
         .block-container {
-            padding-top: 1.5rem;
-            max-width: 1100px;
+            padding-top: 1rem;
+            max-width: 1080px;
             position: relative;
             z-index: 1;
         }
 
-        /* Sidebar — estúdio / palco */
+        /* Sidebar */
         section[data-testid="stSidebar"] {
-            background: linear-gradient(180deg, #120e1f 0%, #1a1435 50%, #0d0a16 100%) !important;
-            border-right: 1px solid rgba(212, 175, 55, 0.2);
+            background: linear-gradient(180deg, #0c0a14 0%, #14111f 55%, #0a0810 100%) !important;
+            border-right: 1px solid var(--border-subtle);
+        }
+        section[data-testid="stSidebar"] > div {
+            padding-top: 0.75rem;
+        }
+        .sidebar-brand {
+            padding: 0.5rem 0.25rem 0.75rem;
+            margin-bottom: 0.25rem;
+        }
+        .sidebar-brand h3 {
+            color: var(--text-primary) !important;
+            font-size: 1.05rem !important;
+            font-weight: 700 !important;
+            margin: 0 !important;
+            letter-spacing: -0.02em;
+        }
+        .sidebar-brand p {
+            color: var(--text-secondary) !important;
+            font-size: 0.78rem !important;
+            margin: 0.2rem 0 0 !important;
+        }
+        .nav-group-label {
+            color: var(--text-secondary);
+            font-size: 0.68rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            margin: 1rem 0 0.35rem 0.15rem;
+            padding: 0;
+        }
+        section[data-testid="stSidebar"] div[data-testid="stRadio"] > label {
+            padding: 0.55rem 0.75rem !important;
+            border-radius: var(--radius-md) !important;
+            margin-bottom: 0.15rem !important;
+            font-weight: 500 !important;
+            font-size: 0.9rem !important;
+            color: var(--text-secondary) !important;
+            border: 1px solid transparent !important;
+            transition: background 0.15s, border-color 0.15s, color 0.15s !important;
+        }
+        section[data-testid="stSidebar"] div[data-testid="stRadio"] > label:hover {
+            background: rgba(139, 92, 246, 0.12) !important;
+            color: var(--text-primary) !important;
+        }
+        section[data-testid="stSidebar"] div[data-testid="stRadio"] > label[data-checked="true"],
+        section[data-testid="stSidebar"] div[data-testid="stRadio"] label:has(input:checked) {
+            background: rgba(139, 92, 246, 0.22) !important;
+            border-color: var(--border-accent) !important;
+            color: var(--text-primary) !important;
+            font-weight: 600 !important;
         }
         section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] h3 {
             color: #fbbf24 !important;
@@ -1185,41 +1315,74 @@ def apply_music_theme():
 
         /* Cabeçalho de página */
         .music-hero {
-            background: linear-gradient(135deg, rgba(26, 21, 48, 0.95) 0%, rgba(18, 14, 31, 0.98) 100%);
-            border: 1px solid rgba(212, 175, 55, 0.35);
-            border-radius: 16px;
-            padding: 1.35rem 1.75rem;
-            margin-bottom: 1.25rem;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+            background: rgba(26, 23, 40, 0.65);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-lg);
+            padding: 1.15rem 1.35rem;
+            margin-bottom: 1rem;
+            box-shadow: var(--shadow-card);
+            backdrop-filter: blur(12px);
             position: relative;
             overflow: hidden;
+        }
+        .music-hero::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, var(--accent, #8b5cf6) 0%, transparent 55%);
+            opacity: 0.12;
+            pointer-events: none;
         }
         .music-hero::after {
             content: "";
             position: absolute;
-            bottom: 0; left: 0; right: 0;
-            height: 4px;
-            background: linear-gradient(90deg, var(--accent, #fbbf24), transparent);
+            left: 0; top: 0; bottom: 0;
+            width: 4px;
+            background: var(--accent, var(--accent-gold));
+            border-radius: 4px 0 0 4px;
         }
         .music-hero h2 {
             margin: 0;
-            color: #faf8ff;
-            font-size: 1.65rem;
+            color: var(--text-primary);
+            font-size: 1.45rem;
             font-weight: 700;
+            letter-spacing: -0.02em;
+            position: relative;
         }
         .music-hero p {
-            margin: 0.35rem 0 0;
-            color: #a89bc4;
-            font-size: 0.92rem;
+            margin: 0.3rem 0 0;
+            color: var(--text-secondary);
+            font-size: 0.88rem;
+            position: relative;
         }
-        .music-hero .notes-deco {
-            position: absolute;
-            right: 1.25rem;
-            top: 50%;
-            transform: translateY(-50%);
-            font-size: 2.5rem;
-            opacity: 0.15;
-            color: #fbbf24;
+        .music-hero .notes-deco { display: none; }
+
+        /* Atalhos do dashboard */
+        .quick-nav-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            gap: 0.65rem;
+            margin: 0.5rem 0 1.25rem;
+        }
+        .quick-nav-card {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-md);
+            padding: 0.85rem 0.5rem;
+            text-align: center;
+            transition: transform 0.15s, border-color 0.15s, background 0.15s;
+        }
+        .quick-nav-card:hover {
+            transform: translateY(-2px);
+            border-color: var(--border-accent);
+            background: rgba(139, 92, 246, 0.1);
+        }
+        .quick-nav-card .qn-icon { font-size: 1.5rem; display: block; margin-bottom: 0.35rem; }
+        .quick-nav-card .qn-label {
+            color: var(--text-primary);
+            font-size: 0.72rem;
+            font-weight: 600;
+            line-height: 1.2;
         }
 
         /* Cards e painéis */
@@ -1482,14 +1645,23 @@ def apply_music_theme():
         }
         .prog-card a { color: #34d399; word-break: break-all; }
 
-        .mobile-user-bar {
-            background: rgba(139, 92, 246, 0.15);
-            border-left: 4px solid #fbbf24;
-            padding: 0.65rem 0.85rem;
-            border-radius: 10px;
-            margin-bottom: 0.5rem;
-            font-size: 0.9rem;
-            color: #e9e4f5;
+        .mobile-user-bar { display: none; }
+
+        /* Botões de atalho (Streamlit) */
+        div[data-testid="column"] button[kind="secondary"] {
+            border-radius: var(--radius-md) !important;
+        }
+        .quick-nav-btn > button {
+            min-height: 4.25rem !important;
+            flex-direction: column !important;
+            font-size: 0.78rem !important;
+            line-height: 1.25 !important;
+            background: rgba(255, 255, 255, 0.04) !important;
+            border: 1px solid var(--border-subtle) !important;
+        }
+        .quick-nav-btn > button:hover {
+            border-color: var(--border-accent) !important;
+            background: rgba(139, 92, 246, 0.12) !important;
         }
 
         /* Botões com área de toque confortável */
@@ -1643,15 +1815,22 @@ def apply_music_theme():
 
         /* Dashboard moderno */
         .welcome-card {
-            background: linear-gradient(135deg, rgba(99, 102, 241, 0.22), rgba(251, 191, 36, 0.12));
-            border: 1px solid rgba(167, 139, 250, 0.45);
-            border-radius: 18px;
-            padding: 1.35rem 1.5rem;
-            margin-bottom: 1.25rem;
-            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+            background: rgba(26, 23, 40, 0.75);
+            border: 1px solid var(--border-accent);
+            border-radius: var(--radius-lg);
+            padding: 1.25rem 1.35rem;
+            margin-bottom: 1rem;
+            box-shadow: var(--shadow-card);
+            backdrop-filter: blur(10px);
         }
-        .welcome-card h3 { color: #faf8ff; margin: 0 0 0.35rem; font-size: 1.35rem; }
-        .welcome-card p { color: #c4b5fd; margin: 0; font-size: 0.95rem; }
+        .welcome-card h3 {
+            color: var(--text-primary);
+            margin: 0 0 0.35rem;
+            font-size: 1.25rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+        }
+        .welcome-card p { color: var(--text-secondary); margin: 0; font-size: 0.9rem; }
         .status-escalado {
             background: rgba(52, 211, 153, 0.12);
             border: 1px solid rgba(52, 211, 153, 0.45);
@@ -1781,7 +1960,7 @@ def inject_mobile_app_shell():
     st.markdown(
         """
         <link rel="manifest" href="/manifest.webmanifest">
-        <meta name="theme-color" content="#1a1530">
+        <meta name="theme-color" content="#07060d">
         <meta name="mobile-web-app-capable" content="yes">
         <meta name="apple-mobile-web-app-capable" content="yes">
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -1823,7 +2002,7 @@ def inject_mobile_app_shell():
 
 def render_mobile_and_push_panel():
     """Instalação no celular + ativar notificações."""
-    with st.expander("📲 App no celular e notificações", expanded=False):
+    with st.sidebar.expander("📲 App no celular e notificações", expanded=False):
         st.markdown(
             """
             **Android:** abra no Chrome → menu **Instalar app** (ou use um **APK** gerado em
@@ -1907,23 +2086,117 @@ def render_push_admin_sidebar():
 
 
 def render_sidebar_profile():
-    st.sidebar.markdown(f"### 🎵 {GROUP_NAME}")
-    st.sidebar.markdown("---")
+    st.sidebar.markdown(
+        f"""
+        <div class="sidebar-brand">
+            <h3>🎵 {GROUP_NAME}</h3>
+            <p>Ministério de louvor · IBBJ</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
     photo_path = profile_photo_file(
         st.session_state.user_email,
         st.session_state.get("user_profile_photo", ""),
     )
-    if photo_path:
-        st.sidebar.image(str(photo_path), width=88)
-    st.sidebar.markdown(f"👤 **{st.session_state.user_name}**")
-    roles = str(st.session_state.user_roles).strip()
-    if roles:
-        st.sidebar.caption(roles_for_public_display(roles))
+    col_photo, col_info = st.sidebar.columns([1, 2])
+    with col_photo:
+        if photo_path:
+            st.image(str(photo_path), width=72)
+        else:
+            st.markdown('<div style="font-size:2.2rem;text-align:center">👤</div>', unsafe_allow_html=True)
+    with col_info:
+        st.markdown(f"**{st.session_state.user_name}**")
+        roles = str(st.session_state.user_roles).strip()
+        if roles:
+            st.caption(roles_for_public_display(roles))
     st.sidebar.markdown("---")
     if is_scale_manager(st.session_state.user_roles):
         render_registration_link_box(compact=True)
         st.sidebar.markdown("---")
-    if st.sidebar.button("🚪  Sair", use_container_width=True):
+
+
+def render_sidebar_navigation() -> str:
+    """Menu lateral com seções visuais e seleção única."""
+    groups = build_nav_groups_for_user(st.session_state.user_roles)
+    flat: list[tuple[str, str, str]] = []
+    for _, section in groups:
+        flat.extend(section)
+    names = [name for name, _, _ in flat]
+    icons = {name: icon for name, icon, _ in flat}
+
+    if "app_menu" not in st.session_state or st.session_state.app_menu not in names:
+        st.session_state.app_menu = names[0] if names else "Dashboard"
+
+    st.sidebar.markdown(
+        '<p class="nav-group-label">Navegação</p>',
+        unsafe_allow_html=True,
+    )
+    group_legend = " · ".join(g for g, _ in groups)
+    st.sidebar.caption(group_legend)
+
+    try:
+        idx = names.index(st.session_state.app_menu)
+    except ValueError:
+        idx = 0
+
+    picked = st.sidebar.radio(
+        "Ir para",
+        names,
+        index=idx,
+        format_func=lambda n, ic=icons: f"{ic.get(n, '🎵')}  {n}",
+        key="sidebar_nav_main",
+        label_visibility="collapsed",
+    )
+    if picked != st.session_state.app_menu:
+        st.session_state.app_menu = picked
+        st.rerun()
+    return picked
+
+
+def render_dashboard_quick_actions(roles: str):
+    """Atalhos visuais na home para as telas mais usadas."""
+    icons = menu_icons_map(roles)
+    items, _, _ = get_menu_items_for_user(roles)
+    available_names = {name for name, _, _ in items}
+    links = [n for n in DASHBOARD_QUICK_LINKS if n in available_names and n != "Dashboard"]
+    if not links:
+        return
+
+    st.markdown('<p class="music-panel-title">⚡ Acesso rápido</p>', unsafe_allow_html=True)
+    cols = st.columns(min(len(links), 4))
+    for col, name in zip(cols, links[:4]):
+        with col:
+            st.markdown('<div class="quick-nav-btn">', unsafe_allow_html=True)
+            if st.button(
+                f"{icons.get(name, '🎵')}\n{name}",
+                key=f"quick_nav_{name}",
+                use_container_width=True,
+            ):
+                st.session_state.app_menu = name
+                st.session_state["sidebar_nav_main"] = name
+                st.rerun()
+            st.markdown("</div>", unsafe_allow_html=True)
+
+    if len(links) > 4:
+        cols2 = st.columns(min(len(links) - 4, 4))
+        for col, name in zip(cols2, links[4:8]):
+            with col:
+                st.markdown('<div class="quick-nav-btn">', unsafe_allow_html=True)
+                if st.button(
+                    f"{icons.get(name, '🎵')}\n{name}",
+                    key=f"quick_nav2_{name}",
+                    use_container_width=True,
+                ):
+                    st.session_state.app_menu = name
+                    st.session_state["sidebar_nav_main"] = name
+                    st.rerun()
+                st.markdown("</div>", unsafe_allow_html=True)
+
+
+def render_sidebar_footer():
+    render_mobile_and_push_panel()
+    if st.sidebar.button("🚪  Sair", use_container_width=True, type="secondary"):
         st.session_state.authenticated = False
         st.session_state.user_name = ""
         st.session_state.user_full_name = ""
@@ -1931,18 +2204,8 @@ def render_sidebar_profile():
         st.session_state.user_roles = ""
         st.session_state.user_primary_role = "membro"
         st.session_state.user_profile_photo = ""
+        st.session_state.pop("app_menu", None)
         st.rerun()
-
-
-def render_navigation() -> str:
-    """Menu principal no topo — otimizado para uso com o polegar no celular."""
-    _, labels, _ = get_menu_items_for_user(st.session_state.user_roles)
-    choice = st.selectbox(
-        "🎼 Ir para",
-        list(labels.keys()),
-        key="app_navigation",
-    )
-    return labels[choice]
 
 
 def page_header(menu: str):
@@ -1951,12 +2214,16 @@ def page_header(menu: str):
     title = MENU_HEADERS.get(menu, menu)
     subtitle = next((desc for name, _, desc in items if name == menu), "")
     accent = MENU_ACCENTS.get(menu, "#fbbf24")
+    group_label = next(
+        (g for g, section_names in NAV_GROUP_ORDER if menu in section_names),
+        "",
+    )
+    breadcrumb = f"{group_label} · " if group_label else ""
     st.markdown(
         f"""
         <div class="music-hero" style="--accent: {accent}">
-            <span class="notes-deco">♪♫♩</span>
             <h2>{icon} {title}</h2>
-            <p>{subtitle}</p>
+            <p>{breadcrumb}{subtitle}</p>
         </div>
         """,
         unsafe_allow_html=True,
@@ -2065,6 +2332,105 @@ def render_login_brand():
     )
 
 
+def render_forgot_password_form(members_df: pd.DataFrame):
+    st.markdown(
+        '<p class="login-panel-title">Esqueci minha senha</p>',
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        '<p class="login-panel-sub">Informe o <strong>e-mail cadastrado</strong> no ministério. '
+        "Enviaremos um link para criar uma nova senha.</p>",
+        unsafe_allow_html=True,
+    )
+    if not smtp_is_configured():
+        st.warning(
+            "O envio por e-mail ainda não está ativo neste servidor. "
+            "O administrador precisa configurar o SMTP em `.streamlit/secrets.toml` "
+            "(veja a seção `[smtp]` no arquivo de exemplo)."
+        )
+
+    with st.form(key="forgot_password_form"):
+        email = st.text_input("E-mail cadastrado", key="forgot_email")
+        submit = st.form_submit_button(
+            "Enviar link de redefinição", type="primary", use_container_width=True
+        )
+
+    if submit:
+        if not is_valid_email(email):
+            st.error("Informe um e-mail válido.")
+        else:
+            ok, msg, _ = create_password_reset_request(
+                email,
+                members_df,
+                RESET_TOKENS_FILE,
+                reset_url_base=get_password_reset_base_url(),
+                reset_query_param=RESET_PASSWORD_QUERY_PARAM,
+                group_name=GROUP_NAME,
+            )
+            if ok:
+                st.success(msg)
+            else:
+                st.error(msg)
+
+    if st.button("← Voltar ao login", use_container_width=True):
+        st.query_params.clear()
+        st.rerun()
+
+
+def render_reset_password_form(members_df: pd.DataFrame):
+    token = get_reset_password_token()
+    email, err = validate_reset_token(token, RESET_TOKENS_FILE)
+
+    st.markdown(
+        '<p class="login-panel-title">Nova senha</p>',
+        unsafe_allow_html=True,
+    )
+
+    if not email:
+        st.error(err)
+        if st.button("Solicitar novo link", use_container_width=True):
+            st.query_params.clear()
+            st.query_params[FORGOT_PASSWORD_QUERY_PARAM] = "1"
+            st.rerun()
+        return
+
+    st.markdown(
+        f'<p class="login-panel-sub">Defina uma nova senha para <strong>{email}</strong>.</p>',
+        unsafe_allow_html=True,
+    )
+
+    with st.form(key="reset_password_form"):
+        nova = st.text_input("Nova senha", type="password", key="reset_new_pwd")
+        conf = st.text_input("Confirmar nova senha", type="password", key="reset_conf_pwd")
+        submit = st.form_submit_button(
+            "Salvar nova senha", type="primary", use_container_width=True
+        )
+
+    if submit:
+        if nova != conf:
+            st.error("As senhas não coincidem.")
+        else:
+            ok, err_msg = apply_password_reset(
+                token,
+                nova,
+                members_df,
+                RESET_TOKENS_FILE,
+                hash_password_fn=hash_password,
+            )
+            if ok:
+                save_data(members_df, MEMBERS_FILE)
+                st.query_params.clear()
+                st.success("Senha alterada! Faça login com a nova senha.")
+                st.balloons()
+                st.rerun()
+            else:
+                st.error(err_msg)
+
+    if st.button("← Voltar ao login", use_container_width=True):
+        st.query_params.clear()
+        st.rerun()
+
+
 def show_login_page(members_df: pd.DataFrame):
     apply_music_theme()
     st.markdown('<div class="login-wrap">', unsafe_allow_html=True)
@@ -2073,7 +2439,11 @@ def show_login_page(members_df: pd.DataFrame):
 
     st.markdown("---")
 
-    if is_register_page():
+    if is_reset_password_page():
+        render_reset_password_form(members_df)
+    elif is_forgot_password_page():
+        render_forgot_password_form(members_df)
+    elif is_register_page():
         st.markdown(
             '<p class="login-panel-title">Cadastro de novo membro</p>',
             unsafe_allow_html=True,
@@ -2103,6 +2473,11 @@ def show_login_page(members_df: pd.DataFrame):
                 login_button = st.form_submit_button(
                     "Entrar", type="primary", use_container_width=True
                 )
+
+            if st.button("🔑  Esqueci minha senha", use_container_width=True):
+                st.query_params.clear()
+                st.query_params[FORGOT_PASSWORD_QUERY_PARAM] = "1"
+                st.rerun()
 
             if login_button:
                 user = authenticate(login_email, login_password, members_df)
@@ -2416,6 +2791,7 @@ def show_dashboard(
 
     render_dashboard_swap_alerts(trocas_df, escalas_df)
     render_events_feed(eventos_df)
+    render_dashboard_quick_actions(st.session_state.user_roles)
 
     st.markdown('<p class="music-panel-title">📅 Cultos da semana</p>', unsafe_allow_html=True)
     st.markdown(
@@ -3787,7 +4163,7 @@ def main():
         page_title=GROUP_NAME,
         page_icon="🎵",
         layout="wide",
-        initial_sidebar_state="collapsed",
+        initial_sidebar_state="expanded",
     )
     apply_music_theme()
     ensure_session_state()
@@ -3819,17 +4195,10 @@ def main():
         return
 
     render_sidebar_profile()
+    menu = render_sidebar_navigation()
+    render_sidebar_footer()
     render_push_admin_sidebar()
-    render_mobile_and_push_panel()
-    menu = render_navigation()
 
-    primary = st.session_state.get("user_primary_role", "membro")
-    badge = "👑" if primary == ROLE_LIDER else ("🎯" if is_scale_manager(st.session_state.user_roles) else "🎤")
-    st.markdown(
-        f'<div class="mobile-user-bar">{badge} <strong>{st.session_state.user_name}</strong><br>'
-        f'<span style="font-size:0.82rem;color:#a89bc4">{roles_for_public_display(st.session_state.user_roles)}</span></div>',
-        unsafe_allow_html=True,
-    )
     page_header(menu)
 
     if menu == "Gerenciar Escalas":
