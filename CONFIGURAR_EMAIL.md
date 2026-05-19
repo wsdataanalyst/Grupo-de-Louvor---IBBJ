@@ -1,55 +1,57 @@
-# Configurar e-mail (esqueci minha senha)
+# Senha esquecida — jeito simples
 
-O app envia um link de redefinição **somente para o e-mail já cadastrado** em `data/members.csv`.
+## Para quem esqueceu a senha (integrante)
 
-## 1. Copiar secrets
+**Não precisa configurar nada.**
 
-```powershell
-copy .streamlit\secrets.toml.example .streamlit\secrets.toml
-```
+1. Fale com o **líder** ou **organizador** do louvor  
+2. Ele entra no app → **Gerenciar Escalas** ou **Membros**  
+3. Abre **🔑 Redefinir senha de integrante**  
+4. Escolhe seu nome, define uma senha nova e te avisa (WhatsApp, etc.)  
+5. Você entra com seu **e-mail cadastrado** e a **senha nova**
 
-## 2. Preencher `[smtp]`
+---
 
-Exemplo com **Gmail**:
+## Para líder / organizador / desenvolvedor
 
-1. Ative verificação em 2 etapas na conta Google.
-2. Crie uma **Senha de app** em [Google App Passwords](https://myaccount.google.com/apppasswords).
-3. No `secrets.toml`:
+No app, com sua conta de gestão:
+
+**Gerenciar Escalas** → aba **Integrantes** → **🔑 Redefinir senha de integrante**
+
+ou
+
+**Membros** → **🔑 Redefinir senha de integrante**
+
+Exemplo: redefinir a senha do Willame (`willsousaa7x@gmail.com`) e avisá-lo.
+
+---
+
+## E-mail automático (opcional)
+
+Só se quiser que **Esqueci minha senha** envie link sozinho, sem passar pelo líder.
+
+### Opção A — Resend (mais fácil que Gmail)
+
+1. Conta grátis em https://resend.com  
+2. Copie a **API Key** (`re_...`)  
+3. No Streamlit Cloud → **Secrets**:
 
 ```toml
 public_url = "https://seu-app.streamlit.app"
-
-[smtp]
-enabled = true
-host = "smtp.gmail.com"
-port = 587
-user = "seu-email@gmail.com"
-password = "xxxx xxxx xxxx xxxx"
-from_email = "Grupo de Louvor IBBJ <seu-email@gmail.com>"
-use_tls = true
+resend_api_key = "re_SUA_CHAVE"
+resend_from_email = "Louvor IBBJ <onboarding@resend.dev>"
 ```
 
-`public_url` deve ser a URL pública do app (HTTPS), para o link no e-mail funcionar no celular.
+### Opção B — Gmail SMTP
 
-## 3. Outros provedores
+Veja `python setup_smtp.py` ou o bloco `[smtp]` em `secrets.toml.example`.
 
-| Provedor   | host                 | porta |
-|-----------|----------------------|-------|
-| Outlook   | smtp.office365.com   | 587   |
-| Hostinger | smtp.hostinger.com   | 587   |
-| Zoho      | smtp.zoho.com        | 587   |
+---
 
-## 4. Testar
+## Resumo
 
-1. Reinicie o app: `streamlit run app.py`
-2. Na tela de login → **Esqueci minha senha**
-3. Informe um e-mail que já existe no cadastro
-4. Abra o e-mail e clique em **Redefinir minha senha**
-
-O link expira em **1 hora** e só pode ser usado **uma vez**.
-
-## Segurança
-
-- Não é informado se o e-mail existe ou não (mensagem genérica).
-- Máximo de **3 pedidos por hora** por e-mail.
-- Tokens ficam em `data/password_reset_tokens.csv` (não versionar em produção se preferir).
+| Situação | O que fazer |
+|----------|-------------|
+| Will esqueceu a senha | Líder redefine no app (sem Gmail) |
+| Quer link por e-mail | Configurar Resend ou SMTP **uma vez** no servidor |
+| Integrante | Só pedir ao líder — zero configuração |

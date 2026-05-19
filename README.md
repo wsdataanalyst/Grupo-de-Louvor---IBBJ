@@ -14,6 +14,7 @@ Ou manualmente:
 ```powershell
 pip install -r requirements.txt
 python setup_onesignal.py    # primeira vez — configura push
+python setup_smtp.py         # esqueci minha senha (e-mail)
 streamlit run app.py
 ```
 

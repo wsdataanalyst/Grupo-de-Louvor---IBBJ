@@ -14,7 +14,7 @@ from datetime import date, datetime, timedelta
 from password_reset import (
     apply_password_reset,
     create_password_reset_request,
-    smtp_is_configured,
+    email_is_configured,
     validate_reset_token,
 )
 from push_notifications import (
@@ -248,6 +248,14 @@ def is_scale_manager(roles: str) -> bool:
     return parse_primary_role(roles) in LEADERSHIP_ROLES
 
 
+def can_reset_member_passwords(roles: str | None = None) -> bool:
+    """Líderes, organizadores e desenvolvedores podem redefinir senhas."""
+    roles = roles if roles is not None else str(st.session_state.get("user_roles", ""))
+    if is_scale_manager(roles):
+        return True
+    return is_current_developer()
+
+
 def is_leader(roles: str) -> bool:
     return parse_primary_role(roles) == ROLE_LIDER
 
@@ -282,9 +290,14 @@ def get_menu_items_for_user(roles: str) -> list:
     items = [
         item for item in MENU_ITEMS_BASE if item[0] not in hidden_for_members
     ]
-    if is_scale_manager(roles):
+    if is_scale_manager(roles) or can_reset_member_passwords(roles):
         items = [item for item in MENU_ITEMS_BASE if item[0] != "Gerenciar Escalas"]
         items.insert(1, ("Gerenciar Escalas", "🎯", "Montar cultos, equipe e louvores"))
+        if not is_scale_manager(roles) and can_reset_member_passwords(roles):
+            # Desenvolvedor sem papel de líder: Membros + redefinir senhas
+            if not any(n == "Membros" for n, _, _ in items):
+                membros = next(x for x in MENU_ITEMS_BASE if x[0] == "Membros")
+                items.append(membros)
     labels = {f"{icon}  {name}": name for name, icon, _ in items}
     icons = {name: icon for name, icon, _ in items}
     return items, labels, icons
@@ -2057,10 +2070,15 @@ def is_current_developer() -> bool:
     return ROLE_DESENVOLVEDOR.lower() in roles
 
 
-def render_push_admin_sidebar():
-    """Painel do desenvolvedor para testar e conferir OneSignal."""
+def render_push_admin_sidebar(members_df: pd.DataFrame | None = None):
+    """Painel do desenvolvedor: push e redefinição de senhas."""
     if not is_current_developer():
         return
+
+    if members_df is not None:
+        with st.sidebar.expander("🔑 Redefinir senhas (dev)", expanded=False):
+            render_password_reset_panel(members_df, form_key_prefix="dev_sidebar")
+
     with st.sidebar.expander("🔔 Configurar push (admin)", expanded=False):
         status = push_config_status()
         if status["enabled"]:
@@ -2337,40 +2355,48 @@ def render_forgot_password_form(members_df: pd.DataFrame):
         '<p class="login-panel-title">Esqueci minha senha</p>',
         unsafe_allow_html=True,
     )
-    st.markdown(
-        '<p class="login-panel-sub">Informe o <strong>e-mail cadastrado</strong> no ministério. '
-        "Enviaremos um link para criar uma nova senha.</p>",
-        unsafe_allow_html=True,
+
+    st.success(
+        "**Jeito mais fácil:** peça ao **líder** ou **organizador** do louvor para redefinir "
+        "sua senha no app.\n\n"
+        "Eles entram em **Gerenciar Escalas** ou **Membros** → "
+        "**Redefinir senha de integrante**, escolhem seu nome e definem uma senha nova. "
+        "Você só precisa fazer login de novo — sem configurar nada."
     )
-    if not smtp_is_configured():
-        st.warning(
-            "O envio por e-mail ainda não está ativo neste servidor. "
-            "O administrador precisa configurar o SMTP em `.streamlit/secrets.toml` "
-            "(veja a seção `[smtp]` no arquivo de exemplo)."
-        )
 
-    with st.form(key="forgot_password_form"):
-        email = st.text_input("E-mail cadastrado", key="forgot_email")
-        submit = st.form_submit_button(
-            "Enviar link de redefinição", type="primary", use_container_width=True
+    if email_is_configured():
+        st.markdown(
+            '<p class="login-panel-sub">Ou receba um <strong>link por e-mail</strong> '
+            "(use o mesmo e-mail do seu cadastro):</p>",
+            unsafe_allow_html=True,
         )
-
-    if submit:
-        if not is_valid_email(email):
-            st.error("Informe um e-mail válido.")
-        else:
-            ok, msg, _ = create_password_reset_request(
-                email,
-                members_df,
-                RESET_TOKENS_FILE,
-                reset_url_base=get_password_reset_base_url(),
-                reset_query_param=RESET_PASSWORD_QUERY_PARAM,
-                group_name=GROUP_NAME,
+        with st.form(key="forgot_password_form"):
+            email = st.text_input("E-mail cadastrado", key="forgot_email")
+            submit = st.form_submit_button(
+                "Enviar link por e-mail", use_container_width=True
             )
-            if ok:
-                st.success(msg)
+
+        if submit:
+            if not is_valid_email(email):
+                st.error("Informe um e-mail válido.")
             else:
-                st.error(msg)
+                ok, msg, _ = create_password_reset_request(
+                    email,
+                    members_df,
+                    RESET_TOKENS_FILE,
+                    reset_url_base=get_password_reset_base_url(),
+                    reset_query_param=RESET_PASSWORD_QUERY_PARAM,
+                    group_name=GROUP_NAME,
+                )
+                if ok:
+                    st.success(msg)
+                else:
+                    st.error(msg)
+    else:
+        st.caption(
+            "Envio automático por e-mail ainda não está ativo neste servidor. "
+            "Use o caminho com o líder acima — funciona sempre."
+        )
 
     if st.button("← Voltar ao login", use_container_width=True):
         st.query_params.clear()
@@ -2979,11 +3005,83 @@ def show_user_profile(
             st.success("Senha alterada com sucesso!")
 
 
+def admin_set_member_password(
+    members_df: pd.DataFrame, email: str, new_password: str
+) -> tuple[bool, str]:
+    """Líder/organizador redefine senha sem e-mail."""
+    email = email.strip().lower()
+    if len(new_password) < 6:
+        return False, "A senha deve ter pelo menos 6 caracteres."
+    emails = members_df["email"].astype(str).str.strip().str.lower()
+    idx_list = members_df.index[emails == email].tolist()
+    if not idx_list:
+        return False, "Integrante não encontrado."
+    members_df.at[idx_list[0], "password_hash"] = hash_password(new_password)
+    return True, ""
+
+
+def render_password_reset_panel(
+    members_df: pd.DataFrame, *, form_key_prefix: str = "admin"
+):
+    """Formulário de redefinição (líder ou desenvolvedor)."""
+    st.caption(
+        "Escolha o integrante, defina uma senha nova e avise a pessoa. "
+        "Não precisa configurar e-mail."
+    )
+    if members_df.empty:
+        st.info("Nenhum membro cadastrado.")
+        return
+
+    options = {}
+    for _, row in members_df.iterrows():
+        em = str(row.get("email", "")).strip().lower()
+        if not em:
+            continue
+        label = f"{member_display_name(row)} ({em})"
+        options[label] = em
+
+    if not options:
+        st.warning("Nenhum integrante cadastrado.")
+        return
+
+    with st.form(key=f"{form_key_prefix}_reset_password_form"):
+        chosen = st.selectbox("Integrante", list(options.keys()))
+        nova = st.text_input("Nova senha", type="password")
+        conf = st.text_input("Confirmar nova senha", type="password")
+        submit = st.form_submit_button(
+            "Salvar nova senha", type="primary", use_container_width=True
+        )
+
+    if submit:
+        if nova != conf:
+            st.error("As senhas não coincidem.")
+        else:
+            ok, err = admin_set_member_password(members_df, options[chosen], nova)
+            if ok:
+                save_data(members_df, MEMBERS_FILE)
+                st.success(
+                    f"Senha atualizada para **{chosen.split(' (')[0]}**. "
+                    "Avise a pessoa para entrar com a nova senha."
+                )
+            else:
+                st.error(err)
+
+
+def render_admin_password_reset(members_df: pd.DataFrame):
+    """Redefinição simples feita pelo líder ou desenvolvedor — sem SMTP."""
+    with st.expander("🔑 Redefinir senha de integrante", expanded=False):
+        render_password_reset_panel(members_df, form_key_prefix="admin")
+
+
 def show_members_overview(members_df: pd.DataFrame, louvores_df: pd.DataFrame):
     st.markdown('<p class="music-panel-title">👥 Todos os integrantes</p>', unsafe_allow_html=True)
     if members_df.empty:
         st.info("Nenhum membro cadastrado.")
         return
+
+    if can_reset_member_passwords():
+        render_admin_password_reset(members_df)
+
     display = members_df[["first_name", "last_name", "email", "roles", "created_at"]].copy()
     display["roles"] = display["roles"].apply(roles_for_public_display)
     display.columns = ["Nome", "Sobrenome", "Email", "Funções", "Cadastro"]
@@ -4197,7 +4295,7 @@ def main():
     render_sidebar_profile()
     menu = render_sidebar_navigation()
     render_sidebar_footer()
-    render_push_admin_sidebar()
+    render_push_admin_sidebar(members_df)
 
     page_header(menu)
 
@@ -4292,7 +4390,7 @@ def main():
         show_user_profile(members_df, escalas_df, equipe_df)
 
     elif menu == "Membros":
-        if is_scale_manager(st.session_state.user_roles):
+        if can_reset_member_passwords():
             show_members_overview(members_df, louvores_df)
         else:
             st.markdown('<p class="music-panel-title">🎹 Equipe de louvor</p>', unsafe_allow_html=True)
