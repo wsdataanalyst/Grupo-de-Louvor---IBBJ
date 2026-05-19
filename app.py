@@ -2162,6 +2162,10 @@ def render_sidebar_navigation() -> str:
     group_legend = " · ".join(g for g, _ in groups)
     st.sidebar.caption(group_legend)
 
+    # Sincronizar atalhos do dashboard (app_menu) antes de criar o radio
+    if st.session_state.app_menu in names:
+        st.session_state.sidebar_nav_main = st.session_state.app_menu
+
     try:
         idx = names.index(st.session_state.app_menu)
     except ValueError:
@@ -2201,7 +2205,6 @@ def render_dashboard_quick_actions(roles: str):
                 use_container_width=True,
             ):
                 st.session_state.app_menu = name
-                st.session_state["sidebar_nav_main"] = name
                 st.rerun()
             st.markdown("</div>", unsafe_allow_html=True)
 
@@ -2216,7 +2219,6 @@ def render_dashboard_quick_actions(roles: str):
                     use_container_width=True,
                 ):
                     st.session_state.app_menu = name
-                    st.session_state["sidebar_nav_main"] = name
                     st.rerun()
                 st.markdown("</div>", unsafe_allow_html=True)
 
