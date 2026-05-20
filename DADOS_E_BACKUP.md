@@ -1,6 +1,16 @@
 # Dados e cadastros — não perder contas
 
-Tudo que o grupo cadastra fica na pasta **`data/`** do servidor (CSV):
+## Solução recomendada: Supabase (nuvem automática)
+
+Configure **`[persistence]`** no Streamlit (guia **`CONFIGURAR_SUPABASE.md`**).
+
+- Cada salvamento envia os CSV para o **Supabase**
+- Renomear o app no Streamlit **não apaga** cadastros — o app baixa da nuvem ao abrir
+- **Sem backup manual** no dia a dia
+
+---
+
+Tudo que o grupo cadastra fica na pasta **`data/`** do servidor (CSV), espelhada na nuvem:
 
 | Arquivo | Conteúdo |
 |---------|----------|

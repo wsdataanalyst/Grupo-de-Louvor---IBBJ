@@ -513,14 +513,33 @@ def render_register_form(members_df: pd.DataFrame) -> pd.DataFrame:
 
 @st.cache_data
 def load_data(file_path: Path, columns: tuple):
-    df = load_csv_preserve_rows(file_path, columns)
+    from remote_store import (
+        dataframe_from_remote,
+        is_remote_enabled,
+        push_file_from_disk,
+        should_sync_file,
+    )
+
+    df = None
+    if should_sync_file(file_path) and is_remote_enabled():
+        df = dataframe_from_remote(columns, file_path.name)
+        if df is not None:
+            file_path.parent.mkdir(parents=True, exist_ok=True)
+            df.to_csv(file_path, index=False)
+        else:
+            df = load_csv_preserve_rows(file_path, columns)
+            if not df.empty:
+                push_file_from_disk(file_path)
+    else:
+        df = load_csv_preserve_rows(file_path, columns)
+
     if file_path == MEMBERS_FILE and not df.empty and "email" in df.columns:
         df["email"] = df["email"].astype(str).str.strip().str.lower()
     return df
 
 
 def save_data(df: pd.DataFrame, file_path: Path, *, force: bool = False) -> bool:
-    """Grava CSV com backup prévio. Retorna False se proteção bloquear members."""
+    """Grava CSV local + nuvem (Supabase). Retorna False se proteção bloquear members."""
     file_path.parent.mkdir(parents=True, exist_ok=True)
 
     if file_path == MEMBERS_FILE:
@@ -531,6 +550,23 @@ def save_data(df: pd.DataFrame, file_path: Path, *, force: bool = False) -> bool
 
     backup_csv_if_exists(file_path, DATA_DIR)
     df.to_csv(file_path, index=False)
+
+    from remote_store import is_remote_enabled, push_file_from_disk, should_sync_file
+
+    if should_sync_file(file_path) and is_remote_enabled():
+        try:
+            if not push_file_from_disk(file_path):
+                if is_current_developer():
+                    show_technical_error(
+                        "Salvo no servidor, mas não foi possível sincronizar com a nuvem. "
+                        "Verifique CONFIGURAR_SUPABASE.md."
+                    )
+        except Exception:
+            if is_current_developer():
+                show_technical_error(
+                    "Salvo localmente; falha ao enviar para Supabase. Veja secrets [persistence]."
+                )
+
     load_data.clear()
     return True
 
@@ -2803,11 +2839,26 @@ def render_data_backup_sidebar():
 
     from data_backup_io import build_data_backup_zip, restore_data_from_zip
 
-    with st.sidebar.expander("💾 Backup / restaurar dados", expanded=False):
-        st.caption(
-            "Os cadastros ficam no **servidor do Streamlit**, não no GitHub. "
-            "Renomear ou criar outro app zera a pasta data/. Baixe o ZIP com frequência."
-        )
+    from remote_store import is_remote_enabled, remote_status_message, sync_all_local_to_remote
+
+    with st.sidebar.expander("💾 Dados na nuvem / backup", expanded=False):
+        st.caption(remote_status_message())
+        if is_remote_enabled():
+            if st.button(
+                "☁️ Enviar tudo para a nuvem agora",
+                use_container_width=True,
+                key="sync_all_to_remote",
+            ):
+                n = sync_all_local_to_remote(DATA_DIR)
+                load_data.clear()
+                st.success(f"{n} arquivo(s) enviado(s) ao Supabase.")
+                st.rerun()
+        else:
+            st.caption(
+                "Ative **Supabase** em secrets (`[persistence]`) para cadastros não sumirem "
+                "ao renomear o app. Guia: **CONFIGURAR_SUPABASE.md**."
+            )
+        st.caption("Backup ZIP (opcional, emergência):")
         stamp = datetime.now().strftime("%Y%m%d_%H%M")
         st.download_button(
             "⬇️ Baixar backup (ZIP)",
@@ -2848,11 +2899,20 @@ def render_data_loss_warning(members_df: pd.DataFrame):
         return
     if len(members_visible_to_group(members_df)) > 1:
         return
-    st.warning(
-        "**Poucos integrantes neste servidor.** Se o grupo já tinha cadastros antes de "
-        "renomear o app no Streamlit, use o menu lateral → **💾 Backup / restaurar dados** "
-        "e envie o ZIP do app antigo. Detalhes em `DADOS_E_BACKUP.md` no repositório."
-    )
+    from remote_store import is_remote_enabled
+
+    if is_remote_enabled():
+        hint = (
+            "A nuvem está ativa, mas quase não há contas aqui. "
+            "Restaure o ZIP do app antigo (menu **Dados na nuvem / backup**) "
+            "ou confira o Supabase."
+        )
+    else:
+        hint = (
+            "Configure **Supabase** (`CONFIGURAR_SUPABASE.md`) para não perder cadastros "
+            "ao atualizar o app, ou restaure um ZIP do backup."
+        )
+    st.warning(f"**Poucos integrantes neste servidor.** {hint}")
 
 
 def render_sidebar_profile():
