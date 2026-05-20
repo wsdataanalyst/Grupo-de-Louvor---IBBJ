@@ -2898,8 +2898,6 @@ def render_chat_messages(chat_df: pd.DataFrame, members_df: pd.DataFrame):
     st.markdown("".join(parts), unsafe_allow_html=True)
     inject_chat_scroll_to_bottom()
 
-    inject_chat_scroll_to_bottom()
-
 
 def render_chat_composer(
     *,
