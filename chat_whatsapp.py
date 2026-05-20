@@ -10,6 +10,10 @@ import streamlit as st
 
 from chat_media import save_audio_upload, save_image_upload
 
+
+def mark_chat_scroll_bottom() -> None:
+    st.session_state["_chat_scroll_bottom"] = True
+
 try:
     from wa_composer import whatsapp_composer
 
@@ -66,6 +70,7 @@ def process_whatsapp_payload(
     try:
         if action == "text" and text:
             append_fn(message=text, message_type="text", media_file="")
+            mark_chat_scroll_bottom()
             return True
 
         if action in ("audio", "audio_file") and b64:
@@ -82,6 +87,7 @@ def process_whatsapp_payload(
                 message_type="audio",
                 media_file=rel,
             )
+            mark_chat_scroll_bottom()
             return True
 
         if action == "image" and b64:
@@ -96,6 +102,7 @@ def process_whatsapp_payload(
                 message_type="image",
                 media_file=rel,
             )
+            mark_chat_scroll_bottom()
             return True
     except Exception as exc:
         st.error(f"Não foi possível enviar: {exc}")
@@ -195,6 +202,7 @@ def render_whatsapp_compat_composer(
     prompt = st.chat_input("Mensagem", key=f"{key_prefix}_chat_input")
     if prompt and prompt.strip():
         append_fn(message=prompt.strip(), message_type="text", media_file="")
+        mark_chat_scroll_bottom()
         st.rerun()
 
 

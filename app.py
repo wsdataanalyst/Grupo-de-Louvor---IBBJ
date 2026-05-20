@@ -1264,21 +1264,47 @@ def mark_chat_seen(chat_df: pd.DataFrame) -> None:
     st.session_state.pop("_chat_has_new", None)
 
 
+def mark_chat_scroll_bottom() -> None:
+    st.session_state["_chat_scroll_bottom"] = True
+
+
 def inject_chat_scroll_to_bottom():
     inject_page_html(
         """
         <script>
         (function () {
+          function scrollParents(el) {
+            var p = el;
+            while (p) {
+              if (p.scrollHeight > p.clientHeight + 8) {
+                p.scrollTop = p.scrollHeight;
+              }
+              p = p.parentElement;
+            }
+          }
           function scrollChat() {
             var doc = window.parent.document;
-            var feed = doc.querySelector(".chat-feed");
-            if (feed) feed.scrollTop = feed.scrollHeight;
             var end = doc.getElementById("chat-scroll-end");
-            if (end) end.scrollIntoView({ behavior: "smooth", block: "end" });
+            if (end) {
+              scrollParents(end);
+              end.scrollIntoView({ behavior: "auto", block: "end", inline: "nearest" });
+            }
+            var panel = doc.getElementById("chat-messages-panel");
+            if (panel) {
+              panel.scrollTop = panel.scrollHeight;
+              scrollParents(panel);
+            }
+            var main =
+              doc.querySelector('[data-testid="stAppViewContainer"] .main') ||
+              doc.querySelector(".main");
+            if (main) main.scrollTop = main.scrollHeight;
+            window.parent.scrollTo(0, doc.body.scrollHeight);
           }
           scrollChat();
-          setTimeout(scrollChat, 200);
-          setTimeout(scrollChat, 600);
+          setTimeout(scrollChat, 120);
+          setTimeout(scrollChat, 400);
+          setTimeout(scrollChat, 900);
+          setTimeout(scrollChat, 1600);
         })();
         </script>
         """,
@@ -1721,14 +1747,16 @@ def apply_music_theme():
         .login-panel-sub { color: #a89bc4 !important; font-size: 0.9rem; }
 
         /* Chat entre integrantes */
+        #chat-messages-panel {
+            scroll-behavior: smooth;
+        }
+        div[data-testid="stVerticalBlockBorderWrapper"]:has(#chat-scroll-end) {
+            overflow-y: auto !important;
+            max-height: 52vh !important;
+        }
         .chat-feed {
-            max-height: 420px;
-            overflow-y: auto;
-            padding: 1rem;
-            background: rgba(12, 10, 20, 0.6);
-            border: 1px solid rgba(52, 211, 153, 0.3);
-            border-radius: 14px;
-            margin-bottom: 1rem;
+            padding: 0.5rem 0.25rem 0.75rem;
+            min-height: 120px;
         }
         .chat-row-head {
             display: flex;
@@ -1764,14 +1792,12 @@ def apply_music_theme():
         }
         .chat-text { color: #f3f0ff; font-size: 0.92rem; margin: 0; }
 
-        /* Compositor estilo WhatsApp */
+        /* Compositor estilo WhatsApp — abaixo das mensagens (fluxo natural) */
         .wa-composer-shell {
-            position: sticky;
-            bottom: 0;
-            z-index: 10;
-            margin-top: 0.75rem;
-            padding: 0.35rem 0 0.5rem;
-            background: linear-gradient(180deg, transparent 0%, rgba(7, 6, 13, 0.92) 35%);
+            position: relative;
+            margin-top: 0.5rem;
+            padding: 0.35rem 0 0.25rem;
+            border-top: 1px solid rgba(134, 150, 160, 0.2);
         }
         .wa-composer-shell iframe {
             border-radius: 16px !important;
@@ -2764,9 +2790,20 @@ def append_chat_message(
     }
     updated = pd.concat([chat_df, pd.DataFrame([new_message])], ignore_index=True)
     save_data(updated, CHAT_FILE)
+    mark_chat_scroll_bottom()
     if notify:
         notify_chat_message(new_message["name"], new_message["message"])
     return updated
+
+
+def _escape_chat_html(text: str) -> str:
+    return (
+        str(text)
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace("\n", "<br>")
+    )
 
 
 def render_chat_messages(chat_df: pd.DataFrame, members_df: pd.DataFrame):
@@ -2777,20 +2814,25 @@ def render_chat_messages(chat_df: pd.DataFrame, members_df: pd.DataFrame):
     my_email = st.session_state.user_email.strip().lower()
     chat_sorted = chat_df.copy()
     chat_sorted["_ts"] = pd.to_datetime(chat_sorted["timestamp"], errors="coerce")
-    chat_sorted = chat_sorted.sort_values("_ts", ascending=True)
+    chat_sorted = chat_sorted.sort_values("_ts", ascending=True, na_position="last")
 
-    for _, row in chat_sorted.iterrows():
-        is_me = str(row.get("email", "")).strip().lower() == my_email
-        name = str(row.get("name", "Integrante"))
-        display_name = "Você" if is_me else name
-        time_str = format_local(row.get("timestamp"), "%d/%m %H:%M")
-        email = str(row.get("email", "")).strip().lower()
-        avatar = member_avatar_for_chat(email, members_df)
-        role = "user" if is_me else "assistant"
-        mtype = str(row.get("message_type", "text") or "text").strip().lower()
-        with st.chat_message(role, avatar=avatar):
+    st.markdown(
+        '<div id="chat-messages-panel" class="chat-feed">',
+        unsafe_allow_html=True,
+    )
+
+    with st.container(height=520, border=False):
+        for _, row in chat_sorted.iterrows():
+            is_me = str(row.get("email", "")).strip().lower() == my_email
+            name = str(row.get("name", "Integrante"))
+            display_name = "Você" if is_me else name
+            time_str = format_local(row.get("timestamp"), "%d/%m %H:%M")
+            email = str(row.get("email", "")).strip().lower()
             foto = member_photo_html(email, members_df, 36)
+            css = "me" if is_me else "other"
+            mtype = str(row.get("message_type", "text") or "text").strip().lower()
             st.markdown(
+                f'<div class="chat-bubble {css}">'
                 f'<div class="chat-row-head">{foto}'
                 f'<span class="chat-row-name">{display_name}</span>'
                 f'<span class="chat-row-time"> · {time_str}</span></div>',
@@ -2811,8 +2853,18 @@ def render_chat_messages(chat_df: pd.DataFrame, members_df: pd.DataFrame):
                 else:
                     st.caption("Foto indisponível")
             else:
-                st.write(str(row.get("message", "")))
-    st.markdown('<div id="chat-scroll-end" style="height:1px;"></div>', unsafe_allow_html=True)
+                st.markdown(
+                    f'<p class="chat-text">{_escape_chat_html(row.get("message", ""))}</p>',
+                    unsafe_allow_html=True,
+                )
+            st.markdown("</div>", unsafe_allow_html=True)
+
+        st.markdown(
+            '<div id="chat-scroll-end" style="height:2px;width:100%;"></div>',
+            unsafe_allow_html=True,
+        )
+
+    st.markdown("</div>", unsafe_allow_html=True)
     inject_chat_scroll_to_bottom()
 
 
@@ -2843,13 +2895,13 @@ def show_group_chat(chat_df: pd.DataFrame, members_df: pd.DataFrame):
     st.markdown('<p class="music-panel-title">💬 Conversa do grupo</p>', unsafe_allow_html=True)
     st.caption(
         f"🟢 {len(members_visible_to_group(members_df))} integrante(s) · "
-        f"estilo WhatsApp: **+** anexos · **segure** o mic para gravar · "
-        f"horário de Brasília"
+        f"mais antigas em cima · novas embaixo · campo de envio no final"
     )
-    render_chat_messages(chat_df, members_df)
 
     def _append(**kwargs):
         append_chat_message(chat_df, **kwargs)
+
+    render_chat_messages(chat_df, members_df)
 
     render_chat_composer(
         key_prefix="group_chat",
@@ -4182,6 +4234,7 @@ def render_ensaio_chat(
             pd.concat([chat_ensaio_df, pd.DataFrame([nova])], ignore_index=True),
             CHAT_ENSAIO_FILE,
         )
+        mark_chat_scroll_bottom()
 
     render_chat_composer(
         key_prefix=f"ensaio_{escala_id}",
