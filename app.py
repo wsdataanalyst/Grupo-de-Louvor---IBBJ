@@ -28,6 +28,7 @@ from chat_media import (
     save_audio_upload,
     save_image_upload,
 )
+from chat_whatsapp import render_whatsapp_chat_composer
 from data_persistence import (
     backup_csv_if_exists,
     load_csv_preserve_rows,
@@ -1762,6 +1763,32 @@ def apply_music_theme():
             margin-bottom: 0.2rem;
         }
         .chat-text { color: #f3f0ff; font-size: 0.92rem; margin: 0; }
+
+        /* Compositor estilo WhatsApp */
+        .wa-composer-shell {
+            position: sticky;
+            bottom: 0;
+            z-index: 10;
+            margin-top: 0.75rem;
+            padding: 0.35rem 0 0.5rem;
+            background: linear-gradient(180deg, transparent 0%, rgba(7, 6, 13, 0.92) 35%);
+        }
+        .wa-composer-shell iframe {
+            border-radius: 16px !important;
+            border: 1px solid rgba(0, 168, 132, 0.25) !important;
+        }
+        [data-testid="stChatMessage"] {
+            max-width: 85%;
+        }
+        [data-testid="stChatMessageContent"] {
+            background: #2a3942 !important;
+            border-radius: 12px !important;
+            border: 1px solid rgba(134, 150, 160, 0.2) !important;
+        }
+        [data-testid="stChatMessage"]:has([data-testid="chatAvatarIcon-user"]) [data-testid="stChatMessageContent"] {
+            background: linear-gradient(135deg, #005c4b, #00a884) !important;
+            border-color: rgba(0, 168, 132, 0.35) !important;
+        }
         .swap-card {
             background: rgba(96, 165, 250, 0.1);
             border: 1px solid rgba(96, 165, 250, 0.35);
@@ -2798,111 +2825,26 @@ def render_chat_composer(
     images_dir: Path | None = None,
     image_prefix: str = "chat",
 ):
-    """Envio de texto, áudio e fotos — fora de st.form (file_uploader funciona)."""
-    st.markdown("##### ✏️ Mensagem de texto")
-    msg = st.text_area(
-        "Texto",
-        height=72,
-        placeholder="Escreva sua mensagem...",
-        key=f"{key_prefix}_msg",
-        label_visibility="collapsed",
-    )
-    if st.button(
-        "💬 Enviar texto",
-        key=f"{key_prefix}_send_text",
-        type="primary",
-        use_container_width=True,
-    ):
-        if msg.strip():
-            append_fn(message=msg.strip(), message_type="text", media_file="")
-            st.rerun()
-        else:
-            st.warning("Digite uma mensagem.")
-
-    st.markdown("##### 🎤 Áudio · 🖼️ Galeria · 📷 Câmera")
-    st.caption(
-        "No celular, toque em Áudio ou Galeria — o aparelho pode abrir o gravador ou a câmera."
-    )
-    col_audio, col_gal, col_cam = st.columns(3)
+    """Compositor estilo WhatsApp: + para anexos, segurar mic para gravar."""
     img_dir = images_dir or CHAT_IMAGES_DIR
-
-    with col_audio:
-        audio_file = st.file_uploader(
-            "Áudio",
-            type=["webm", "ogg", "mp3", "m4a", "wav", "mp4", "aac"],
-            key=f"{key_prefix}_audio",
-            label_visibility="visible",
-        )
-        if st.button(
-            "Enviar áudio",
-            key=f"{key_prefix}_btn_audio",
-            use_container_width=True,
-        ):
-            if audio_file is not None:
-                rel = save_audio_upload(
-                    audio_file, audio_dir, prefix=audio_prefix, data_dir=DATA_DIR
-                )
-                append_fn(
-                    message="🎤 Áudio",
-                    message_type="audio",
-                    media_file=rel,
-                )
-                st.rerun()
-            else:
-                st.warning("Escolha ou grave um áudio primeiro.")
-
-    with col_gal:
-        photo_file = st.file_uploader(
-            "Galeria",
-            type=["jpg", "jpeg", "png", "webp", "heic"],
-            key=f"{key_prefix}_photo",
-        )
-        if st.button(
-            "Enviar foto",
-            key=f"{key_prefix}_btn_photo",
-            use_container_width=True,
-        ):
-            if photo_file is not None:
-                rel = save_image_upload(
-                    photo_file, img_dir, prefix=image_prefix, data_dir=DATA_DIR
-                )
-                append_fn(
-                    message="📷 Foto",
-                    message_type="image",
-                    media_file=rel,
-                )
-                st.rerun()
-            else:
-                st.warning("Escolha uma foto da galeria.")
-
-    with col_cam:
-        cam_photo = st.camera_input("Câmera", key=f"{key_prefix}_camera")
-        if st.button(
-            "Enviar da câmera",
-            key=f"{key_prefix}_btn_cam",
-            use_container_width=True,
-        ):
-            if cam_photo is not None:
-                rel = save_image_upload(
-                    cam_photo, img_dir, prefix=image_prefix, data_dir=DATA_DIR
-                )
-                append_fn(
-                    message="📷 Foto",
-                    message_type="image",
-                    media_file=rel,
-                )
-                st.rerun()
-            else:
-                st.warning("Tire uma foto com a câmera antes de enviar.")
+    render_whatsapp_chat_composer(
+        key_prefix=key_prefix,
+        append_fn=append_fn,
+        audio_dir=audio_dir,
+        audio_prefix=audio_prefix,
+        images_dir=img_dir,
+        image_prefix=image_prefix,
+        data_dir=DATA_DIR,
+    )
 
 
 def show_group_chat(chat_df: pd.DataFrame, members_df: pd.DataFrame):
     mark_chat_seen(chat_df)
     st.markdown('<p class="music-panel-title">💬 Conversa do grupo</p>', unsafe_allow_html=True)
-    st.write("Chat para integrantes logados — todos do grupo veem as mensagens.")
     st.caption(
         f"🟢 {len(members_visible_to_group(members_df))} integrante(s) · "
-        f"horário de Brasília · sessão ativa por {SESSION_MINUTES} min"
+        f"estilo WhatsApp: **+** anexos · **segure** o mic para gravar · "
+        f"horário de Brasília"
     )
     render_chat_messages(chat_df, members_df)
 
@@ -4211,7 +4153,7 @@ def render_ensaio_chat(
 ):
     st.subheader("💬 Chat do ensaio")
     st.caption(
-        "Anotações do ensaio · horário de Brasília · áudios salvos em audios de ensaio."
+        "Chat do ensaio · **+** galeria/câmera sob demanda · **segure** o mic para gravar."
     )
     saved = list_ensaio_audio_files(escala_id)
     if saved:

@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <script src="https://unpkg.com/streamlit-component-lib@2.0.0/dist/streamlit-component-lib.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: transparent;
+      color: #e9edef;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .wa-bar {
+      display: flex;
+      align-items: flex-end;
+      gap: 8px;
+      padding: 8px 10px;
+      background: #1f2c34;
+      border-radius: 24px;
+      border: 1px solid rgba(134, 150, 160, 0.25);
+    }
+    .wa-btn {
+      border: none;
+      background: transparent;
+      color: #8696a0;
+      font-size: 1.45rem;
+      line-height: 1;
+      cursor: pointer;
+      padding: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 42px;
+      min-height: 42px;
+      transition: background 0.15s, color 0.15s, transform 0.1s;
+    }
+    .wa-btn:active { transform: scale(0.94); }
+    .wa-btn-plus.open { color: #00a884; background: rgba(0, 168, 132, 0.12); }
+    .wa-input-wrap { flex: 1; min-width: 0; }
+    #wa-text {
+      width: 100%;
+      min-height: 42px;
+      max-height: 120px;
+      resize: none;
+      border: none;
+      border-radius: 20px;
+      padding: 10px 14px;
+      font-size: 0.95rem;
+      line-height: 1.35;
+      background: #2a3942;
+      color: #e9edef;
+      outline: none;
+      font-family: inherit;
+    }
+    #wa-text::placeholder { color: #8696a0; }
+    .wa-mic {
+      background: #00a884;
+      color: #fff;
+    }
+    .wa-mic.recording {
+      background: #ea4335;
+      animation: pulse 0.8s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(234, 67, 53, 0.5); }
+      50% { box-shadow: 0 0 0 10px rgba(234, 67, 53, 0); }
+    }
+    .wa-send {
+      display: none;
+      background: #00a884;
+      color: #fff;
+    }
+    .wa-send.visible { display: flex; }
+    .wa-mic.hidden { display: none !important; }
+    .wa-hint {
+      font-size: 0.72rem;
+      color: #8696a0;
+      text-align: center;
+      margin: 6px 0 2px;
+      min-height: 1em;
+    }
+    .wa-hint.rec { color: #ea4335; font-weight: 600; }
+    .wa-sheet {
+      display: none;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      padding: 12px 8px 4px;
+      animation: slideUp 0.2s ease;
+    }
+    .wa-sheet.open { display: grid; }
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .wa-sheet-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      padding: 12px 8px;
+      border: none;
+      border-radius: 12px;
+      background: #2a3942;
+      color: #e9edef;
+      cursor: pointer;
+      font-size: 0.78rem;
+    }
+    .wa-sheet-item span.icon { font-size: 1.6rem; }
+    .wa-sheet-item:active { background: #374955; }
+    input[type="file"] { display: none; }
+  </style>
+</head>
+<body>
+  <div class="wa-hint" id="wa-hint">Segure o microfone para gravar · solte para enviar</div>
+  <div class="wa-sheet" id="wa-sheet">
+    <button type="button" class="wa-sheet-item" id="btn-gallery">
+      <span class="icon">🖼️</span><span>Galeria</span>
+    </button>
+    <button type="button" class="wa-sheet-item" id="btn-camera">
+      <span class="icon">📷</span><span>Câmera</span>
+    </button>
+    <button type="button" class="wa-sheet-item" id="btn-audio-file">
+      <span class="icon">📎</span><span>Áudio</span>
+    </button>
+  </div>
+  <div class="wa-bar">
+    <button type="button" class="wa-btn wa-btn-plus" id="btn-plus" title="Anexar">+</button>
+    <div class="wa-input-wrap">
+      <textarea id="wa-text" rows="1" placeholder="Mensagem"></textarea>
+    </div>
+    <button type="button" class="wa-btn wa-mic" id="btn-mic" title="Segure para gravar">🎤</button>
+    <button type="button" class="wa-btn wa-send" id="btn-send" title="Enviar">➤</button>
+  </div>
+  <input type="file" id="in-gallery" accept="image/*" />
+  <input type="file" id="in-camera" accept="image/*" capture="environment" />
+  <input type="file" id="in-audio" accept="audio/*,.webm,.ogg,.mp3,.m4a,.wav,.mp4" />
+
+  <script>
+    const hint = document.getElementById("wa-hint");
+    const sheet = document.getElementById("wa-sheet");
+    const btnPlus = document.getElementById("btn-plus");
+    const textarea = document.getElementById("wa-text");
+    const btnMic = document.getElementById("btn-mic");
+    const btnSend = document.getElementById("btn-send");
+    const inGallery = document.getElementById("in-gallery");
+    const inCamera = document.getElementById("in-camera");
+    const inAudio = document.getElementById("in-audio");
+
+    let mediaRecorder = null;
+    let audioChunks = [];
+    let audioStream = null;
+    let recording = false;
+    let holdTooShort = false;
+
+    function sendPayload(payload) {
+      payload.id = Date.now() + "-" + Math.random().toString(36).slice(2, 9);
+      Streamlit.setComponentValue(payload);
+    }
+
+    function fileToPayload(file, action) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const parts = String(reader.result || "").split(",");
+          resolve({
+            action: action,
+            b64: parts[1] || "",
+            mime: file.type || "application/octet-stream",
+            ext: "." + (file.name.split(".").pop() || "bin").toLowerCase(),
+            filename: file.name || "arquivo",
+          });
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
+
+    function updateSendMic() {
+      const hasText = textarea.value.trim().length > 0;
+      if (hasText) {
+        btnMic.classList.add("hidden");
+        btnSend.classList.add("visible");
+      } else {
+        btnMic.classList.remove("hidden");
+        btnSend.classList.remove("visible");
+      }
+      textarea.style.height = "auto";
+      textarea.style.height = Math.min(textarea.scrollHeight, 120) + "px";
+    }
+
+    textarea.addEventListener("input", updateSendMic);
+    textarea.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        btnSend.click();
+      }
+    });
+
+    btnPlus.addEventListener("click", () => {
+      sheet.classList.toggle("open");
+      btnPlus.classList.toggle("open");
+    });
+
+    document.getElementById("btn-gallery").addEventListener("click", () => {
+      sheet.classList.remove("open");
+      btnPlus.classList.remove("open");
+      inGallery.click();
+    });
+    document.getElementById("btn-camera").addEventListener("click", () => {
+      sheet.classList.remove("open");
+      btnPlus.classList.remove("open");
+      inCamera.click();
+    });
+    document.getElementById("btn-audio-file").addEventListener("click", () => {
+      sheet.classList.remove("open");
+      btnPlus.classList.remove("open");
+      inAudio.click();
+    });
+
+    async function handleFileInput(input, action) {
+      input.addEventListener("change", async () => {
+        const file = input.files && input.files[0];
+        input.value = "";
+        if (!file) return;
+        try {
+          const payload = await fileToPayload(file, action);
+          sendPayload(payload);
+        } catch (err) {
+          console.error(err);
+        }
+      });
+    }
+    handleFileInput(inGallery, "image");
+    handleFileInput(inCamera, "image");
+    handleFileInput(inAudio, "audio_file");
+
+    btnSend.addEventListener("click", () => {
+      const text = textarea.value.trim();
+      if (!text) return;
+      sendPayload({ action: "text", text: text });
+      textarea.value = "";
+      updateSendMic();
+    });
+
+    async function startRecording() {
+      if (recording) return;
+      holdTooShort = true;
+      setTimeout(() => { holdTooShort = false; }, 400);
+      try {
+        audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const mime = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+          ? "audio/webm;codecs=opus"
+          : "audio/webm";
+        mediaRecorder = new MediaRecorder(audioStream, { mimeType: mime });
+        audioChunks = [];
+        mediaRecorder.ondataavailable = (e) => {
+          if (e.data.size > 0) audioChunks.push(e.data);
+        };
+        mediaRecorder.onstop = async () => {
+          btnMic.classList.remove("recording");
+          hint.classList.remove("rec");
+          hint.textContent = "Segure o microfone para gravar · solte para enviar";
+          recording = false;
+          if (audioStream) {
+            audioStream.getTracks().forEach((t) => t.stop());
+            audioStream = null;
+          }
+          if (holdTooShort || audioChunks.length === 0) return;
+          const blob = new Blob(audioChunks, { type: "audio/webm" });
+          const file = new File([blob], "gravacao.webm", { type: "audio/webm" });
+          try {
+            const payload = await fileToPayload(file, "audio");
+            sendPayload(payload);
+          } catch (err) {
+            console.error(err);
+          }
+        };
+        mediaRecorder.start();
+        recording = true;
+        btnMic.classList.add("recording");
+        hint.classList.add("rec");
+        hint.textContent = "🔴 Gravando… solte para enviar";
+      } catch (err) {
+        hint.textContent = "Permita o microfone nas configurações do navegador.";
+        console.error(err);
+      }
+    }
+
+    function stopRecording() {
+      if (mediaRecorder && mediaRecorder.state === "recording") {
+        mediaRecorder.stop();
+      }
+    }
+
+    btnMic.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      if (!textarea.value.trim()) startRecording();
+    });
+    btnMic.addEventListener("mouseup", (e) => {
+      e.preventDefault();
+      stopRecording();
+    });
+    btnMic.addEventListener("mouseleave", () => {
+      if (recording) stopRecording();
+    });
+    btnMic.addEventListener("touchstart", (e) => {
+      e.preventDefault();
+      if (!textarea.value.trim()) startRecording();
+    }, { passive: false });
+    btnMic.addEventListener("touchend", (e) => {
+      e.preventDefault();
+      stopRecording();
+    }, { passive: false });
+
+    Streamlit.setFrameHeight(160);
+    textarea.addEventListener("input", () => {
+      const h = sheet.classList.contains("open") ? 200 : 120;
+      Streamlit.setFrameHeight(Math.max(h, 100 + textarea.scrollHeight));
+    });
+    btnPlus.addEventListener("click", () => {
+      Streamlit.setFrameHeight(sheet.classList.contains("open") ? 210 : 120);
+    });
+    updateSendMic();
+  </script>
+</body>
+</html>
