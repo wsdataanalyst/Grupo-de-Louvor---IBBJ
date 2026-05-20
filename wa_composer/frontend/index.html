@@ -2,7 +2,29 @@
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8" />
-  <script src="https://unpkg.com/streamlit-component-lib@2.0.0/dist/streamlit-component-lib.js"></script>
+  <script>
+    /* Bridge Streamlit embutido (sem CDN — funciona no Streamlit Cloud) */
+    (function () {
+      function post(msg) {
+        window.parent.postMessage(
+          Object.assign({ isStreamlitMessage: true }, msg),
+          "*"
+        );
+      }
+      window.Streamlit = {
+        RENDER_EVENT: "streamlit:render",
+        setComponentValue: function (value) {
+          post({ type: "streamlit:setComponentValue", value: value });
+        },
+        setFrameHeight: function (height) {
+          post({ type: "streamlit:setFrameHeight", height: height });
+        },
+      };
+      window.addEventListener("load", function () {
+        post({ type: "streamlit:componentReady", apiVersion: 1 });
+      });
+    })();
+  </script>
   <style>
     * { box-sizing: border-box; }
     body {
