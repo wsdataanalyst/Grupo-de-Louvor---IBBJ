@@ -30,7 +30,7 @@ from chat_media import (
     save_audio_upload,
     save_image_upload,
 )
-from chat_whatsapp import pending_text_key, render_whatsapp_chat_composer
+from chat_whatsapp import render_whatsapp_chat_composer
 from data_persistence import (
     backup_csv_if_exists,
     load_csv_preserve_rows,
@@ -3304,6 +3304,11 @@ def _chat_media_html(mtype: str, media_file: str) -> str:
             f'<source src="data:{mime};base64,{b64}" type="{mime}"></audio>'
         )
     return ""
+
+
+def pending_text_key(key_prefix: str) -> str:
+    """Chave session_state para texto enviado via chat_input (antes do rerun)."""
+    return f"{key_prefix}_pending_text"
 
 
 def render_chat_messages(chat_df: pd.DataFrame, members_df: pd.DataFrame):

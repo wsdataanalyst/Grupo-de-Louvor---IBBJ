@@ -130,7 +130,7 @@ def render_simple_chat_composer(
 
     prompt = st.chat_input("Mensagem", key=f"{key_prefix}_input")
     if prompt and prompt.strip():
-        st.session_state[pending_text_key(key_prefix)] = prompt.strip()
+        st.session_state[f"{key_prefix}_pending_text"] = prompt.strip()
         st.rerun()
 
 
