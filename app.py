@@ -2935,14 +2935,19 @@ def show_login_page(members_df: pd.DataFrame):
     st.markdown("</div>", unsafe_allow_html=True)
 
 
+def load_chat_df() -> pd.DataFrame:
+    """Recarrega o chat do disco (evita DataFrame desatualizado na sessão)."""
+    return prepare_chat(load_data(CHAT_FILE, CHAT_COLUMNS))
+
+
 def append_chat_message(
-    chat_df: pd.DataFrame,
     *,
     message: str,
     message_type: str = "text",
     media_file: str = "",
     notify: bool = True,
 ) -> pd.DataFrame:
+    base = load_chat_df()
     new_message = {
         "timestamp": timestamp_now(),
         "email": st.session_state.user_email,
@@ -2951,11 +2956,18 @@ def append_chat_message(
         "message_type": message_type,
         "media_file": media_file,
     }
-    updated = pd.concat([chat_df, pd.DataFrame([new_message])], ignore_index=True)
-    save_data(updated, CHAT_FILE)
+    updated = pd.concat([base, pd.DataFrame([new_message])], ignore_index=True)
+    if not save_data(updated, CHAT_FILE):
+        st.error("Não foi possível salvar a mensagem. Tente novamente.")
+        return base
+    st.session_state["_chat_df_cache"] = updated
+    update_chat_latest_ts(updated)
     mark_chat_scroll_bottom()
     if notify:
-        notify_chat_message(new_message["name"], new_message["message"])
+        try:
+            notify_chat_message(new_message["name"], new_message["message"])
+        except Exception:
+            pass
     return updated
 
 
@@ -3075,11 +3087,22 @@ def render_chat_composer(
 
 
 def show_group_chat(chat_df: pd.DataFrame, members_df: pd.DataFrame):
+    from chat_whatsapp import pending_text_key
+
+    pending_key = pending_text_key("group_chat")
+    pending = st.session_state.pop(pending_key, None)
+    if pending and str(pending).strip():
+        append_chat_message(message=str(pending).strip(), message_type="text", media_file="")
+
+    chat_df = load_chat_df()
+    st.session_state["_chat_df_cache"] = chat_df
+    st.session_state.chat_unread_count = 0
+
     mark_chat_seen(chat_df)
     st.markdown('<p class="music-panel-title">💬 Conversa do grupo</p>', unsafe_allow_html=True)
 
     def _append(**kwargs):
-        append_chat_message(chat_df, **kwargs)
+        append_chat_message(**kwargs)
 
     render_chat_messages(chat_df, members_df)
     render_chat_composer(
@@ -4423,15 +4446,10 @@ def render_ensaio_chat(
                 st.caption(path.name)
                 st.audio(str(path))
 
-    subset = chat_ensaio_df[
-        chat_ensaio_df["escala_id"].astype(str) == str(escala_id)
-    ].copy()
-    render_chat_messages(subset, members_df)
-
-    ensaio_dir = ENSAIO_AUDIO_DIR / str(escala_id)
-    ensaio_dir.mkdir(parents=True, exist_ok=True)
-
     def _append_ensaio(**kwargs):
+        from chat_whatsapp import pending_text_key
+
+        fresh = prepare_chat_ensaio(load_data(CHAT_ENSAIO_FILE, CHAT_ENSAIO_COLUMNS))
         base = {
             "timestamp": timestamp_now(),
             "escala_id": escala_id,
@@ -4439,11 +4457,29 @@ def render_ensaio_chat(
             "name": st.session_state.user_full_name or st.session_state.user_name,
         }
         nova = {**base, **kwargs}
-        save_data(
-            pd.concat([chat_ensaio_df, pd.DataFrame([nova])], ignore_index=True),
-            CHAT_ENSAIO_FILE,
+        subset_ids = fresh["escala_id"].astype(str) == str(escala_id)
+        others = fresh[~subset_ids] if subset_ids.any() else fresh
+        escala_rows = fresh[subset_ids] if subset_ids.any() else pd.DataFrame()
+        updated = pd.concat(
+            [others, escala_rows, pd.DataFrame([nova])], ignore_index=True
         )
-        mark_chat_scroll_bottom()
+        if save_data(updated, CHAT_ENSAIO_FILE):
+            mark_chat_scroll_bottom()
+            st.rerun()
+
+    pending_key = pending_text_key(f"ensaio_{escala_id}")
+    pending = st.session_state.pop(pending_key, None)
+    if pending and str(pending).strip():
+        _append_ensaio(message=str(pending).strip(), message_type="text", media_file="")
+        return
+
+    subset = prepare_chat_ensaio(load_data(CHAT_ENSAIO_FILE, CHAT_ENSAIO_COLUMNS))
+    subset = subset[subset["escala_id"].astype(str) == str(escala_id)].copy()
+
+    render_chat_messages(subset, members_df)
+
+    ensaio_dir = ENSAIO_AUDIO_DIR / str(escala_id)
+    ensaio_dir.mkdir(parents=True, exist_ok=True)
 
     render_chat_composer(
         key_prefix=f"ensaio_{escala_id}",

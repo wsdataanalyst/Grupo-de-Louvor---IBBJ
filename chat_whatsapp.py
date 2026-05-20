@@ -27,6 +27,10 @@ def _att_key(key_prefix: str) -> str:
     return f"{key_prefix}_attach_mode"
 
 
+def pending_text_key(key_prefix: str) -> str:
+    return f"{key_prefix}_pending_text"
+
+
 def render_simple_chat_composer(
     *,
     key_prefix: str,
@@ -126,8 +130,7 @@ def render_simple_chat_composer(
 
     prompt = st.chat_input("Mensagem", key=f"{key_prefix}_input")
     if prompt and prompt.strip():
-        append_fn(message=prompt.strip(), message_type="text", media_file="")
-        mark_chat_scroll_bottom()
+        st.session_state[pending_text_key(key_prefix)] = prompt.strip()
         st.rerun()
 
 
