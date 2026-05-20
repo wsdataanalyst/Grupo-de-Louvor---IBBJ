@@ -30,7 +30,7 @@ from chat_media import (
     save_audio_upload,
     save_image_upload,
 )
-from chat_whatsapp import render_whatsapp_chat_composer
+from chat_whatsapp import pending_text_key, render_whatsapp_chat_composer
 from data_persistence import (
     backup_csv_if_exists,
     load_csv_preserve_rows,
@@ -3366,8 +3366,6 @@ def render_chat_composer(
 
 
 def show_group_chat(chat_df: pd.DataFrame, members_df: pd.DataFrame):
-    from chat_whatsapp import pending_text_key
-
     pending_key = pending_text_key("group_chat")
     pending = st.session_state.pop(pending_key, None)
     if pending and str(pending).strip():
@@ -4985,8 +4983,6 @@ def render_ensaio_chat(
                 st.audio(str(path))
 
     def _append_ensaio(**kwargs):
-        from chat_whatsapp import pending_text_key
-
         fresh = prepare_chat_ensaio(load_data(CHAT_ENSAIO_FILE, CHAT_ENSAIO_COLUMNS))
         base = {
             "timestamp": timestamp_now(),
