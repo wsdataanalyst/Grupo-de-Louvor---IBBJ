@@ -1,5 +1,6 @@
 import base64
 import hashlib
+import html
 import inspect
 import io
 import os
@@ -885,20 +886,35 @@ def enrich_programa_from_catalog(
     return df
 
 
-def render_voice_kit_link(roles: str | None = None, bio: str = "") -> None:
-    """Exibe link do YouTube para kit de voz conforme o nipe do usuário."""
-    from voice_kit_links import vocal_nipe_from_roles, voice_kit_youtube_url
+def render_voice_kit_link(
+    roles: str | None = None,
+    bio: str = "",
+    song_title: str = "",
+) -> None:
+    """Exibe link do YouTube para kit de voz (nipe + música, quando informada)."""
+    from voice_kit_links import (
+        vocal_nipe_from_roles,
+        voice_kit_search_query,
+        voice_kit_youtube_url,
+    )
 
     roles = roles if roles is not None else str(st.session_state.get("user_roles", ""))
     nipe = vocal_nipe_from_roles(roles, bio=bio)
     if not nipe:
         return
-    url = voice_kit_youtube_url(nipe)
+    title = str(song_title).strip()
+    label = voice_kit_search_query(nipe, title)
+    url = voice_kit_youtube_url(nipe, title)
+    hint = (
+        f"Busca: {label}"
+        if title
+        else "Cadastre sua função vocal e use o kit em cada música do culto"
+    )
     st.markdown(
         f'<div class="voice-kit-banner">'
         f'<a href="{url}" target="_blank" rel="noopener noreferrer">'
-        f"🎤 Kit de voz — {nipe}</a>"
-        f"<span>Partes de contramão e guia vocal no YouTube</span>"
+        f"🎤 {html.escape(label)}</a>"
+        f"<span>{html.escape(hint)}</span>"
         f"</div>",
         unsafe_allow_html=True,
     )
@@ -2233,12 +2249,62 @@ def apply_music_theme():
             letter-spacing: -0.02em;
         }
         .welcome-card p { color: var(--text-secondary); margin: 0; font-size: 0.9rem; }
+        .verse-of-day {
+            background: linear-gradient(135deg, rgba(212, 175, 55, 0.14), rgba(139, 92, 246, 0.1));
+            border: 1px solid rgba(212, 175, 55, 0.4);
+            border-radius: 14px;
+            padding: 1rem 1.25rem;
+            margin-bottom: 1rem;
+        }
+        .verse-of-day .verse-label {
+            margin: 0 0 0.5rem;
+            font-size: 0.78rem;
+            font-weight: 600;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: #fbbf24;
+        }
+        .verse-of-day .verse-text {
+            margin: 0;
+            font-size: 1rem;
+            line-height: 1.55;
+            font-style: italic;
+            color: #f3f0ff;
+        }
+        .verse-of-day .verse-ref {
+            margin: 0.65rem 0 0;
+            font-size: 0.88rem;
+            font-weight: 600;
+            color: #c4b5fd;
+        }
         .status-escalado {
             background: rgba(52, 211, 153, 0.12);
             border: 1px solid rgba(52, 211, 153, 0.45);
             border-radius: 14px;
             padding: 1rem 1.25rem;
             margin-bottom: 1rem;
+            color: #d4cce8;
+            line-height: 1.55;
+        }
+        .status-escalado .escala-linha {
+            margin: 0.5rem 0 0;
+            padding: 0.45rem 0 0;
+            border-top: 1px solid rgba(52, 211, 153, 0.2);
+        }
+        .status-escalado .escala-linha:first-of-type {
+            border-top: none;
+            padding-top: 0.15rem;
+        }
+        .status-escalado .escala-evento {
+            color: #faf8ff;
+            font-weight: 600;
+        }
+        .status-escalado .escala-data {
+            color: #a7f3d0;
+            font-weight: 500;
+        }
+        .status-escalado .escala-funcao {
+            color: #86efac;
         }
         .status-nao-escalado {
             background: rgba(251, 191, 36, 0.08);
@@ -2629,6 +2695,9 @@ def render_sidebar_footer():
 
 
 def page_header(menu: str):
+    from verse_of_day import render_verse_of_day
+
+    render_verse_of_day()
     items, _, icons = get_menu_items_for_user(st.session_state.user_roles)
     icon = icons.get(menu, "🎵")
     title = MENU_HEADERS.get(menu, menu)
@@ -3199,7 +3268,7 @@ def render_culto_programa(
 
     st.markdown("**🎶 Sequência do culto**")
     from catalog_sanitize import format_louvor_display, sanitize_catalog_text
-    from voice_kit_links import vocal_nipe_from_roles, voice_kit_youtube_url
+    from voice_kit_links import vocal_nipe_from_roles, voice_kit_search_query, voice_kit_youtube_url
 
     idx_me, row_me = get_current_member_row(members_df)
     bio_me = str(row_me.get("bio", "")) if row_me is not None else ""
@@ -3208,14 +3277,10 @@ def render_culto_programa(
     )
     nipe_me = vocal_nipe_from_roles(roles_me, bio=bio_me)
     if nipe_me:
-        kit_url = voice_kit_youtube_url(nipe_me)
-        st.markdown(
-            f'<div class="voice-kit-banner">'
-            f'<a href="{kit_url}" target="_blank" rel="noopener noreferrer">'
-            f"🎤 Kit de voz — {nipe_me}</a>"
-            f"<span>Guia vocal e contramão no YouTube</span>"
-            f"</div>",
-            unsafe_allow_html=True,
+        st.caption(
+            f"Use **Kit Voz** em cada música — busca: "
+            f"*Kit Voz {nipe_me.lower()} - [nome do louvor]* "
+            f"(ex.: Kit Voz {nipe_me.lower()} - Santo pra Sempre)."
         )
     else:
         st.caption(
@@ -3240,10 +3305,12 @@ def render_culto_programa(
             btns.append(
                 f'<a class="prog-btn prog-btn-yt" href="{yt}" target="_blank" rel="noopener">▶ YouTube</a>'
             )
-        if nipe_me:
+        if nipe_me and louvor:
+            kit_url = voice_kit_youtube_url(nipe_me, louvor)
+            kit_label = html.escape(voice_kit_search_query(nipe_me, louvor))
             btns.append(
-                f'<a class="prog-btn prog-btn-kit" href="{kit_url}" target="_blank" rel="noopener">'
-                f"🎤 Kit voz ({nipe_me})</a>"
+                f'<a class="prog-btn prog-btn-kit" href="{kit_url}" target="_blank" rel="noopener" '
+                f'title="{kit_label}">🎤 Kit Voz</a>'
             )
         btns.append(
             f'<a class="prog-btn prog-btn-letra" href="{cifra}" target="_blank" rel="noopener">📜 Letra / Cifra</a>'
@@ -3371,10 +3438,18 @@ def show_dashboard(
                 dtf = pd.to_datetime(dt).strftime("%d/%m/%Y")
             except (ValueError, TypeError):
                 dtf = dt
-            blocos.append(f"**{ev}** ({dtf}) — {item['funcao']}")
+            funcao = html.escape(str(item.get("funcao", "")))
+            ev_esc = html.escape(ev)
+            blocos.append(
+                '<p class="escala-linha">'
+                f'<span class="escala-evento">{ev_esc}</span> '
+                f'<span class="escala-data">({html.escape(dtf)})</span> '
+                f'<span class="escala-funcao">— {funcao}</span>'
+                "</p>"
+            )
         st.markdown(
-            '<div class="status-escalado">✅ <strong>Você está escalado(a) esta semana!</strong><br>'
-            + "<br>".join(blocos)
+            '<div class="status-escalado"><p>✅ <strong>Você está escalado(a) esta semana!</strong></p>'
+            + "".join(blocos)
             + "</div>",
             unsafe_allow_html=True,
         )

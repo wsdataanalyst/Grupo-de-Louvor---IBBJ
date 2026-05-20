@@ -1,4 +1,4 @@
-"""Links de kit de voz no YouTube por nipe vocal."""
+"""Links de kit de voz no YouTube por nipe vocal e música do culto."""
 
 from __future__ import annotations
 
@@ -11,15 +11,6 @@ ROLE_TO_NIPE: dict[str, str] = {
     "Vocalista - Baritono": "Baritono",
     "Vocalista - Mezzo Soprano": "Mezzo Soprano",
 }
-
-KIT_YOUTUBE_SEARCH: dict[str, str] = {
-    "Contralto": "kit voz contralto gospel",
-    "Soprano": "kit voz soprano gospel",
-    "Tenor": "kit voz tenor gospel",
-    "Baritono": "kit voz baritono gospel",
-    "Mezzo Soprano": "kit voz mezzo soprano gospel",
-}
-
 
 _BIO_NIPE_HINTS: tuple[tuple[str, str], ...] = (
     ("mezzo soprano", "Mezzo Soprano"),
@@ -49,6 +40,18 @@ def vocal_nipe_from_roles(roles: str, bio: str = "") -> str | None:
     return None
 
 
-def voice_kit_youtube_url(nipe: str) -> str:
-    query = KIT_YOUTUBE_SEARCH.get(nipe, f"kit voz {nipe.lower()} gospel")
+def voice_kit_search_query(nipe: str, song_title: str = "") -> str:
+    """
+    Monta busca no YouTube no padrão do ministério.
+    Ex.: Kit Voz baritono - Santo pra Sempre
+    """
+    nipe_label = nipe.lower().strip()
+    title = str(song_title).strip()
+    if title:
+        return f"Kit Voz {nipe_label} - {title}"
+    return f"Kit Voz {nipe_label}"
+
+
+def voice_kit_youtube_url(nipe: str, song_title: str = "") -> str:
+    query = voice_kit_search_query(nipe, song_title)
     return f"https://www.youtube.com/results?search_query={quote_plus(query)}"
