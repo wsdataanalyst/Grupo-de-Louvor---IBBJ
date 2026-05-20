@@ -27,10 +27,6 @@ def _att_key(key_prefix: str) -> str:
     return f"{key_prefix}_attach_mode"
 
 
-def pending_text_key(key_prefix: str) -> str:
-    return f"{key_prefix}_pending_text"
-
-
 def render_simple_chat_composer(
     *,
     key_prefix: str,
