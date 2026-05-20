@@ -795,11 +795,28 @@ def prepare_chat_ensaio(df: pd.DataFrame) -> pd.DataFrame:
     return ensure_chat_media_columns(df, CHAT_ENSAIO_COLUMNS)
 
 
+def event_plain_text(value, max_len: int = 280) -> str:
+    """Remove tags HTML e limita tamanho para exibição em eventos."""
+    text = re.sub(r"<[^>]+>", "", str(value or ""))
+    text = html.unescape(text).strip()
+    if len(text) > max_len:
+        text = text[: max_len - 1].rstrip() + "…"
+    return text
+
+
 def prepare_eventos(df: pd.DataFrame) -> pd.DataFrame:
     for column in EVENTO_COLUMNS:
         if column not in df.columns:
             df[column] = ""
-    return df[list(EVENTO_COLUMNS)].copy()
+    df = df[list(EVENTO_COLUMNS)].copy()
+    if not df.empty:
+        if "title" in df.columns:
+            df["title"] = df["title"].apply(lambda v: event_plain_text(v, max_len=200))
+        if "description" in df.columns:
+            df["description"] = df["description"].apply(
+                lambda v: event_plain_text(v, max_len=2000)
+            )
+    return df
 
 
 def prepare_sugestoes(df: pd.DataFrame) -> pd.DataFrame:
@@ -2549,12 +2566,6 @@ def apply_music_theme():
         }
         .event-feed-card h4 { color: #7dd3fc; margin: 0 0 0.35rem; }
         .event-feed-card .ev-date { color: #fbbf24; font-size: 0.82rem; }
-        .event-feed-card .ev-desc {
-            color: #c4b5fd;
-            margin: 0.35rem 0 0;
-            font-size: 0.88rem;
-            line-height: 1.45;
-        }
         .swap-banner {
             background: rgba(96, 165, 250, 0.12);
             border: 1px solid rgba(96, 165, 250, 0.4);
@@ -3581,15 +3592,6 @@ def render_dashboard_swap_alerts(
             st.rerun()
 
 
-def event_plain_text(value, max_len: int = 280) -> str:
-    """Remove tags HTML e limita tamanho para exibição em eventos."""
-    text = re.sub(r"<[^>]+>", "", str(value or ""))
-    text = html.unescape(text).strip()
-    if len(text) > max_len:
-        text = text[: max_len - 1].rstrip() + "…"
-    return text
-
-
 def render_events_feed(eventos_df: pd.DataFrame, limit: int = 5):
     if eventos_df.empty:
         return
@@ -3602,28 +3604,24 @@ def render_events_feed(eventos_df: pd.DataFrame, limit: int = 5):
             d = pd.to_datetime(ev["event_date"]).strftime("%d/%m/%Y")
         except (ValueError, TypeError):
             d = str(ev.get("event_date", ""))
+        titulo = event_plain_text(ev.get("title", "Evento"), max_len=120)
+        desc = event_plain_text(ev.get("description", ""), max_len=280)
         img = str(ev.get("image_url", "")).strip()
-        img_html = ""
-        if img.startswith("http"):
-            img_safe = html.escape(img, quote=True)
-            img_html = (
-                f'<img src="{img_safe}" alt="" '
-                'style="max-width:100%;border-radius:10px;margin:0.5rem 0;" />'
-            )
-        titulo = html.escape(event_plain_text(ev.get("title", "Evento"), max_len=120))
-        desc = html.escape(event_plain_text(ev.get("description", ""), max_len=280))
-        desc_html = f'<p class="ev-desc">{desc}</p>' if desc else ""
+
         st.markdown(
-            f"""
-            <div class="event-feed-card">
-                <h4>{titulo}</h4>
-                <p class="ev-date">📅 {html.escape(d)}</p>
-                {img_html}
-                {desc_html}
-            </div>
-            """,
+            f'<div class="event-feed-card">'
+            f"<h4>{html.escape(titulo)}</h4>"
+            f'<p class="ev-date">📅 {html.escape(d)}</p>'
+            f"</div>",
             unsafe_allow_html=True,
         )
+        if img.startswith("http"):
+            try:
+                st.image(img, use_container_width=True)
+            except Exception:
+                pass
+        if desc:
+            st.caption(desc)
 
 
 def show_dashboard(
