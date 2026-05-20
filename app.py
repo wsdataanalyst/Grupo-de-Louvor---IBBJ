@@ -42,6 +42,12 @@ from password_reset import (
     email_is_configured,
     validate_reset_token,
 )
+from user_feedback import (
+    MSG_IMPROVEMENTS,
+    show_exception_error,
+    show_form_error,
+    show_technical_error,
+)
 from push_notifications import (
     notify_chat_message,
     notify_new_escala,
@@ -478,21 +484,21 @@ def render_register_form(members_df: pd.DataFrame) -> pd.DataFrame:
 
     if register_button:
         if not first_name or not last_name or not email or not password:
-            st.error("Preencha nome, sobrenome, email e senha.")
+            show_form_error("Preencha nome, sobrenome, email e senha.")
         elif not special_hint and not roles:
-            st.error("Escolha pelo menos uma função musical.")
+            show_form_error("Escolha pelo menos uma função musical.")
         elif not is_valid_email(email):
-            st.error("Informe um email válido.")
+            show_form_error("Informe um email válido.")
         elif len(password) < 6:
-            st.error("A senha deve ter pelo menos 6 caracteres.")
+            show_form_error("A senha deve ter pelo menos 6 caracteres.")
         elif password != confirm_password:
-            st.error("As senhas não coincidem.")
+            show_form_error("As senhas não coincidem.")
         else:
             new_member, error = register_user(
                 first_name, last_name, email, password, roles, members_df
             )
             if error:
-                st.error(error)
+                show_form_error(str(error))
             else:
                 role_msg = new_member["roles"]
                 st.success(
@@ -518,7 +524,7 @@ def save_data(df: pd.DataFrame, file_path: Path, *, force: bool = False) -> bool
     if file_path == MEMBERS_FILE:
         ok, msg = members_save_allowed(df, file_path, force=force)
         if not ok:
-            st.error(msg)
+            show_technical_error(msg)
             return False
 
     backup_csv_if_exists(file_path, DATA_DIR)
@@ -2468,11 +2474,9 @@ def render_mobile_and_push_panel():
 
 
 def is_current_developer() -> bool:
-    email = str(st.session_state.get("user_email", "")).strip().lower()
-    if email and email in get_developer_emails():
-        return True
-    roles = str(st.session_state.get("user_roles", "")).lower()
-    return ROLE_DESENVOLVEDOR.lower() in roles
+    from user_feedback import is_dev_viewer
+
+    return is_dev_viewer()
 
 
 def render_push_admin_sidebar(members_df: pd.DataFrame | None = None):
@@ -2776,7 +2780,7 @@ def render_forgot_password_form(members_df: pd.DataFrame):
 
         if submit:
             if not is_valid_email(email):
-                st.error("Informe um e-mail válido.")
+                show_form_error("Informe um e-mail válido.")
             else:
                 ok, msg, _ = create_password_reset_request(
                     email,
@@ -2789,7 +2793,7 @@ def render_forgot_password_form(members_df: pd.DataFrame):
                 if ok:
                     st.success(msg)
                 else:
-                    st.error(msg)
+                    show_technical_error(str(msg))
     else:
         st.caption(
             "Envio automático por e-mail ainda não está ativo neste servidor. "
@@ -2811,7 +2815,7 @@ def render_reset_password_form(members_df: pd.DataFrame):
     )
 
     if not email:
-        st.error(err)
+        show_form_error(str(err))
         if st.button("Solicitar novo link", use_container_width=True):
             st.query_params.clear()
             st.query_params[FORGOT_PASSWORD_QUERY_PARAM] = "1"
@@ -2832,7 +2836,7 @@ def render_reset_password_form(members_df: pd.DataFrame):
 
     if submit:
         if nova != conf:
-            st.error("As senhas não coincidem.")
+            show_form_error("As senhas não coincidem.")
         else:
             ok, err_msg = apply_password_reset(
                 token,
@@ -2848,7 +2852,7 @@ def render_reset_password_form(members_df: pd.DataFrame):
                 st.balloons()
                 st.rerun()
             else:
-                st.error(err_msg)
+                show_form_error(str(err_msg))
 
     if st.button("← Voltar ao login", use_container_width=True):
         st.query_params.clear()
@@ -2929,7 +2933,7 @@ def show_login_page(members_df: pd.DataFrame):
                         st.success(f"Bem-vindo! Você está como **{special}**.")
                     st.rerun()
                 else:
-                    st.error("Email ou senha incorretos.")
+                    show_form_error("Email ou senha incorretos.")
 
         with tab_register:
             render_register_form(members_df)
@@ -2960,7 +2964,7 @@ def append_chat_message(
     }
     updated = pd.concat([base, pd.DataFrame([new_message])], ignore_index=True)
     if not save_data(updated, CHAT_FILE):
-        st.error("Não foi possível salvar a mensagem. Tente novamente.")
+        show_technical_error("Não foi possível salvar a mensagem no chat.")
         return base
     st.session_state["_chat_df_cache"] = updated
     update_chat_latest_ts(updated)
@@ -3439,7 +3443,7 @@ def show_user_profile(
 ):
     idx, row = get_current_member_row(members_df)
     if row is None:
-        st.error("Não foi possível carregar seu perfil.")
+        show_technical_error("Não foi possível carregar o perfil.")
         return
 
     st.markdown('<p class="music-panel-title">👤 Meu perfil</p>', unsafe_allow_html=True)
@@ -3480,9 +3484,9 @@ def show_user_profile(
                     st.success("Foto atualizada!")
                     st.rerun()
                 except ValueError as exc:
-                    st.error(str(exc))
+                    show_form_error(str(exc))
                 except Exception:
-                    st.error("Não foi possível salvar a foto. Tente JPG ou PNG menores que 5 MB.")
+                    show_technical_error("Não foi possível salvar a foto.")
         if photo_path and st.button("🗑️ Remover foto", use_container_width=True, key="rm_profile_photo"):
             photo_path.unlink(missing_ok=True)
             members_df.at[idx, "profile_photo"] = ""
@@ -3522,9 +3526,9 @@ def show_user_profile(
 
         if salvar:
             if not first_name.strip() or not last_name.strip():
-                st.error("Nome e sobrenome são obrigatórios.")
+                show_form_error("Nome e sobrenome são obrigatórios.")
             elif not leadership and not new_musician:
-                st.error("Selecione pelo menos uma função musical.")
+                show_form_error("Selecione pelo menos uma função musical.")
             else:
                 fn = first_name.strip().title()
                 ln = last_name.strip().title()
@@ -3557,13 +3561,13 @@ def show_user_profile(
 
     if trocar:
         if not senha_atual or not senha_nova:
-            st.error("Preencha a senha atual e a nova senha.")
+            show_form_error("Preencha a senha atual e a nova senha.")
         elif len(senha_nova) < 6:
-            st.error("A nova senha deve ter pelo menos 6 caracteres.")
+            show_form_error("A nova senha deve ter pelo menos 6 caracteres.")
         elif senha_nova != senha_conf:
-            st.error("A confirmação não coincide com a nova senha.")
+            show_form_error("A confirmação não coincide com a nova senha.")
         elif hash_password(senha_atual) != str(row.get("password_hash", "")):
-            st.error("Senha atual incorreta.")
+            show_form_error("Senha atual incorreta.")
         else:
             members_df.at[idx, "password_hash"] = hash_password(senha_nova)
             save_data(members_df, MEMBERS_FILE)
@@ -3711,7 +3715,7 @@ def render_password_reset_panel(
 
     if submit:
         if nova != conf:
-            st.error("As senhas não coincidem.")
+            show_form_error("As senhas não coincidem.")
         else:
             ok, err = admin_set_member_password(members_df, options[chosen], nova)
             if ok:
@@ -3721,7 +3725,7 @@ def render_password_reset_panel(
                     "Avise a pessoa para entrar com a nova senha."
                 )
             else:
-                st.error(err)
+                show_form_error(str(err))
 
 
 def render_admin_password_reset(members_df: pd.DataFrame):
@@ -4258,7 +4262,7 @@ def show_escala_completa_editor(
             key="nova_esc_save",
         ):
             if not culto_event.strip():
-                st.error("Informe o nome do culto/evento.")
+                show_form_error("Informe o nome do culto/evento.")
             else:
                 email = member_map[responsavel]
                 row = members_df[members_df["email"].astype(str).str.lower() == email].iloc[0]
@@ -4342,7 +4346,7 @@ def show_escala_completa_editor(
             escala_id = str(r["id"])
             break
     if not escala_id:
-        st.error("Escala não encontrada.")
+        show_technical_error("Escala não encontrada.")
         return
 
     escala_row = escalas_df[escalas_df["id"].astype(str) == escala_id].iloc[0]
@@ -4353,7 +4357,7 @@ def show_escala_completa_editor(
     )
     confirm_key = f"confirm_del_esc_{escala_id}"
     if st.session_state.get(confirm_key):
-        st.error("Confirma a exclusão permanente desta escala (equipe e louvores)?")
+        show_form_error("Confirma a exclusão permanente desta escala (equipe e louvores)?")
         c_del1, c_del2 = st.columns(2)
         with c_del1:
             if st.button("✅ Sim, excluir escala", type="primary", use_container_width=True):
@@ -4631,7 +4635,7 @@ def show_escalas_page(
             if go:
                 oid = minhas_opts[minha]
                 if tipo == "direta" and not dest_id:
-                    st.error("Escolha a escala do integrante para troca direta.")
+                    show_form_error("Escolha a escala do integrante para troca direta.")
                 elif not trocas_df[
                     (trocas_df["status"] == "pendente")
                     & (trocas_df["escala_id_origem"].astype(str) == str(oid))
@@ -4768,7 +4772,7 @@ def show_louvores_catalog(louvores_df: pd.DataFrame):
                 st.success(f"{n} música(s) com links de pesquisa.")
                 st.rerun()
             except Exception as exc:
-                st.error(str(exc))
+                show_exception_error(exc)
     with col_l2:
         batch = st.number_input(
             "Buscar na internet (por vez)",
@@ -4789,7 +4793,7 @@ def show_louvores_catalog(louvores_df: pd.DataFrame):
                 st.success(f"{n} música(s) atualizada(s) com links da internet.")
                 st.rerun()
             except Exception as exc:
-                st.error(f"Erro na busca: {exc}")
+                show_exception_error(exc, context="Busca de links")
 
     if louvores_df.empty:
         st.warning(
@@ -4891,7 +4895,7 @@ def show_eventos_page(eventos_df: pd.DataFrame, members_df: pd.DataFrame):
                 salvar = st.form_submit_button("Publicar evento", type="primary")
             if salvar:
                 if not titulo.strip():
-                    st.error("Informe o título.")
+                    show_form_error("Informe o título.")
                 else:
                     end = d2.strftime("%Y-%m-%d") if d2 else ""
                     nova = {
@@ -4950,7 +4954,7 @@ def show_sugestao_louvor(sugestoes_df: pd.DataFrame, louvores_df: pd.DataFrame):
         enviar = st.form_submit_button("Enviar sugestão", type="primary")
     if enviar:
         if not titulo.strip() or not yt.strip():
-            st.error("Informe nome e link do YouTube.")
+            show_form_error("Informe nome e link do YouTube.")
         elif "youtube" not in yt.lower() and "youtu.be" not in yt.lower():
             st.warning("Use um link válido do YouTube.")
         else:
@@ -5008,7 +5012,7 @@ def show_sugestao_louvor(sugestoes_df: pd.DataFrame, louvores_df: pd.DataFrame):
                     st.rerun()
 
 
-def main():
+def _run_app() -> None:
     st.set_page_config(
         page_title=GROUP_NAME,
         page_icon="🎵",
@@ -5130,7 +5134,7 @@ def main():
 
         if submit:
             if not title or not artist:
-                st.error("Informe pelo menos título e artista.")
+                show_form_error("Informe pelo menos título e artista.")
             else:
                 new_row = {
                     "title": title.strip().title(),
@@ -5185,6 +5189,26 @@ def main():
                 st.dataframe(page_members, use_container_width=True, hide_index=True)
             else:
                 st.info("Nenhum membro cadastrado ainda.")
+
+def main() -> None:
+    try:
+        _run_app()
+    except Exception as exc:
+        try:
+            st.set_page_config(page_title=GROUP_NAME, page_icon="🎵", layout="wide")
+        except Exception:
+            pass
+        try:
+            apply_music_theme()
+        except Exception:
+            pass
+        from user_feedback import is_dev_viewer
+
+        if is_dev_viewer():
+            show_exception_error(exc, context="Falha na aplicação")
+        else:
+            st.info(MSG_IMPROVEMENTS)
+
 
 if __name__ == "__main__":
     main()
