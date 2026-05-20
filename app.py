@@ -1273,38 +1273,35 @@ def inject_chat_scroll_to_bottom():
         """
         <script>
         (function () {
-          function scrollParents(el) {
-            var p = el;
-            while (p) {
-              if (p.scrollHeight > p.clientHeight + 8) {
-                p.scrollTop = p.scrollHeight;
-              }
-              p = p.parentElement;
-            }
-          }
+          var doc = window.parent.document;
           function scrollChat() {
-            var doc = window.parent.document;
+            var box = doc.getElementById("chat-scroll-box");
+            if (box) {
+              box.scrollTop = box.scrollHeight + 9999;
+            }
             var end = doc.getElementById("chat-scroll-end");
-            if (end) {
-              scrollParents(end);
-              end.scrollIntoView({ behavior: "auto", block: "end", inline: "nearest" });
-            }
-            var panel = doc.getElementById("chat-messages-panel");
-            if (panel) {
-              panel.scrollTop = panel.scrollHeight;
-              scrollParents(panel);
-            }
-            var main =
-              doc.querySelector('[data-testid="stAppViewContainer"] .main') ||
-              doc.querySelector(".main");
-            if (main) main.scrollTop = main.scrollHeight;
-            window.parent.scrollTo(0, doc.body.scrollHeight);
+            if (end) end.scrollIntoView({ block: "end", inline: "nearest" });
+            var anchor = doc.getElementById("chat-page-end");
+            if (anchor) anchor.scrollIntoView({ block: "end" });
+          }
+          function watchBox() {
+            var box = doc.getElementById("chat-scroll-box");
+            if (!box || box.dataset.waObs) return;
+            box.dataset.waObs = "1";
+            new MutationObserver(scrollChat).observe(box, {
+              childList: true,
+              subtree: true,
+              attributes: true,
+            });
           }
           scrollChat();
-          setTimeout(scrollChat, 120);
-          setTimeout(scrollChat, 400);
-          setTimeout(scrollChat, 900);
-          setTimeout(scrollChat, 1600);
+          watchBox();
+          [80, 200, 450, 900, 1500, 2500].forEach(function (ms) {
+            setTimeout(function () {
+              scrollChat();
+              watchBox();
+            }, ms);
+          });
         })();
         </script>
         """,
@@ -1747,17 +1744,19 @@ def apply_music_theme():
         .login-panel-sub { color: #a89bc4 !important; font-size: 0.9rem; }
 
         /* Chat entre integrantes */
-        #chat-messages-panel {
+        #chat-scroll-box {
+            max-height: min(56vh, 540px);
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding: 0.5rem 0.35rem 0.75rem;
+            margin-bottom: 0.5rem;
+            border: 1px solid rgba(52, 211, 153, 0.25);
+            border-radius: 14px;
+            background: rgba(12, 10, 20, 0.55);
             scroll-behavior: smooth;
+            -webkit-overflow-scrolling: touch;
         }
-        div[data-testid="stVerticalBlockBorderWrapper"]:has(#chat-scroll-end) {
-            overflow-y: auto !important;
-            max-height: 52vh !important;
-        }
-        .chat-feed {
-            padding: 0.5rem 0.25rem 0.75rem;
-            min-height: 120px;
-        }
+        .chat-feed { min-height: 80px; }
         .chat-row-head {
             display: flex;
             align-items: center;
@@ -1767,11 +1766,23 @@ def apply_music_theme():
         .chat-row-name { font-weight: 600; color: #e9e4ff; font-size: 0.88rem; }
         .chat-row-time { color: #a89bc4; font-size: 0.78rem; }
         .chat-bubble {
-            max-width: 78%;
-            padding: 0.65rem 0.9rem;
+            max-width: 82%;
+            padding: 0.55rem 0.85rem;
             border-radius: 14px;
-            margin-bottom: 0.65rem;
+            margin: 0 0 0.5rem 0;
             line-height: 1.45;
+            clear: both;
+        }
+        .chat-bubble audio, .chat-bubble img {
+            max-width: 100%;
+            display: block;
+            margin-top: 0.35rem;
+            border-radius: 8px;
+        }
+        .chat-compose-bar {
+            margin-top: 0.25rem;
+            padding-top: 0.35rem;
+            border-top: 1px solid rgba(134, 150, 160, 0.15);
         }
         .chat-bubble.me {
             margin-left: auto;
@@ -2806,9 +2817,53 @@ def _escape_chat_html(text: str) -> str:
     )
 
 
+def _chat_media_html(mtype: str, media_file: str) -> str:
+    path = media_absolute_path(str(media_file).strip(), DATA_DIR)
+    if not path:
+        return '<p class="chat-text"><em>Mídia indisponível</em></p>'
+    try:
+        size = path.stat().st_size
+    except OSError:
+        return '<p class="chat-text"><em>Mídia indisponível</em></p>'
+    if mtype == "image":
+        if size > 900_000:
+            return '<p class="chat-text">📷 Foto</p>'
+        try:
+            from PIL import Image
+
+            img = Image.open(path).convert("RGB")
+            img.thumbnail((720, 720))
+            buf = io.BytesIO()
+            img.save(buf, format="JPEG", quality=82)
+            b64 = base64.b64encode(buf.getvalue()).decode()
+            return (
+                f'<img src="data:image/jpeg;base64,{b64}" alt="foto" '
+                f'style="max-width:100%;border-radius:8px;" />'
+            )
+        except Exception:
+            return '<p class="chat-text">📷 Foto</p>'
+    if mtype == "audio":
+        if size > 2_000_000:
+            return '<p class="chat-text">🎤 Áudio</p>'
+        ext = path.suffix.lower()
+        mime = {
+            ".webm": "audio/webm",
+            ".ogg": "audio/ogg",
+            ".mp3": "audio/mpeg",
+            ".m4a": "audio/mp4",
+            ".wav": "audio/wav",
+        }.get(ext, "audio/webm")
+        b64 = base64.b64encode(path.read_bytes()).decode()
+        return (
+            f'<audio controls preload="metadata" style="width:min(100%,280px);">'
+            f'<source src="data:{mime};base64,{b64}" type="{mime}"></audio>'
+        )
+    return ""
+
+
 def render_chat_messages(chat_df: pd.DataFrame, members_df: pd.DataFrame):
     if chat_df.empty:
-        st.caption("💬 O chat está quieto por enquanto — envie a primeira mensagem quando quiser.")
+        st.caption("💬 Nenhuma mensagem ainda — use o campo abaixo.")
         return
 
     my_email = st.session_state.user_email.strip().lower()
@@ -2816,55 +2871,33 @@ def render_chat_messages(chat_df: pd.DataFrame, members_df: pd.DataFrame):
     chat_sorted["_ts"] = pd.to_datetime(chat_sorted["timestamp"], errors="coerce")
     chat_sorted = chat_sorted.sort_values("_ts", ascending=True, na_position="last")
 
-    st.markdown(
-        '<div id="chat-messages-panel" class="chat-feed">',
-        unsafe_allow_html=True,
-    )
-
-    with st.container(height=520, border=False):
-        for _, row in chat_sorted.iterrows():
-            is_me = str(row.get("email", "")).strip().lower() == my_email
-            name = str(row.get("name", "Integrante"))
-            display_name = "Você" if is_me else name
-            time_str = format_local(row.get("timestamp"), "%d/%m %H:%M")
-            email = str(row.get("email", "")).strip().lower()
-            foto = member_photo_html(email, members_df, 36)
-            css = "me" if is_me else "other"
-            mtype = str(row.get("message_type", "text") or "text").strip().lower()
-            st.markdown(
-                f'<div class="chat-bubble {css}">'
-                f'<div class="chat-row-head">{foto}'
-                f'<span class="chat-row-name">{display_name}</span>'
-                f'<span class="chat-row-time"> · {time_str}</span></div>',
-                unsafe_allow_html=True,
-            )
-            if mtype == "audio":
-                media = str(row.get("media_file", "")).strip()
-                path = media_absolute_path(media, DATA_DIR)
-                if path:
-                    st.audio(str(path))
-                else:
-                    st.caption("Áudio indisponível")
-            elif mtype == "image":
-                media = str(row.get("media_file", "")).strip()
-                path = media_absolute_path(media, DATA_DIR)
-                if path:
-                    st.image(str(path), use_container_width=True)
-                else:
-                    st.caption("Foto indisponível")
-            else:
-                st.markdown(
-                    f'<p class="chat-text">{_escape_chat_html(row.get("message", ""))}</p>',
-                    unsafe_allow_html=True,
-                )
-            st.markdown("</div>", unsafe_allow_html=True)
-
-        st.markdown(
-            '<div id="chat-scroll-end" style="height:2px;width:100%;"></div>',
-            unsafe_allow_html=True,
+    parts = ['<div id="chat-scroll-box" class="chat-feed">']
+    for _, row in chat_sorted.iterrows():
+        is_me = str(row.get("email", "")).strip().lower() == my_email
+        display_name = "Você" if is_me else str(row.get("name", "Integrante"))
+        time_str = format_local(row.get("timestamp"), "%d/%m %H:%M")
+        email = str(row.get("email", "")).strip().lower()
+        foto = member_photo_html(email, members_df, 32)
+        css = "me" if is_me else "other"
+        mtype = str(row.get("message_type", "text") or "text").strip().lower()
+        if mtype == "audio":
+            body = _chat_media_html("audio", str(row.get("media_file", "")))
+        elif mtype == "image":
+            body = _chat_media_html("image", str(row.get("media_file", "")))
+        else:
+            body = f'<p class="chat-text">{_escape_chat_html(row.get("message", ""))}</p>'
+        parts.append(
+            f'<div class="chat-bubble {css}">'
+            f'<div class="chat-row-head">{foto}'
+            f'<span class="chat-row-name">{_escape_chat_html(display_name)}</span>'
+            f'<span class="chat-row-time"> · {time_str}</span></div>'
+            f"{body}</div>"
         )
+    parts.append('<div id="chat-scroll-end" style="height:1px;"></div>')
+    parts.append("</div>")
+    st.markdown("".join(parts), unsafe_allow_html=True)
+    inject_chat_scroll_to_bottom()
 
-    st.markdown("</div>", unsafe_allow_html=True)
     inject_chat_scroll_to_bottom()
 
 
@@ -2877,7 +2910,7 @@ def render_chat_composer(
     images_dir: Path | None = None,
     image_prefix: str = "chat",
 ):
-    """Compositor estilo WhatsApp: + para anexos, segurar mic para gravar."""
+    """Compositor compacto: mensagem + ➕ anexos."""
     img_dir = images_dir or CHAT_IMAGES_DIR
     render_whatsapp_chat_composer(
         key_prefix=key_prefix,
@@ -2888,21 +2921,17 @@ def render_chat_composer(
         image_prefix=image_prefix,
         data_dir=DATA_DIR,
     )
+    inject_chat_scroll_to_bottom()
 
 
 def show_group_chat(chat_df: pd.DataFrame, members_df: pd.DataFrame):
     mark_chat_seen(chat_df)
     st.markdown('<p class="music-panel-title">💬 Conversa do grupo</p>', unsafe_allow_html=True)
-    st.caption(
-        f"🟢 {len(members_visible_to_group(members_df))} integrante(s) · "
-        f"mais antigas em cima · novas embaixo · campo de envio no final"
-    )
 
     def _append(**kwargs):
         append_chat_message(chat_df, **kwargs)
 
     render_chat_messages(chat_df, members_df)
-
     render_chat_composer(
         key_prefix="group_chat",
         append_fn=_append,
@@ -2911,8 +2940,6 @@ def show_group_chat(chat_df: pd.DataFrame, members_df: pd.DataFrame):
         images_dir=CHAT_IMAGES_DIR,
         image_prefix="chat",
     )
-    if st.button("🔄 Atualizar conversa", use_container_width=True):
-        st.rerun()
 
 
 def render_team_grid_html(
