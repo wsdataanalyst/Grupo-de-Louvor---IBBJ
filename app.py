@@ -748,8 +748,39 @@ def prepare_escalas(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def sort_chat_messages(df: pd.DataFrame) -> pd.DataFrame:
+    """Ordena mensagens pela data/hora real (fuso BR), não pela ordem do CSV."""
+    if df.empty:
+        return df
+    from app_time import LOCAL_TZ, parse_timestamp
+
+    out = df.copy().reset_index(drop=True)
+    keys: list[tuple[datetime, int]] = []
+    for i, row in out.iterrows():
+        ts = parse_timestamp(str(row.get("timestamp", "")))
+        if ts is None:
+            keys.append((datetime(1970, 1, 1, tzinfo=LOCAL_TZ), int(i)))
+        else:
+            keys.append((ts, int(i)))
+    keys.sort()
+    order = [i for _, i in keys]
+    return out.iloc[order].reset_index(drop=True)
+
+
 def prepare_chat(df: pd.DataFrame) -> pd.DataFrame:
-    return ensure_chat_media_columns(df, CHAT_COLUMNS)
+    from app_time import normalize_chat_timestamp_str
+
+    df = ensure_chat_media_columns(df, CHAT_COLUMNS)
+    if df.empty:
+        return df
+    df = df.copy()
+    df["email"] = df["email"].astype(str).str.strip().str.lower()
+    df["timestamp"] = df["timestamp"].apply(normalize_chat_timestamp_str)
+    df = df[df["timestamp"].astype(str).str.strip() != ""].copy()
+    df = df.drop_duplicates(
+        subset=["email", "message", "timestamp"], keep="first"
+    )
+    return sort_chat_messages(df)
 
 
 def prepare_trocas(df: pd.DataFrame) -> pd.DataFrame:
@@ -3012,6 +3043,7 @@ def show_login_page(members_df: pd.DataFrame):
 
 def load_chat_df() -> pd.DataFrame:
     """Recarrega o chat do disco (evita DataFrame desatualizado na sessão)."""
+    load_data.clear()
     return prepare_chat(load_data(CHAT_FILE, CHAT_COLUMNS))
 
 
@@ -3106,9 +3138,7 @@ def render_chat_messages(chat_df: pd.DataFrame, members_df: pd.DataFrame):
         return
 
     my_email = st.session_state.user_email.strip().lower()
-    chat_sorted = chat_df.copy()
-    chat_sorted["_ts"] = pd.to_datetime(chat_sorted["timestamp"], errors="coerce")
-    chat_sorted = chat_sorted.sort_values("_ts", ascending=True, na_position="last")
+    chat_sorted = sort_chat_messages(chat_df)
 
     parts = ['<div id="chat-scroll-box" class="chat-feed">']
     for _, row in chat_sorted.iterrows():
@@ -3169,12 +3199,17 @@ def show_group_chat(chat_df: pd.DataFrame, members_df: pd.DataFrame):
     if pending and str(pending).strip():
         append_chat_message(message=str(pending).strip(), message_type="text", media_file="")
 
+    mark_chat_seen(load_chat_df())
+    st.markdown('<p class="music-panel-title">💬 Conversa do grupo</p>', unsafe_allow_html=True)
+    _chat_group_live(members_df)
+
+
+@st.fragment(run_every=timedelta(seconds=4))
+def _chat_group_live(members_df: pd.DataFrame):
+    """Atualiza o histórico a cada poucos segundos para refletir mensagens de outros integrantes."""
     chat_df = load_chat_df()
     st.session_state["_chat_df_cache"] = chat_df
     st.session_state.chat_unread_count = 0
-
-    mark_chat_seen(chat_df)
-    st.markdown('<p class="music-panel-title">💬 Conversa do grupo</p>', unsafe_allow_html=True)
 
     def _append(**kwargs):
         append_chat_message(**kwargs)

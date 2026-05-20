@@ -17,21 +17,35 @@ def now_local() -> datetime:
 
 
 def timestamp_now() -> str:
-    return now_local().strftime("%Y-%m-%d %H:%M:%S")
+    return now_local().strftime("%Y-%m-%d %H:%M:%S.%f")
 
 
 def parse_timestamp(value: str) -> datetime | None:
     if not value or str(value).strip() in ("", "nan", "NaT"):
         return None
+    raw = str(value).strip()
     try:
-        dt = pd.to_datetime(value)
+        if raw[:4].isdigit() and raw[4:5] == "-":
+            dt = pd.to_datetime(raw, errors="coerce")
+        else:
+            dt = pd.to_datetime(raw, dayfirst=True, errors="coerce")
     except Exception:
+        return None
+    if pd.isna(dt):
         return None
     if hasattr(dt, "to_pydatetime"):
         dt = dt.to_pydatetime()
     if dt.tzinfo is None:
         return dt.replace(tzinfo=LOCAL_TZ)
     return dt.astimezone(LOCAL_TZ)
+
+
+def normalize_chat_timestamp_str(value) -> str:
+    """Gravação uniforme no CSV para ordenação correta do chat."""
+    ts = parse_timestamp(str(value))
+    if ts:
+        return ts.strftime("%Y-%m-%d %H:%M:%S.%f")
+    return ""
 
 
 def to_local_timestamps(values) -> pd.Series:
