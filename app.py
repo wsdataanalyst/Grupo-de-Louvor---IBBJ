@@ -43,6 +43,7 @@ from password_reset import (
     email_is_configured,
     validate_reset_token,
 )
+from escala_member_stats import format_date_br, member_escala_stats
 from user_feedback import (
     MSG_IMPROVEMENTS,
     show_exception_error,
@@ -832,6 +833,62 @@ def user_on_escala_semana(
                 )
                 break
     return found
+
+
+_DIAS_SEMANA_PT = ("Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo")
+
+
+def rehearsal_date_is_set(escala_row) -> bool:
+    raw = str(escala_row.get("rehearsal_date", "")).strip()
+    if not raw or raw.lower() in ("nan", "nat", "none"):
+        return False
+    return bool(pd.notna(pd.to_datetime(raw, errors="coerce")))
+
+
+def format_rehearsal_date_pt(escala_row) -> str:
+    raw = str(escala_row.get("rehearsal_date", "")).strip()
+    rd = pd.to_datetime(raw, errors="coerce")
+    if pd.isna(rd):
+        return raw
+    return f"{_DIAS_SEMANA_PT[rd.weekday()]}, {rd.strftime('%d/%m/%Y')}"
+
+
+def ensaio_reminder_html(escala_row, *, is_manager: bool) -> str:
+    """Lembrete de ensaio para integrantes escalados (data definida ou pendente)."""
+    if rehearsal_date_is_set(escala_row):
+        fmt = html.escape(format_rehearsal_date_pt(escala_row))
+        return (
+            '<p class="escala-ensaio ensaio-ok">'
+            f"📅 <strong>Ensaio:</strong> {fmt}"
+            "</p>"
+        )
+    if is_manager:
+        texto = (
+            "⚠️ <strong>Definir data do ensaio</strong> — "
+            "cadastre a data em <em>Gerenciar Escalas</em> para avisar a equipe."
+        )
+    else:
+        texto = (
+            "⏳ <strong>Definir data do ensaio</strong> — "
+            "aguardando confirmação do líder. Fique atento(a)!"
+        )
+    return f'<p class="escala-ensaio ensaio-pendente">{texto}</p>'
+
+
+def ensaio_aviso_banner_html(escala_row, *, is_manager: bool) -> str:
+    if rehearsal_date_is_set(escala_row):
+        return ""
+    ev = html.escape(str(escala_row.get("event", "Culto")))
+    if is_manager:
+        sub = "Abra <strong>Gerenciar Escalas</strong> e informe a data do ensaio para o grupo."
+    else:
+        sub = "O líder ainda vai confirmar. Assim que definir, a data aparecerá aqui e no painel."
+    return (
+        '<div class="ensaio-aviso-banner">'
+        f'<p class="ensaio-aviso-titulo">⏳ Definir data do ensaio — {ev}</p>'
+        f'<p class="ensaio-aviso-sub">{sub}</p>'
+        "</div>"
+    )
 
 
 def trocas_abertas_pendentes(trocas_df: pd.DataFrame) -> pd.DataFrame:
@@ -2337,6 +2394,117 @@ def apply_music_theme():
         .status-escalado .escala-funcao {
             color: #86efac;
         }
+        .status-escalado .escala-ensaio {
+            margin: 0.2rem 0 0.65rem;
+            padding: 0.35rem 0 0.35rem 0.65rem;
+            font-size: 0.92rem;
+            border-left: 3px solid rgba(251, 191, 36, 0.55);
+            line-height: 1.45;
+        }
+        .status-escalado .ensaio-ok {
+            border-left-color: rgba(96, 165, 250, 0.65);
+            color: #93c5fd;
+        }
+        .status-escalado .ensaio-pendente {
+            color: #fde68a;
+        }
+        .ensaio-aviso-banner {
+            background: rgba(251, 191, 36, 0.14);
+            border: 1px solid rgba(251, 191, 36, 0.5);
+            border-radius: 12px;
+            padding: 0.85rem 1.1rem;
+            margin: 0 0 0.85rem;
+            color: #fef3c7;
+            line-height: 1.5;
+        }
+        .ensaio-aviso-banner .ensaio-aviso-titulo {
+            margin: 0;
+            font-weight: 700;
+            color: #fde68a;
+        }
+        .ensaio-aviso-banner .ensaio-aviso-sub {
+            margin: 0.35rem 0 0;
+            font-size: 0.9rem;
+            color: #fcd34d;
+        }
+        .members-leader-wrap {
+            overflow-x: auto;
+            margin: 0.5rem 0 1rem;
+            border-radius: 14px;
+            border: 1px solid rgba(139, 92, 246, 0.35);
+            background: rgba(15, 10, 30, 0.55);
+        }
+        .members-leader-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+            color: #e8e4f5;
+        }
+        .members-leader-table th {
+            text-align: left;
+            padding: 0.75rem 0.85rem;
+            font-size: 0.72rem;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            color: #c4b5fd;
+            background: rgba(139, 92, 246, 0.18);
+            border-bottom: 1px solid rgba(139, 92, 246, 0.35);
+            white-space: nowrap;
+        }
+        .members-leader-table td {
+            padding: 0.65rem 0.85rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+            vertical-align: middle;
+        }
+        .members-leader-table tr:hover td {
+            background: rgba(139, 92, 246, 0.08);
+        }
+        .members-leader-table .col-foto {
+            width: 56px;
+        }
+        .members-leader-table .mem-nome {
+            font-weight: 600;
+            color: #faf8ff;
+        }
+        .members-leader-table .mem-funcao {
+            color: #c4b5fd;
+            font-size: 0.85rem;
+            max-width: 220px;
+        }
+        .badge-escalado-sim {
+            display: inline-block;
+            padding: 0.2rem 0.55rem;
+            border-radius: 999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            background: rgba(52, 211, 153, 0.2);
+            color: #6ee7b7;
+            border: 1px solid rgba(52, 211, 153, 0.45);
+        }
+        .badge-escalado-nao {
+            display: inline-block;
+            padding: 0.2rem 0.55rem;
+            border-radius: 999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            background: rgba(148, 163, 184, 0.15);
+            color: #94a3b8;
+            border: 1px solid rgba(148, 163, 184, 0.3);
+        }
+        .stat-pill {
+            display: inline-block;
+            min-width: 1.6rem;
+            text-align: center;
+            padding: 0.15rem 0.45rem;
+            border-radius: 8px;
+            font-weight: 700;
+            background: rgba(251, 191, 36, 0.15);
+            color: #fde68a;
+        }
+        .stat-pill-zero {
+            background: rgba(148, 163, 184, 0.12);
+            color: #94a3b8;
+        }
         .status-nao-escalado {
             background: rgba(251, 191, 36, 0.08);
             border: 1px solid rgba(251, 191, 36, 0.35);
@@ -3255,25 +3423,27 @@ def render_culto_programa(
     equipe_df: pd.DataFrame,
     members_df: pd.DataFrame,
     louvores_df: pd.DataFrame | None = None,
+    *,
+    ensaio_notice: bool = False,
 ):
     escala_id = str(escala_row.get("id", ""))
     event = str(escala_row.get("event", "Culto"))
     culto_date = str(escala_row.get("date", ""))
-    dias = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"]
+    is_mgr = is_scale_manager(st.session_state.get("user_roles", []))
     try:
         dt = pd.to_datetime(culto_date)
-        date_fmt = f"{dias[dt.weekday()]}, {dt.strftime('%d/%m/%Y')}"
+        date_fmt = f"{_DIAS_SEMANA_PT[dt.weekday()]}, {dt.strftime('%d/%m/%Y')}"
     except (ValueError, TypeError):
         date_fmt = culto_date
 
-    rehearsal = str(escala_row.get("rehearsal_date", "")).strip()
     ensaio_fmt = ""
-    if rehearsal:
-        try:
-            rd = pd.to_datetime(rehearsal)
-            ensaio_fmt = f" · Ensaio: {dias[rd.weekday()]}, {rd.strftime('%d/%m/%Y')}"
-        except (ValueError, TypeError):
-            ensaio_fmt = f" · Ensaio: {rehearsal}"
+    if rehearsal_date_is_set(escala_row):
+        ensaio_fmt = f" · Ensaio: {format_rehearsal_date_pt(escala_row)}"
+
+    if ensaio_notice:
+        banner = ensaio_aviso_banner_html(escala_row, is_manager=is_mgr)
+        if banner:
+            st.markdown(banner, unsafe_allow_html=True)
 
     st.markdown(
         f"""
@@ -3481,6 +3651,7 @@ def show_dashboard(
                 f'<span class="escala-data">({html.escape(dtf)})</span> '
                 f'<span class="escala-funcao">— {funcao}</span>'
                 "</p>"
+                + ensaio_reminder_html(row, is_manager=is_mgr)
             )
         st.markdown(
             '<div class="status-escalado"><p>✅ <strong>Você está escalado(a) esta semana!</strong></p>'
@@ -3542,8 +3713,19 @@ def show_dashboard(
         )
         return
 
+    minhas_ids = {
+        str(item["escala"]["id"])
+        for item in user_on_escala_semana(escalas_df, equipe_df, my_email, start, end)
+    }
     for _, escala in semana.iterrows():
-        render_culto_programa(escala, programa_df, equipe_df, members_df, louvores_df)
+        render_culto_programa(
+            escala,
+            programa_df,
+            equipe_df,
+            members_df,
+            louvores_df,
+            ensaio_notice=str(escala.get("id", "")) in minhas_ids,
+        )
 
 
 def show_user_profile(
@@ -3844,7 +4026,152 @@ def render_admin_password_reset(members_df: pd.DataFrame):
         render_password_reset_panel(members_df, form_key_prefix="admin")
 
 
-def show_members_overview(members_df: pd.DataFrame, louvores_df: pd.DataFrame):
+ESCALA_MES_AVISO_KEY = "_escala_mes_aviso_pending"
+
+
+@st.dialog("⚠️ Integrante já escalado no mês")
+def _escala_mes_aviso_dialog():
+    info = st.session_state.get(ESCALA_MES_AVISO_KEY) or {}
+    nome = info.get("nome", "Integrante")
+    count = int(info.get("count", 0))
+    culto_ref = info.get("culto_ref", "")
+    detalhes = info.get("detalhes", "")
+    st.markdown(
+        f"**{html.escape(nome)}** já consta em **{count}** escala(s) no mesmo mês"
+        f"{f' (referência: {html.escape(culto_ref)})' if culto_ref else ''}."
+    )
+    if detalhes:
+        st.caption(detalhes)
+    st.info("Você pode continuar a montagem — este aviso é apenas para equilibrar as escalas.")
+    if st.button("Entendi", type="primary", use_container_width=True):
+        st.session_state.pop(ESCALA_MES_AVISO_KEY, None)
+        st.rerun()
+
+
+def maybe_show_escala_mes_aviso():
+    if st.session_state.get(ESCALA_MES_AVISO_KEY):
+        _escala_mes_aviso_dialog()
+
+
+def _queue_escala_mes_aviso(
+    nome: str,
+    email: str,
+    culto_date: date,
+    escalas_df: pd.DataFrame,
+    equipe_df: pd.DataFrame,
+    *,
+    exclude_escala_id: str | None = None,
+):
+    stats = member_escala_stats(
+        email,
+        escalas_df,
+        equipe_df,
+        ref=culto_date,
+        exclude_escala_id=exclude_escala_id,
+    )
+    if stats.month_count <= 0:
+        return
+    linhas = [
+        f"• {format_date_br(d)} — {html.escape(ev)}"
+        for d, ev in stats.month_cultos[:5]
+    ]
+    detalhes = "Cultos no mês:\n" + "\n".join(linhas) if linhas else ""
+    if len(stats.month_cultos) > 5:
+        detalhes += f"\n… e mais {len(stats.month_cultos) - 5}."
+    st.session_state[ESCALA_MES_AVISO_KEY] = {
+        "nome": nome,
+        "count": stats.month_count,
+        "culto_ref": culto_date.strftime("%m/%Y"),
+        "detalhes": detalhes,
+    }
+
+
+def _check_escala_selection_aviso(
+    label: str,
+    member_map: dict[str, str],
+    culto_date: date,
+    escalas_df: pd.DataFrame,
+    equipe_df: pd.DataFrame,
+    *,
+    exclude_escala_id: str | None = None,
+):
+    if not label or label not in member_map:
+        return
+    email = member_map[label]
+    nome = label.split(" (")[0] if " (" in label else label
+    _queue_escala_mes_aviso(
+        nome,
+        email,
+        culto_date,
+        escalas_df,
+        equipe_df,
+        exclude_escala_id=exclude_escala_id,
+    )
+
+
+def render_members_leader_table(
+    members_df: pd.DataFrame,
+    escalas_df: pd.DataFrame,
+    equipe_df: pd.DataFrame,
+):
+    """Tabela visual para líderes/organizadores com foto e estatísticas de escala."""
+    visible = members_visible_to_group(members_df)
+    if visible.empty:
+        st.info("Nenhum integrante cadastrado.")
+        return
+
+    ref = date.today()
+    rows_html = []
+    for _, row in visible.sort_values(
+        by=["first_name", "last_name"], key=lambda s: s.str.lower()
+    ).iterrows():
+        email = str(row["email"]).strip().lower()
+        nome = html.escape(member_display_name(row))
+        funcao = html.escape(roles_for_public_display(str(row.get("roles", ""))))
+        foto = member_photo_html(email, members_df, size=44)
+        stats = member_escala_stats(email, escalas_df, equipe_df, ref=ref)
+        escalado_badge = (
+            '<span class="badge-escalado-sim">Sim</span>'
+            if stats.escalado_agora
+            else '<span class="badge-escalado-nao">Não</span>'
+        )
+        mes_cls = "stat-pill" if stats.month_count else "stat-pill stat-pill-zero"
+        ano_cls = "stat-pill" if stats.year_count else "stat-pill stat-pill-zero"
+        ultima = html.escape(format_date_br(stats.last_date))
+        rows_html.append(
+            "<tr>"
+            f'<td class="col-foto">{foto}</td>'
+            f'<td class="mem-nome">{nome}</td>'
+            f'<td class="mem-funcao">{funcao}</td>'
+            f"<td>{escalado_badge}</td>"
+            f'<td><span class="{mes_cls}">{stats.month_count}</span></td>'
+            f'<td><span class="{ano_cls}">{stats.year_count}</span></td>'
+            f"<td>{ultima}</td>"
+            "</tr>"
+        )
+
+    table = (
+        '<div class="members-leader-wrap"><table class="members-leader-table">'
+        "<thead><tr>"
+        "<th>Foto</th><th>Nome</th><th>Função</th><th>Escalado</th>"
+        "<th>Este mês</th><th>Este ano</th><th>Última escala</th>"
+        "</tr></thead><tbody>"
+        + "".join(rows_html)
+        + "</tbody></table></div>"
+    )
+    st.markdown(table, unsafe_allow_html=True)
+    st.caption(
+        "Escalado = culto futuro ou de hoje. Contagens consideram ministro e equipe. "
+        "Use os números para distribuir melhor as escalas."
+    )
+
+
+def show_members_overview(
+    members_df: pd.DataFrame,
+    louvores_df: pd.DataFrame,
+    escalas_df: pd.DataFrame | None = None,
+    equipe_df: pd.DataFrame | None = None,
+):
     st.markdown('<p class="music-panel-title">👥 Todos os integrantes</p>', unsafe_allow_html=True)
     if members_df.empty:
         st.info("Nenhum membro cadastrado.")
@@ -3853,11 +4180,19 @@ def show_members_overview(members_df: pd.DataFrame, louvores_df: pd.DataFrame):
     if can_reset_member_passwords():
         render_admin_password_reset(members_df)
 
-    visible = members_visible_to_group(members_df)
-    display = visible[["first_name", "last_name", "email", "roles", "created_at"]].copy()
-    display["roles"] = display["roles"].apply(roles_for_public_display)
-    display.columns = ["Nome", "Sobrenome", "Email", "Funções", "Cadastro"]
-    st.dataframe(display, use_container_width=True, hide_index=True)
+    leader_view = (
+        can_reset_member_passwords()
+        and escalas_df is not None
+        and equipe_df is not None
+    )
+    if leader_view:
+        render_members_leader_table(members_df, escalas_df, equipe_df)
+    else:
+        visible = members_visible_to_group(members_df)
+        display = visible[["first_name", "last_name", "email", "roles", "created_at"]].copy()
+        display["roles"] = display["roles"].apply(roles_for_public_display)
+        display.columns = ["Nome", "Sobrenome", "Email", "Funções", "Cadastro"]
+        st.dataframe(display, use_container_width=True, hide_index=True)
     st.caption(f"🎶 {len(louvores_df)} louvores disponíveis no catálogo para montar o culto.")
 
 
@@ -4181,11 +4516,37 @@ def render_equipe_editor(
         in_team.add(principal_email)
     available = [lbl for lbl, em in member_map.items() if em.lower() not in in_team]
 
+    prev_eq_key = f"{key_prefix}_eq_add_prev"
+    culto_ref = date.today()
+    if not escala_row.empty:
+        cd = pd.to_datetime(escala_row.iloc[0].get("date"), errors="coerce")
+        if pd.notna(cd):
+            culto_ref = cd.date()
+
+    def _on_equipe_add_change():
+        prev = set(st.session_state.get(prev_eq_key, []))
+        curr = st.session_state.get(f"{key_prefix}_eq_add", [])
+        st.session_state[prev_eq_key] = list(curr)
+        for label in curr:
+            if label not in prev:
+                _check_escala_selection_aviso(
+                    label,
+                    member_map,
+                    culto_ref,
+                    escalas_df,
+                    equipe_df,
+                    exclude_escala_id=escala_id,
+                )
+
+    if prev_eq_key not in st.session_state:
+        st.session_state[prev_eq_key] = list(st.session_state.get(f"{key_prefix}_eq_add", []))
+
     novos = st.multiselect(
         "Adicionar integrantes à escala",
         available,
         key=f"{key_prefix}_eq_add",
         placeholder="Selecione um ou vários integrantes",
+        on_change=_on_equipe_add_change,
     )
     funcao_nova = st.selectbox(
         "Função na escala", ESCALA_FUNCOES_EXIBICAO, key=f"{key_prefix}_eq_fun"
@@ -4327,6 +4688,8 @@ def show_escala_completa_editor(
     members_df: pd.DataFrame,
     chat_ensaio_df: pd.DataFrame | None = None,
 ):
+    maybe_show_escala_mes_aviso()
+
     st.write(
         "Monte a escala completa: integrantes, louvores e salve. "
         "As alterações aparecem no **Dashboard** de todos os integrantes."
@@ -4348,15 +4711,45 @@ def show_escala_completa_editor(
         culto_date = st.date_input("Data do culto", key="nova_esc_data")
         culto_event = st.text_input("Evento / Culto", key="nova_esc_event")
         data_ensaio = st.date_input("Data do ensaio", key="nova_esc_ensaio")
+
+        def _on_nova_resp_change():
+            cd = st.session_state.get("nova_esc_data", date.today())
+            _check_escala_selection_aviso(
+                st.session_state.get("nova_esc_resp", ""),
+                member_map,
+                cd,
+                escalas_df,
+                equipe_df,
+            )
+
+        def _on_nova_equipe_change():
+            prev_key = "_nova_esc_equipe_prev"
+            prev = set(st.session_state.get(prev_key, []))
+            curr = st.session_state.get("nova_esc_equipe", [])
+            st.session_state[prev_key] = list(curr)
+            cd = st.session_state.get("nova_esc_data", date.today())
+            for label in curr:
+                if label not in prev:
+                    _check_escala_selection_aviso(
+                        label, member_map, cd, escalas_df, equipe_df
+                    )
+
+        if "_nova_esc_equipe_prev" not in st.session_state:
+            st.session_state["_nova_esc_equipe_prev"] = list(
+                st.session_state.get("nova_esc_equipe", [])
+            )
+
         responsavel = st.selectbox(
             f"{FUNCAO_MINISTRADOR} (todos os integrantes)",
             list(member_map.keys()),
             key="nova_esc_resp",
+            on_change=_on_nova_resp_change,
         )
         equipe_labels = st.multiselect(
             "Demais integrantes da escala",
             [l for l in member_map.keys() if l != responsavel],
             key="nova_esc_equipe",
+            on_change=_on_nova_equipe_change,
         )
         notas = st.text_area("Notas", key="nova_esc_notas")
 
@@ -4509,6 +4902,14 @@ def show_escala_completa_editor(
         salvar_meta = st.form_submit_button("💾 Salvar dados do culto", use_container_width=True)
 
     if salvar_meta:
+        _check_escala_selection_aviso(
+            novo_resp,
+            member_map,
+            nova_data,
+            escalas_df,
+            equipe_df,
+            exclude_escala_id=escala_id,
+        )
         email = member_map[novo_resp]
         mrow = members_df[members_df["email"].astype(str).str.lower() == email].iloc[0]
         name = member_display_name(mrow)
@@ -4522,6 +4923,8 @@ def show_escala_completa_editor(
         escalas_df.loc[idx, "rehearsal_date"] = nova_data_ensaio.strftime("%Y-%m-%d")
         save_data(escalas_df, ESCALAS_FILE)
         st.success("Dados do culto atualizados.")
+        if st.session_state.get(ESCALA_MES_AVISO_KEY):
+            st.rerun()
         st.rerun()
 
     st.markdown("---")
@@ -4647,7 +5050,7 @@ def show_gerenciar_escalas(
         )
 
     with tab_membros:
-        show_members_overview(members_df, louvores_df)
+        show_members_overview(members_df, louvores_df, escalas_df, equipe_df)
 
 
 def show_programa_culto_editor(
@@ -4691,7 +5094,12 @@ def show_escalas_page(
             st.info("Você não está escalado(a) nesta semana ou a escala ainda não foi publicada.")
         for item in minhas:
             render_culto_programa(
-                item["escala"], programa_df, equipe_df, members_df, louvores_df
+                item["escala"],
+                programa_df,
+                equipe_df,
+                members_df,
+                louvores_df,
+                ensaio_notice=True,
             )
 
     with tab_trocar:
@@ -4844,6 +5252,22 @@ def show_escalas_page(
                 if not row.empty:
                     labels[escala_label(row.iloc[0])] = eid
             escolha = st.selectbox("Escala / culto", list(labels.keys()))
+            escala_row = escalas_df[
+                escalas_df["id"].astype(str) == str(labels[escolha])
+            ].iloc[0]
+            is_mgr_ensaio = is_scale_manager(st.session_state.user_roles)
+            if rehearsal_date_is_set(escala_row):
+                st.success(f"📅 Ensaio: {format_rehearsal_date_pt(escala_row)}")
+            elif is_mgr_ensaio:
+                st.warning(
+                    "⚠️ **Definir data do ensaio** — cadastre em **Gerenciar Escalas** "
+                    "para avisar quem está escalado."
+                )
+            else:
+                st.warning(
+                    "⏳ **Definir data do ensaio** — aguardando o líder confirmar. "
+                    "Fique atento(a)!"
+                )
             render_ensaio_chat(labels[escolha], chat_ensaio_df, members_df)
 
 
@@ -5286,7 +5710,7 @@ def _run_app() -> None:
 
     elif menu == "Membros":
         if can_reset_member_passwords():
-            show_members_overview(members_df, louvores_df)
+            show_members_overview(members_df, louvores_df, escalas_df, equipe_df)
         else:
             st.markdown('<p class="music-panel-title">🎹 Equipe de louvor</p>', unsafe_allow_html=True)
             st.write("Integrantes do ministério.")
