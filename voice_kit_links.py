@@ -21,7 +21,18 @@ KIT_YOUTUBE_SEARCH: dict[str, str] = {
 }
 
 
-def vocal_nipe_from_roles(roles: str) -> str | None:
+_BIO_NIPE_HINTS: tuple[tuple[str, str], ...] = (
+    ("mezzo soprano", "Mezzo Soprano"),
+    ("mezzo-soprano", "Mezzo Soprano"),
+    ("contralto", "Contralto"),
+    ("soprano", "Soprano"),
+    ("baritono", "Baritono"),
+    ("barítono", "Baritono"),
+    ("tenor", "Tenor"),
+)
+
+
+def vocal_nipe_from_roles(roles: str, bio: str = "") -> str | None:
     parts = [p.strip() for p in str(roles).split(",") if p.strip()]
     for role in parts:
         if role in ROLE_TO_NIPE:
@@ -30,6 +41,10 @@ def vocal_nipe_from_roles(roles: str) -> str | None:
     for role, nipe in ROLE_TO_NIPE.items():
         tag = role.replace("Vocalista - ", "").lower()
         if tag in low:
+            return nipe
+    bio_low = str(bio).lower()
+    for hint, nipe in _BIO_NIPE_HINTS:
+        if hint in bio_low:
             return nipe
     return None
 

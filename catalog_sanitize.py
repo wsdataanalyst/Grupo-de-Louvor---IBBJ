@@ -36,3 +36,10 @@ def prepare_louvores_df(df: pd.DataFrame) -> pd.DataFrame:
     for col in out.columns:
         out[col] = out[col].apply(sanitize_catalog_text)
     return out
+
+
+def format_louvor_display(title: str, artist: str = "") -> str:
+    """Título para exibição, sem sufixo '— nan' quando artista está vazio."""
+    t = sanitize_catalog_text(title)
+    a = sanitize_catalog_text(artist)
+    return f"{t} — {a}" if a else t

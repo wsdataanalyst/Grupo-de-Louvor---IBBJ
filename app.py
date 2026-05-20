@@ -851,6 +851,8 @@ def enrich_programa_from_catalog(
     programa_df: pd.DataFrame, louvores_df: pd.DataFrame
 ) -> pd.DataFrame:
     """Preenche youtube/cifra do catálogo quando ausentes na programação."""
+    from catalog_sanitize import sanitize_catalog_text
+
     if programa_df.empty or louvores_df.empty:
         return programa_df
     df = programa_df.copy()
@@ -866,18 +868,22 @@ def enrich_programa_from_catalog(
             continue
         cat = match.iloc[0]
         if not str(row.get("youtube_url", "")).strip():
-            df.at[idx, "youtube_url"] = str(cat.get("youtube_url", ""))
+            df.at[idx, "youtube_url"] = sanitize_catalog_text(cat.get("youtube_url", ""))
         if not str(row.get("cifra_url", "")).strip():
-            df.at[idx, "cifra_url"] = str(cat.get("cifra_url", ""))
+            df.at[idx, "cifra_url"] = sanitize_catalog_text(cat.get("cifra_url", ""))
+        if not sanitize_catalog_text(row.get("artist", "")):
+            df.at[idx, "artist"] = sanitize_catalog_text(cat.get("artist", ""))
+        if not sanitize_catalog_text(row.get("key", "")):
+            df.at[idx, "key"] = sanitize_catalog_text(cat.get("key", ""))
     return df
 
 
-def render_voice_kit_link(roles: str | None = None) -> None:
+def render_voice_kit_link(roles: str | None = None, bio: str = "") -> None:
     """Exibe link do YouTube para kit de voz conforme o nipe do usuário."""
     from voice_kit_links import vocal_nipe_from_roles, voice_kit_youtube_url
 
     roles = roles if roles is not None else str(st.session_state.get("user_roles", ""))
-    nipe = vocal_nipe_from_roles(roles)
+    nipe = vocal_nipe_from_roles(roles, bio=bio)
     if not nipe:
         return
     url = voice_kit_youtube_url(nipe)
@@ -915,7 +921,9 @@ def fix_louvor_display_title(title: str) -> str:
 
 
 def cifra_search_url(title: str, artist: str = "") -> str:
-    q = f"{title} {artist}".strip()
+    from catalog_sanitize import sanitize_catalog_text
+
+    q = f"{sanitize_catalog_text(title)} {sanitize_catalog_text(artist)}".strip()
     return f"https://www.cifraclub.com.br/?q={q.replace(' ', '+')}"
 
 
@@ -936,10 +944,15 @@ def user_escalas(escalas_df: pd.DataFrame, email: str) -> pd.DataFrame:
 
 
 def prepare_programa(df: pd.DataFrame) -> pd.DataFrame:
+    from catalog_sanitize import sanitize_catalog_text
+
     for column in PROGRAMA_COLUMNS:
         if column not in df.columns:
             df[column] = ""
     df = df[list(PROGRAMA_COLUMNS)].copy()
+    for col in ("louvor_title", "artist", "key", "youtube_url", "cifra_url", "leader_name", "notes", "parte"):
+        if col in df.columns:
+            df[col] = df[col].apply(sanitize_catalog_text)
     empty_ids = df["id"].astype(str).str.strip() == ""
     if empty_ids.any():
         df.loc[empty_ids, "id"] = [new_id() for _ in range(empty_ids.sum())]
@@ -975,11 +988,12 @@ def escalas_na_semana(escalas_df: pd.DataFrame, start: date, end: date) -> pd.Da
 
 
 def louvor_label_from_row(row) -> str:
+    from catalog_sanitize import format_louvor_display
+
     title = str(row.get("title", "")).strip()
     if not title:
         return ""
-    artist = str(row.get("artist", "")).strip()
-    return f"{title} — {artist}" if artist else title
+    return format_louvor_display(title, str(row.get("artist", "")))
 
 
 def louvores_catalog_options(louvores_df: pd.DataFrame) -> dict[str, dict]:
@@ -2186,6 +2200,7 @@ def apply_music_theme():
             text-decoration: none !important;
         }
         .prog-btn-yt { background: #dc2626; color: #fff !important; }
+        .prog-btn-kit { background: #b45309; color: #fff !important; }
         .prog-btn-cifra { background: #059669; color: #fff !important; }
         .prog-btn-letra { background: #7c3aed; color: #fff !important; }
         .voice-kit-banner {
@@ -3061,14 +3076,39 @@ def render_culto_programa(
         return
 
     st.markdown("**🎶 Sequência do culto**")
+    from catalog_sanitize import format_louvor_display, sanitize_catalog_text
+    from voice_kit_links import vocal_nipe_from_roles, voice_kit_youtube_url
+
+    idx_me, row_me = get_current_member_row(members_df)
+    bio_me = str(row_me.get("bio", "")) if row_me is not None else ""
+    roles_me = str(row_me.get("roles", "")) if row_me is not None else str(
+        st.session_state.get("user_roles", "")
+    )
+    nipe_me = vocal_nipe_from_roles(roles_me, bio=bio_me)
+    if nipe_me:
+        kit_url = voice_kit_youtube_url(nipe_me)
+        st.markdown(
+            f'<div class="voice-kit-banner">'
+            f'<a href="{kit_url}" target="_blank" rel="noopener noreferrer">'
+            f"🎤 Kit de voz — {nipe_me}</a>"
+            f"<span>Guia vocal e contramão no YouTube</span>"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
+    else:
+        st.caption(
+            "Para ver o kit de voz no YouTube, cadastre sua função vocal "
+            "(ex.: Vocalista - Tenor) em **Perfil**."
+        )
+
     for _, item in prog.iterrows():
-        artist = str(item.get("artist", "")).strip()
-        louvor = fix_louvor_display_title(str(item.get("louvor_title", "")))
-        titulo = f"{louvor} — {artist}" if artist else louvor
-        tom = str(item.get("key", "")).strip()
-        leader = str(item.get("leader_name", "")).strip()
-        yt = str(item.get("youtube_url", "")).strip()
-        cifra = str(item.get("cifra_url", "")).strip()
+        artist = sanitize_catalog_text(item.get("artist", ""))
+        louvor = fix_louvor_display_title(sanitize_catalog_text(item.get("louvor_title", "")))
+        titulo = format_louvor_display(louvor, artist)
+        tom = sanitize_catalog_text(item.get("key", ""))
+        leader = sanitize_catalog_text(item.get("leader_name", ""))
+        yt = sanitize_catalog_text(item.get("youtube_url", ""))
+        cifra = sanitize_catalog_text(item.get("cifra_url", ""))
         if cifra and not cifra.startswith("http"):
             cifra = ""
         if not cifra:
@@ -3077,6 +3117,11 @@ def render_culto_programa(
         if yt:
             btns.append(
                 f'<a class="prog-btn prog-btn-yt" href="{yt}" target="_blank" rel="noopener">▶ YouTube</a>'
+            )
+        if nipe_me:
+            btns.append(
+                f'<a class="prog-btn prog-btn-kit" href="{kit_url}" target="_blank" rel="noopener">'
+                f"🎤 Kit voz ({nipe_me})</a>"
             )
         btns.append(
             f'<a class="prog-btn prog-btn-letra" href="{cifra}" target="_blank" rel="noopener">📜 Letra / Cifra</a>'
@@ -3284,7 +3329,7 @@ def show_user_profile(
 
     st.markdown('<p class="music-panel-title">👤 Meu perfil</p>', unsafe_allow_html=True)
     st.caption("Atualize sua foto e informações cadastrais. O grupo verá suas alterações nas escalas.")
-    render_voice_kit_link(str(row.get("roles", "")))
+    render_voice_kit_link(str(row.get("roles", "")), bio=str(row.get("bio", "")))
 
     col_foto, col_dados = st.columns([1, 2])
     email = str(row["email"]).strip().lower()
@@ -3632,16 +3677,18 @@ def get_picked_louvores_for_programa(
     labels = list(st.session_state.get(f"{key_prefix}_picked", []))
     meta = st.session_state.get(_picked_meta_key(key_prefix), {})
     rows = []
+    from catalog_sanitize import sanitize_catalog_text
+
     for label in labels:
         data = full_catalog.get(label, {})
-        titulo = str(data.get("title", label.split(" — ")[0])).strip()
+        titulo = sanitize_catalog_text(data.get("title", label.split(" — ")[0]))
         entry = meta.get(label, {"parte": CULTO_PARTES[0], "parte_outra": ""})
         rows.append(
             {
                 "label": label,
                 "titulo": titulo,
-                "artist": str(data.get("artist", "")),
-                "key": str(data.get("key", "")),
+                "artist": sanitize_catalog_text(data.get("artist", "")),
+                "key": sanitize_catalog_text(data.get("key", "")),
                 "youtube_url": str(data.get("youtube_url", "")),
                 "cifra_url": str(data.get("cifra_url", "")),
                 "parte": _resolve_parte_from_meta(entry),
@@ -3721,9 +3768,11 @@ def _louvor_search_panel(
     st.markdown('<div class="louvor-dropdown">', unsafe_allow_html=True)
     for label in opcoes:
         data = catalog.get(label, {})
-        titulo = str(data.get("title", label.split(" — ")[0]))
-        artista = str(data.get("artist", ""))
-        tom = str(data.get("key", "")).strip()
+        from catalog_sanitize import sanitize_catalog_text
+
+        titulo = sanitize_catalog_text(data.get("title", label.split(" — ")[0]))
+        artista = sanitize_catalog_text(data.get("artist", ""))
+        tom = sanitize_catalog_text(data.get("key", ""))
         btn = f"➕ {titulo}"
         if artista:
             btn += f" — {artista}"
