@@ -2793,6 +2793,67 @@ def render_push_admin_sidebar(members_df: pd.DataFrame | None = None):
 
         st.caption("OneSignal → Site URL = mesma URL do app (HTTPS).")
 
+    render_data_backup_sidebar()
+
+
+def render_data_backup_sidebar():
+    """Download / upload ZIP dos CSVs — evita perder cadastros ao mudar app no Streamlit."""
+    if not is_current_developer():
+        return
+
+    from data_backup_io import build_data_backup_zip, restore_data_from_zip
+
+    with st.sidebar.expander("💾 Backup / restaurar dados", expanded=False):
+        st.caption(
+            "Os cadastros ficam no **servidor do Streamlit**, não no GitHub. "
+            "Renomear ou criar outro app zera a pasta data/. Baixe o ZIP com frequência."
+        )
+        stamp = datetime.now().strftime("%Y%m%d_%H%M")
+        st.download_button(
+            "⬇️ Baixar backup (ZIP)",
+            data=build_data_backup_zip(DATA_DIR),
+            file_name=f"ibbj_backup_{stamp}.zip",
+            mime="application/zip",
+            use_container_width=True,
+            key="download_data_backup_zip",
+        )
+        uploaded = st.file_uploader(
+            "Arquivo ZIP de backup",
+            type=["zip"],
+            key="upload_data_backup_zip",
+        )
+        if uploaded is not None and st.button(
+            "⚠️ Restaurar este ZIP",
+            type="primary",
+            use_container_width=True,
+            key="confirm_restore_data_zip",
+        ):
+            count, notes = restore_data_from_zip(DATA_DIR, uploaded.getvalue())
+            load_data.clear()
+            if count:
+                st.success(f"Restaurados {count} arquivo(s). A página vai recarregar.")
+                if notes:
+                    st.caption("Alguns itens ignorados: " + "; ".join(notes[:5]))
+                st.rerun()
+            else:
+                show_form_error(
+                    "Nenhum CSV encontrado no ZIP. Use um backup gerado por este app."
+                )
+
+
+def render_data_loss_warning(members_df: pd.DataFrame):
+    """Avisa líder/dev quando o servidor parece sem cadastros (ex.: app Streamlit novo)."""
+    roles = str(st.session_state.get("user_roles", ""))
+    if not is_current_developer() and not is_scale_manager(roles):
+        return
+    if len(members_visible_to_group(members_df)) > 1:
+        return
+    st.warning(
+        "**Poucos integrantes neste servidor.** Se o grupo já tinha cadastros antes de "
+        "renomear o app no Streamlit, use o menu lateral → **💾 Backup / restaurar dados** "
+        "e envie o ZIP do app antigo. Detalhes em `DADOS_E_BACKUP.md` no repositório."
+    )
+
 
 def render_sidebar_profile():
     st.sidebar.markdown(
@@ -5636,6 +5697,7 @@ def _run_app() -> None:
     inject_chat_unread_badges(int(st.session_state.get("chat_unread_count", 0)))
     render_sidebar_footer()
     render_push_admin_sidebar(members_df)
+    render_data_loss_warning(members_df)
 
     page_header(menu)
 
