@@ -19,7 +19,9 @@ def is_direct_url(value: str) -> bool:
 
 
 def _query(title: str, artist: str) -> str:
-    parts = [title.strip(), artist.strip()]
+    from catalog_sanitize import sanitize_catalog_text
+
+    parts = [sanitize_catalog_text(title), sanitize_catalog_text(artist)]
     return " ".join(p for p in parts if p)
 
 

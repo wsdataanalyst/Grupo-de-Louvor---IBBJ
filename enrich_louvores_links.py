@@ -40,8 +40,10 @@ def enrich_dataframe(
     for idx, row in df.iterrows():
         if limit is not None and processed >= limit:
             break
-        title = str(row.get("title", "")).strip()
-        artist = str(row.get("artist", "")).strip()
+        from catalog_sanitize import sanitize_catalog_text
+
+        title = sanitize_catalog_text(row.get("title", ""))
+        artist = sanitize_catalog_text(row.get("artist", ""))
         if not title:
             continue
         yt = str(row.get("youtube_url", "")).strip()

@@ -4,7 +4,9 @@ from pathlib import Path
 
 from app import fix_louvor_display_title, LOUVORES_FILE
 
-df = pd.read_csv(LOUVORES_FILE)
+from catalog_sanitize import prepare_louvores_df
+
+df = prepare_louvores_df(pd.read_csv(LOUVORES_FILE))
 df["title"] = df["title"].astype(str).apply(fix_louvor_display_title)
 # Corrigir títulos partidos conhecidos
 fixes = {

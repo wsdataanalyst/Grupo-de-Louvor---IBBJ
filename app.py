@@ -872,15 +872,38 @@ def enrich_programa_from_catalog(
     return df
 
 
+def render_voice_kit_link(roles: str | None = None) -> None:
+    """Exibe link do YouTube para kit de voz conforme o nipe do usuário."""
+    from voice_kit_links import vocal_nipe_from_roles, voice_kit_youtube_url
+
+    roles = roles if roles is not None else str(st.session_state.get("user_roles", ""))
+    nipe = vocal_nipe_from_roles(roles)
+    if not nipe:
+        return
+    url = voice_kit_youtube_url(nipe)
+    st.markdown(
+        f'<div class="voice-kit-banner">'
+        f'<a href="{url}" target="_blank" rel="noopener noreferrer">'
+        f"🎤 Kit de voz — {nipe}</a>"
+        f"<span>Partes de contramão e guia vocal no YouTube</span>"
+        f"</div>",
+        unsafe_allow_html=True,
+    )
+
+
 def fix_louvor_display_title(title: str) -> str:
     """Correções ortográficas leves para exibição."""
-    t = str(title).strip()
+    from catalog_sanitize import sanitize_catalog_text
+
+    t = sanitize_catalog_text(title)
     fixes = {
         "Aclame ao senhor": "Aclame ao Senhor",
         "a alegria esta no coracao": "A alegria está no coração",
         "A alegria esta no coracao": "A alegria está no coração",
         "Autor da,nha fé": "Autor da minha fé",
-        "a começar em": "A começar em",
+        "Autor da minha fé": "Autor da minha fé",
+        "a começar em": "A começar em mim",
+        "A começar em": "A começar em mim",
     }
     tl = t.lower()
     for wrong, right in fixes.items():
@@ -2165,6 +2188,27 @@ def apply_music_theme():
         .prog-btn-yt { background: #dc2626; color: #fff !important; }
         .prog-btn-cifra { background: #059669; color: #fff !important; }
         .prog-btn-letra { background: #7c3aed; color: #fff !important; }
+        .voice-kit-banner {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 0.65rem 1rem;
+            margin: 0.5rem 0 1rem;
+            padding: 0.75rem 1rem;
+            border-radius: 12px;
+            border: 1px solid rgba(220, 38, 38, 0.45);
+            background: rgba(220, 38, 38, 0.12);
+        }
+        .voice-kit-banner a {
+            color: #fecaca !important;
+            font-weight: 600;
+            text-decoration: none;
+        }
+        .voice-kit-banner a:hover { text-decoration: underline; }
+        .voice-kit-banner span {
+            color: #c4b5fd;
+            font-size: 0.85rem;
+        }
         .catalog-table-wrap {
             overflow-x: auto;
             border-radius: 14px;
@@ -3240,6 +3284,7 @@ def show_user_profile(
 
     st.markdown('<p class="music-panel-title">👤 Meu perfil</p>', unsafe_allow_html=True)
     st.caption("Atualize sua foto e informações cadastrais. O grupo verá suas alterações nas escalas.")
+    render_voice_kit_link(str(row.get("roles", "")))
 
     col_foto, col_dados = st.columns([1, 2])
     email = str(row["email"]).strip().lower()
@@ -4519,6 +4564,7 @@ def show_louvores_catalog(louvores_df: pd.DataFrame):
     st.write(
         "Navegue pelo repertório com busca, filtros e paginação — como um catálogo musical."
     )
+    render_voice_kit_link()
     st.caption(
         "▶ link direto · 🔍 busca no YouTube ou Cifra Club quando ainda não há URL cadastrada."
     )
@@ -4810,9 +4856,22 @@ def main():
     playlist_df = load_data(
         PLAYLIST_FILE, ("title", "artist", "url", "notes", "added_at")
     )
-    louvores_df = load_data(
-        LOUVORES_FILE,
-        ("title", "artist", "key", "youtube_url", "cifra_url", "ritmo", "letter", "source"),
+    from catalog_sanitize import prepare_louvores_df
+
+    louvores_df = prepare_louvores_df(
+        load_data(
+            LOUVORES_FILE,
+            (
+                "title",
+                "artist",
+                "key",
+                "youtube_url",
+                "cifra_url",
+                "ritmo",
+                "letter",
+                "source",
+            ),
+        )
     )
     louvores_df["title"] = louvores_df["title"].astype(str).apply(fix_louvor_display_title)
     eventos_df = prepare_eventos(load_data(EVENTOS_FILE, EVENTO_COLUMNS))
