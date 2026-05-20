@@ -2549,6 +2549,12 @@ def apply_music_theme():
         }
         .event-feed-card h4 { color: #7dd3fc; margin: 0 0 0.35rem; }
         .event-feed-card .ev-date { color: #fbbf24; font-size: 0.82rem; }
+        .event-feed-card .ev-desc {
+            color: #c4b5fd;
+            margin: 0.35rem 0 0;
+            font-size: 0.88rem;
+            line-height: 1.45;
+        }
         .swap-banner {
             background: rgba(96, 165, 250, 0.12);
             border: 1px solid rgba(96, 165, 250, 0.4);
@@ -3572,6 +3578,15 @@ def render_dashboard_swap_alerts(
             st.rerun()
 
 
+def event_plain_text(value, max_len: int = 280) -> str:
+    """Remove tags HTML e limita tamanho para exibição em eventos."""
+    text = re.sub(r"<[^>]+>", "", str(value or ""))
+    text = html.unescape(text).strip()
+    if len(text) > max_len:
+        text = text[: max_len - 1].rstrip() + "…"
+    return text
+
+
 def render_events_feed(eventos_df: pd.DataFrame, limit: int = 5):
     if eventos_df.empty:
         return
@@ -3585,19 +3600,23 @@ def render_events_feed(eventos_df: pd.DataFrame, limit: int = 5):
         except (ValueError, TypeError):
             d = str(ev.get("event_date", ""))
         img = str(ev.get("image_url", "")).strip()
-        img_html = (
-            f'<img src="{img}" style="max-width:100%;border-radius:10px;margin:0.5rem 0;" />'
-            if img.startswith("http")
-            else ""
-        )
-        desc = str(ev.get("description", "")).replace("<", "&lt;")[:280]
+        img_html = ""
+        if img.startswith("http"):
+            img_safe = html.escape(img, quote=True)
+            img_html = (
+                f'<img src="{img_safe}" alt="" '
+                'style="max-width:100%;border-radius:10px;margin:0.5rem 0;" />'
+            )
+        titulo = html.escape(event_plain_text(ev.get("title", "Evento"), max_len=120))
+        desc = html.escape(event_plain_text(ev.get("description", ""), max_len=280))
+        desc_html = f'<p class="ev-desc">{desc}</p>' if desc else ""
         st.markdown(
             f"""
             <div class="event-feed-card">
-                <h4>{ev.get('title', 'Evento')}</h4>
-                <p class="ev-date">📅 {d}</p>
+                <h4>{titulo}</h4>
+                <p class="ev-date">📅 {html.escape(d)}</p>
                 {img_html}
-                <p style="color:#c4b5fd;margin:0.35rem 0 0;font-size:0.88rem;">{desc}</p>
+                {desc_html}
             </div>
             """,
             unsafe_allow_html=True,
@@ -5434,8 +5453,8 @@ def show_eventos_page(eventos_df: pd.DataFrame, members_df: pd.DataFrame):
                     end = d2.strftime("%Y-%m-%d") if d2 else ""
                     nova = {
                         "id": new_id(),
-                        "title": titulo.strip(),
-                        "description": desc.strip(),
+                        "title": event_plain_text(titulo, max_len=200),
+                        "description": event_plain_text(desc, max_len=2000),
                         "event_date": d1.strftime("%Y-%m-%d"),
                         "end_date": end,
                         "image_url": img.strip(),
@@ -5466,9 +5485,11 @@ def show_eventos_page(eventos_df: pd.DataFrame, members_df: pd.DataFrame):
         img = str(ev.get("image_url", "")).strip()
         if img.startswith("http"):
             st.image(img, use_container_width=True)
-        st.subheader(str(ev.get("title", "Evento")))
+        st.subheader(event_plain_text(ev.get("title", "Evento"), max_len=200))
         st.caption(f"📅 {d}")
-        st.write(str(ev.get("description", "")))
+        desc_plain = event_plain_text(ev.get("description", ""), max_len=2000)
+        if desc_plain:
+            st.write(desc_plain)
         if mgr and st.button("🗑️ Remover", key=f"del_ev_{ev['id']}"):
             eventos_df = eventos_df[eventos_df["id"].astype(str) != str(ev["id"])]
             save_data(eventos_df, EVENTOS_FILE)
