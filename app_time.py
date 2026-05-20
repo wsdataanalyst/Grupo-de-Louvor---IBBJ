@@ -34,6 +34,19 @@ def parse_timestamp(value: str) -> datetime | None:
     return dt.astimezone(LOCAL_TZ)
 
 
+def to_local_timestamps(values) -> pd.Series:
+    """Normaliza timestamps para America/Sao_Paulo (comparações no pandas)."""
+    if isinstance(values, pd.Series):
+        ts = pd.to_datetime(values, errors="coerce")
+    else:
+        ts = pd.Series(pd.to_datetime(values, errors="coerce"))
+    if not pd.api.types.is_datetime64_any_dtype(ts):
+        ts = pd.to_datetime(ts, errors="coerce")
+    if ts.dt.tz is None:
+        return ts.dt.tz_localize(LOCAL_TZ)
+    return ts.dt.tz_convert(LOCAL_TZ)
+
+
 def format_local(value, fmt: str = "%d/%m/%Y %H:%M") -> str:
     if value is None or (isinstance(value, float) and pd.isna(value)):
         return ""

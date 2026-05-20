@@ -17,6 +17,7 @@ from app_time import (
     format_local,
     now_local,
     parse_timestamp,
+    to_local_timestamps,
     session_is_valid,
     session_logout,
     session_touch,
@@ -1303,8 +1304,9 @@ def count_unread_chat_messages(chat_df: pd.DataFrame | None = None) -> int:
     seen_ts = parse_timestamp(seen)
     if not seen_ts:
         return len(others)
-    ts = pd.to_datetime(others["timestamp"], errors="coerce")
-    return int((ts > seen_ts).sum())
+    ts = to_local_timestamps(others["timestamp"])
+    seen_cmp = to_local_timestamps(seen_ts).iloc[0]
+    return int((ts > seen_cmp).sum())
 
 
 def mark_chat_seen(chat_df: pd.DataFrame) -> None:
