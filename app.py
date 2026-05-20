@@ -1280,17 +1280,31 @@ def update_chat_latest_ts(chat_df: pd.DataFrame) -> None:
 
 
 def chat_has_new_messages() -> bool:
-    latest = str(st.session_state.get("_chat_latest_ts", "")).strip()
-    if not latest:
-        return False
+    return count_unread_chat_messages() > 0
+
+
+def count_unread_chat_messages(chat_df: pd.DataFrame | None = None) -> int:
+    """Mensagens de outros integrantes após o último acesso ao chat."""
+    if st.session_state.get("app_menu") == "Chat":
+        return 0
+    if chat_df is None:
+        chat_df = st.session_state.get("_chat_df_cache")
+    if chat_df is None or chat_df.empty:
+        return 0
+    my_email = st.session_state.user_email.strip().lower()
+    others = chat_df[
+        chat_df["email"].astype(str).str.strip().str.lower() != my_email
+    ].copy()
+    if others.empty:
+        return 0
     seen = str(st.session_state.get("chat_seen_at", "")).strip()
     if not seen:
-        return True
-    lt = parse_timestamp(latest)
-    sv = parse_timestamp(seen)
-    if not lt or not sv:
-        return bool(latest and latest != seen)
-    return lt > sv
+        return len(others)
+    seen_ts = parse_timestamp(seen)
+    if not seen_ts:
+        return len(others)
+    ts = pd.to_datetime(others["timestamp"], errors="coerce")
+    return int((ts > seen_ts).sum())
 
 
 def mark_chat_seen(chat_df: pd.DataFrame) -> None:
@@ -1298,11 +1312,95 @@ def mark_chat_seen(chat_df: pd.DataFrame) -> None:
         st.session_state.chat_seen_at = timestamp_now()
     else:
         st.session_state.chat_seen_at = str(chat_df["timestamp"].max())
+    st.session_state.chat_unread_count = 0
     st.session_state.pop("_chat_has_new", None)
 
 
 def mark_chat_scroll_bottom() -> None:
     st.session_state["_chat_scroll_bottom"] = True
+
+
+def inject_chat_unread_badges(unread: int) -> None:
+    """Badge flutuante no item Chat da sidebar e nos atalhos do dashboard."""
+    unread = max(0, int(unread))
+    label = "99+" if unread > 99 else str(unread)
+    show = "flex" if unread > 0 else "none"
+    inject_page_html(
+        f"""
+        <style>
+        section[data-testid="stSidebar"] [data-testid="stRadio"] label {{
+            position: relative !important;
+        }}
+        .chat-unread-badge {{
+            position: absolute;
+            top: 0.15rem;
+            right: 0.35rem;
+            min-width: 1.15rem;
+            height: 1.15rem;
+            padding: 0 0.3rem;
+            border-radius: 999px;
+            background: #ef4444;
+            color: #fff !important;
+            font-size: 0.65rem;
+            font-weight: 700;
+            display: {show};
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
+            box-shadow: 0 2px 8px rgba(239, 68, 68, 0.55);
+            z-index: 6;
+            pointer-events: none;
+        }}
+        .quick-nav-btn--chat {{
+            position: relative;
+        }}
+        .quick-nav-btn--chat .chat-unread-badge {{
+            top: 0.4rem;
+            right: 0.55rem;
+        }}
+        </style>
+        <script>
+        (function () {{
+          var count = {unread};
+          var label = {label!r};
+          var display = count > 0 ? "flex" : "none";
+          var doc = window.parent.document;
+          function attach() {{
+            var sidebar = doc.querySelector('[data-testid="stSidebar"]');
+            if (sidebar) {{
+              sidebar.querySelectorAll('[data-testid="stRadio"] label').forEach(function (el) {{
+                var t = (el.innerText || "");
+                if (t.indexOf("Chat") >= 0 && t.toLowerCase().indexOf("ensaio") < 0) {{
+                  var b = el.querySelector(".chat-unread-badge");
+                  if (!b) {{
+                    b = doc.createElement("span");
+                    b.className = "chat-unread-badge";
+                    el.appendChild(b);
+                  }}
+                  b.textContent = label;
+                  b.style.display = display;
+                }}
+              }});
+            }}
+            doc.querySelectorAll(".quick-nav-btn--chat").forEach(function (wrap) {{
+              var b = wrap.querySelector(".chat-unread-badge");
+              if (!b) {{
+                b = doc.createElement("span");
+                b.className = "chat-unread-badge";
+                wrap.appendChild(b);
+              }}
+              b.textContent = label;
+              b.style.display = display;
+            }});
+          }}
+          attach();
+          setTimeout(attach, 350);
+          setTimeout(attach, 1100);
+        }})();
+        </script>
+        """,
+        height=0,
+    )
 
 
 def inject_chat_scroll_to_bottom():
@@ -2458,13 +2556,6 @@ def render_sidebar_navigation() -> str:
     group_legend = " · ".join(g for g, _ in groups)
     st.sidebar.caption(group_legend)
 
-    if "Chat" in names and chat_has_new_messages() and st.session_state.app_menu != "Chat":
-        st.sidebar.markdown(
-            '<p style="margin:0.35rem 0;color:#86efac;font-size:0.85rem;">'
-            "💬 Novas mensagens no chat</p>",
-            unsafe_allow_html=True,
-        )
-
     try:
         idx = names.index(st.session_state.app_menu)
     except ValueError:
@@ -2497,7 +2588,8 @@ def render_dashboard_quick_actions(roles: str):
     cols = st.columns(min(len(links), 4))
     for col, name in zip(cols, links[:4]):
         with col:
-            st.markdown('<div class="quick-nav-btn">', unsafe_allow_html=True)
+            extra = " quick-nav-btn--chat" if name == "Chat" else ""
+            st.markdown(f'<div class="quick-nav-btn{extra}">', unsafe_allow_html=True)
             if st.button(
                 f"{icons.get(name, '🎵')}\n{name}",
                 key=f"quick_nav_{name}",
@@ -2511,7 +2603,8 @@ def render_dashboard_quick_actions(roles: str):
         cols2 = st.columns(min(len(links) - 4, 4))
         for col, name in zip(cols2, links[4:8]):
             with col:
-                st.markdown('<div class="quick-nav-btn">', unsafe_allow_html=True)
+                extra = " quick-nav-btn--chat" if name == "Chat" else ""
+                st.markdown(f'<div class="quick-nav-btn{extra}">', unsafe_allow_html=True)
                 if st.button(
                     f"{icons.get(name, '🎵')}\n{name}",
                     key=f"quick_nav2_{name}",
@@ -3216,7 +3309,6 @@ def show_dashboard(
     equipe_df: pd.DataFrame,
     louvores_df: pd.DataFrame,
     members_df: pd.DataFrame,
-    chat_df: pd.DataFrame,
     playlist_df: pd.DataFrame,
     trocas_df: pd.DataFrame,
     eventos_df: pd.DataFrame,
@@ -3296,13 +3388,11 @@ def show_dashboard(
                 ("🎤", "Cultos na semana", len(semana)),
                 ("🎹", "Integrantes", len(members_visible_to_group(members_df))),
                 ("🎶", "Louvores catálogo", len(louvores_df)),
-                ("💬", "Mensagens chat", len(chat_df)),
             ]
         )
     else:
         render_music_stats(
             [
-                ("💬", "Mensagens chat", len(chat_df)),
                 ("🎧", "Playlist", len(playlist_df)),
             ]
         )
@@ -4930,6 +5020,8 @@ def main():
     inject_mobile_app_shell()
     ensure_media_dirs()
     update_chat_latest_ts(chat_df)
+    st.session_state["_chat_df_cache"] = chat_df
+    st.session_state.chat_unread_count = count_unread_chat_messages(chat_df)
 
     if not st.session_state.authenticated:
         show_login_page(members_df)
@@ -4945,6 +5037,7 @@ def main():
 
     render_sidebar_profile()
     menu = render_sidebar_navigation()
+    inject_chat_unread_badges(int(st.session_state.get("chat_unread_count", 0)))
     render_sidebar_footer()
     render_push_admin_sidebar(members_df)
 
@@ -4962,7 +5055,6 @@ def main():
             equipe_df,
             louvores_df,
             members_df,
-            chat_df,
             playlist_df,
             trocas_df,
             eventos_df,
