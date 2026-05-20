@@ -2,6 +2,9 @@
 /data/*
 !/data/louvores.csv
 /data/backups/
+/data/chat_audio/
+/data/chat_images/
+/data/audios_ensaio/
 
 # Python caches
 __pycache__/
@@ -9,4 +12,4 @@ __pycache__/
 
 # Streamlit — secrets locais (nunca commitar chaves)
 .streamlit/secrets.toml
-
+

@@ -115,12 +115,9 @@ def send_push(
 
 
 def notify_chat_message(author: str, text: str) -> bool:
-    preview = text.strip()
-    if len(preview) > 120:
-        preview = preview[:117] + "..."
     ok, _ = send_push(
-        f"💬 {author}",
-        preview or "Nova mensagem no chat",
+        "💬 Novas mensagens no chat",
+        f"{author} enviou uma nova mensagem no chat do grupo.",
         extra={"type": "chat"},
     )
     return ok
