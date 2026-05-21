@@ -214,6 +214,11 @@ def fetch_csv_text(name: str) -> str | None:
     return str(content)
 
 
+def should_sync_file(file_path: Path) -> bool:
+    """Retorna True para arquivos CSV que devem ser sincronizados com Supabase."""
+    return file_path.name in SYNC_CSV_NAMES
+
+
 def store_csv_text(name: str, content: str) -> None:
     if name not in SYNC_CSV_NAMES:
         return

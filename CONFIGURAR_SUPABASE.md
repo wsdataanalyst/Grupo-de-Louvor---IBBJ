@@ -58,3 +58,22 @@ Se `[persistence]` não estiver configurado, o app continua usando só a pasta `
 ## Custo
 
 Plano gratuito do Supabase costuma bastar para dezenas de integrantes e anos de mensagens em CSV.
+
+## “Supabase desconectado” — checklist
+
+1. Streamlit Cloud → **Settings → Secrets** → **Save** (não só colar).
+2. **Manage app → Reboot app** depois de salvar.
+3. Bloco no final do Secrets (sem apagar OneSignal, SMTP, etc.):
+
+```toml
+[persistence]
+enabled = true
+supabase_url = "https://SEU-ID.supabase.co"
+supabase_key = "eyJ... service_role completa ..."
+```
+
+4. `enabled = true` (minúsculo, sem aspas).
+5. URL **sem** `/` no final.
+6. Chave **service_role** (Settings → API → Reveal), **não** `anon`.
+7. SQL de `supabase/schema.sql` executado → tabela `data_files` existe.
+8. No app (login dev): **💾 Dados na nuvem** → **🔌 Testar conexão Supabase**.
