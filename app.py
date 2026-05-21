@@ -970,6 +970,138 @@ def trocas_abertas_pendentes(trocas_df: pd.DataFrame) -> pd.DataFrame:
     return pend[(tipo_l == "aberta") | target_empty]
 
 
+SWAP_ALERT_MENUS = frozenset({"Dashboard", "Escalas"})
+
+
+def swap_alerts_for_user(
+    trocas_df: pd.DataFrame, my_email: str
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """Abertas (assumir), recebidas (responder) e enviadas (aguardando) para o usuário."""
+    my_email = my_email.strip().lower()
+    if trocas_df.empty:
+        return trocas_df, trocas_df, trocas_df
+    pend = trocas_df[trocas_df["status"].astype(str).str.lower() == "pendente"].copy()
+    abertas = trocas_abertas_pendentes(trocas_df)
+    abertas = abertas[
+        abertas["requester_email"].astype(str).str.strip().str.lower() != my_email
+    ]
+    rec = pend[pend["target_email"].astype(str).str.strip().str.lower() == my_email]
+    env = pend[pend["requester_email"].astype(str).str.strip().str.lower() == my_email]
+    return abertas, rec, env
+
+
+def count_swap_alerts_for_user(trocas_df: pd.DataFrame, my_email: str) -> int:
+    abertas, rec, _ = swap_alerts_for_user(trocas_df, my_email)
+    return len(abertas) + len(rec)
+
+
+def _escala_label_from_troca(trocas_row, escalas_df: pd.DataFrame) -> str:
+    o = escalas_df[escalas_df["id"].astype(str) == str(trocas_row["escala_id_origem"])]
+    return escala_label(o.iloc[0]) if not o.empty else "Escala"
+
+
+def render_swap_alerts_panel(
+    trocas_df: pd.DataFrame,
+    escalas_df: pd.DataFrame,
+    equipe_df: pd.DataFrame,
+    *,
+    key_prefix: str = "swap",
+):
+    """Painel em destaque: trocas abertas, pedidos recebidos e solicitações enviadas."""
+    my_email = st.session_state.user_email.strip().lower()
+    name = st.session_state.user_full_name or st.session_state.user_name
+    abertas, rec, env = swap_alerts_for_user(trocas_df, my_email)
+    if abertas.empty and rec.empty and env.empty:
+        return
+
+    st.markdown(
+        """
+        <div class="swap-priority-panel">
+            <p class="swap-priority-title">🔄 Solicitações de troca de escala</p>
+            <p class="swap-priority-sub">Prioridade do ministério — responda ou assuma abaixo.
+            Detalhes também em <strong>Escalas → Solicitações</strong>.</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    if not rec.empty:
+        st.markdown("**📥 Pedidos aguardando sua resposta**")
+        for _, t in rec.iterrows():
+            label = _escala_label_from_troca(t, escalas_df)
+            st.markdown(
+                f'<div class="swap-banner"><strong>{html.escape(str(t["requester_name"]))}</strong> '
+                f"pediu que você assuma · <em>{html.escape(label)}</em></div>",
+                unsafe_allow_html=True,
+            )
+            if t.get("message"):
+                st.caption(str(t["message"]))
+            c1, c2 = st.columns(2)
+            with c1:
+                if st.button(
+                    "✅ Aceitar",
+                    key=f"{key_prefix}_rec_ok_{t['id']}",
+                    use_container_width=True,
+                    type="primary",
+                ):
+                    escalas_df, equipe_df, trocas_df = accept_open_swap(
+                        t, my_email, name, escalas_df, equipe_df, trocas_df
+                    )
+                    save_data(escalas_df, ESCALAS_FILE)
+                    save_data(trocas_df, TROCAS_FILE)
+                    st.success("Troca aceita! A escala já foi atualizada para todos.")
+                    st.rerun()
+            with c2:
+                if st.button(
+                    "❌ Recusar",
+                    key=f"{key_prefix}_rec_no_{t['id']}",
+                    use_container_width=True,
+                ):
+                    trocas_df = prepare_trocas(trocas_df)
+                    trocas_df.loc[trocas_df["id"].astype(str) == str(t["id"]), "status"] = (
+                        "recusada"
+                    )
+                    trocas_df.loc[
+                        trocas_df["id"].astype(str) == str(t["id"]), "responded_at"
+                    ] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    save_data(trocas_df, TROCAS_FILE)
+                    st.rerun()
+
+    if not abertas.empty:
+        st.markdown("**📢 Disponíveis para qualquer integrante assumir**")
+        for _, t in abertas.iterrows():
+            label = _escala_label_from_troca(t, escalas_df)
+            st.markdown(
+                f'<div class="swap-banner"><strong>{html.escape(str(t["requester_name"]))}</strong> '
+                f"divulgou troca · <em>{html.escape(label)}</em></div>",
+                unsafe_allow_html=True,
+            )
+            if t.get("message"):
+                st.caption(str(t["message"]))
+            if st.button(
+                "✅ Assumir esta troca",
+                key=f"{key_prefix}_open_{t['id']}",
+                use_container_width=True,
+                type="primary",
+            ):
+                escalas_df, _, trocas_df = accept_open_swap(
+                    t, my_email, name, escalas_df, equipe_df, trocas_df
+                )
+                save_data(escalas_df, ESCALAS_FILE)
+                save_data(trocas_df, TROCAS_FILE)
+                st.success("Troca realizada! A solicitação saiu do painel de todos.")
+                st.rerun()
+
+    if not env.empty:
+        st.markdown("**📤 Suas solicitações aguardando**")
+        for _, t in env.iterrows():
+            label = _escala_label_from_troca(t, escalas_df)
+            alvo = str(t.get("target_name") or "").strip() or "qualquer integrante do grupo"
+            st.caption(f"Aguardando {alvo} · {label}")
+
+    st.markdown("---")
+
+
 def accept_open_swap(
     troca_row,
     accepter_email: str,
@@ -1572,6 +1704,51 @@ def inject_chat_unread_badges(unread: int) -> None:
               }}
               b.textContent = label;
               b.style.display = display;
+            }});
+          }}
+          attach();
+          setTimeout(attach, 350);
+          setTimeout(attach, 1100);
+        }})();
+        </script>
+        """,
+        height=0,
+    )
+
+
+def inject_swap_alerts_badges(count: int) -> None:
+    """Badge na sidebar no item Escalas quando há trocas pendentes para o usuário."""
+    count = max(0, int(count))
+    label = "99+" if count > 99 else str(count)
+    show = "flex" if count > 0 else "none"
+    inject_page_html(
+        f"""
+        <style>
+        section[data-testid="stSidebar"] [data-testid="stRadio"] label {{
+            position: relative !important;
+        }}
+        </style>
+        <script>
+        (function () {{
+          var count = {count};
+          var label = {label!r};
+          var display = count > 0 ? "flex" : "none";
+          var doc = window.parent.document;
+          function attach() {{
+            var sidebar = doc.querySelector('[data-testid="stSidebar"]');
+            if (!sidebar) return;
+            sidebar.querySelectorAll('[data-testid="stRadio"] label').forEach(function (el) {{
+              var t = (el.innerText || "");
+              if (t.indexOf("Escalas") >= 0 && t.indexOf("Gerenciar") < 0) {{
+                var b = el.querySelector(".swap-unread-badge");
+                if (!b) {{
+                  b = doc.createElement("span");
+                  b.className = "swap-unread-badge";
+                  el.appendChild(b);
+                }}
+                b.textContent = label;
+                b.style.display = display;
+              }}
             }});
           }}
           attach();
@@ -2624,6 +2801,45 @@ def apply_music_theme():
             border-radius: 12px;
             padding: 0.85rem 1rem;
             margin-bottom: 0.65rem;
+        }
+        .swap-priority-panel {
+            background: linear-gradient(135deg, rgba(251, 191, 36, 0.2), rgba(239, 68, 68, 0.1));
+            border: 2px solid rgba(251, 191, 36, 0.7);
+            border-radius: 14px;
+            padding: 1rem 1.2rem;
+            margin: 0 0 1.25rem;
+            box-shadow: 0 4px 20px rgba(251, 191, 36, 0.15);
+        }
+        .swap-priority-panel .swap-priority-title {
+            color: #fcd34d;
+            font-weight: 700;
+            font-size: 1.08rem;
+            margin: 0 0 0.35rem;
+        }
+        .swap-priority-panel .swap-priority-sub {
+            color: #e9d5ff;
+            font-size: 0.85rem;
+            margin: 0 0 0.75rem;
+        }
+        .swap-unread-badge {
+            position: absolute;
+            top: 0.15rem;
+            right: 0.35rem;
+            min-width: 1.15rem;
+            height: 1.15rem;
+            padding: 0 0.3rem;
+            border-radius: 999px;
+            background: #f59e0b;
+            color: #1a0a2e !important;
+            font-size: 0.65rem;
+            font-weight: 800;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
+            box-shadow: 0 2px 8px rgba(245, 158, 11, 0.55);
+            z-index: 6;
+            pointer-events: none;
         }
         .prog-actions {
             display: flex;
@@ -3831,42 +4047,6 @@ def render_culto_programa(
         )
 
 
-def render_dashboard_swap_alerts(
-    trocas_df: pd.DataFrame,
-    escalas_df: pd.DataFrame,
-):
-    abertas = trocas_abertas_pendentes(trocas_df)
-    if abertas.empty:
-        return
-    my_email = st.session_state.user_email.strip().lower()
-    st.markdown('<p class="music-panel-title">🔄 Trocas disponíveis</p>', unsafe_allow_html=True)
-    for _, t in abertas.iterrows():
-        if str(t.get("requester_email", "")).strip().lower() == my_email:
-            continue
-        o = escalas_df[escalas_df["id"].astype(str) == str(t["escala_id_origem"])]
-        label = escala_label(o.iloc[0]) if not o.empty else "Escala"
-        st.markdown(
-            f'<div class="swap-banner"><strong>{t["requester_name"]}</strong> '
-            f"solicitou troca · <em>{label}</em></div>",
-            unsafe_allow_html=True,
-        )
-        if t.get("message"):
-            st.caption(str(t["message"]))
-        if st.button(
-            "✅ Assumir esta troca",
-            key=f"dash_swap_{t['id']}",
-            use_container_width=True,
-        ):
-            name = st.session_state.user_full_name or st.session_state.user_name
-            escalas_df, _, trocas_df = accept_open_swap(
-                t, my_email, name, escalas_df, pd.DataFrame(), trocas_df
-            )
-            save_data(escalas_df, ESCALAS_FILE)
-            save_data(trocas_df, TROCAS_FILE)
-            st.success("Troca realizada! A solicitação saiu do painel de todos.")
-            st.rerun()
-
-
 def render_events_feed(eventos_df: pd.DataFrame, limit: int = 5):
     if eventos_df.empty:
         return
@@ -3963,7 +4143,6 @@ def show_dashboard(
             unsafe_allow_html=True,
         )
 
-    render_dashboard_swap_alerts(trocas_df, escalas_df)
     render_events_feed(eventos_df)
     render_dashboard_quick_actions(st.session_state.user_roles)
 
@@ -5568,7 +5747,10 @@ def show_escalas_page(
             )
 
     with tab_trocar:
-        st.write("Escolha como deseja solicitar a troca. A escala atualiza após aceite ou quando alguém assumir.")
+        st.write(
+            "Divulgue para o grupo ou peça a um integrante específico. "
+            "A escala atualiza após aceite ou quando alguém assumir."
+        )
         minhas = user_escalas(escalas_df, my_email)
         if minhas.empty:
             st.warning("Você não tem escala vinculada ao seu login.")
@@ -5580,32 +5762,14 @@ def show_escalas_page(
                     "Tipo de troca",
                     [
                         "Divulgar para qualquer integrante assumir",
-                        "Trocar diretamente com outro integrante",
                         "Pedir que integrante específico assuma",
                     ],
                 )
                 target_email = ""
                 target_name = ""
-                dest_id = ""
                 tipo = "aberta"
                 outros = [l for l, e in member_map.items() if e != my_email]
-                if modo.startswith("Trocar diretamente"):
-                    tipo = "direta"
-                    outro = st.selectbox("Integrante", outros)
-                    target_email = member_map[outro]
-                    tr = members_df[
-                        members_df["email"].astype(str).str.lower() == target_email
-                    ].iloc[0]
-                    target_name = member_display_name(tr)
-                    outras = escalas_df[
-                        escalas_df["member_email"].astype(str).str.lower() == target_email
-                    ]
-                    if not outras.empty:
-                        oopts = {escala_label(r): r["id"] for _, r in outras.iterrows()}
-                        dest_id = oopts[
-                            st.selectbox("Escala do integrante", list(oopts.keys()))
-                        ]
-                elif modo.startswith("Pedir que integrante"):
+                if modo.startswith("Pedir que integrante"):
                     tipo = "direcionada"
                     outro = st.selectbox("Integrante que deve assumir", outros)
                     target_email = member_map[outro]
@@ -5617,9 +5781,7 @@ def show_escalas_page(
                 go = st.form_submit_button("📨 Enviar solicitação", type="primary")
             if go:
                 oid = minhas_opts[minha]
-                if tipo == "direta" and not dest_id:
-                    show_form_error("Escolha a escala do integrante para troca direta.")
-                elif not trocas_df[
+                if not trocas_df[
                     (trocas_df["status"] == "pendente")
                     & (trocas_df["escala_id_origem"].astype(str) == str(oid))
                 ].empty:
@@ -5628,7 +5790,7 @@ def show_escalas_page(
                     nova = {
                         "id": new_id(),
                         "escala_id_origem": oid,
-                        "escala_id_destino": dest_id,
+                        "escala_id_destino": "",
                         "requester_email": my_email,
                         "requester_name": st.session_state.user_full_name
                         or st.session_state.user_name,
@@ -5646,7 +5808,9 @@ def show_escalas_page(
                         pd.concat([trocas_df, pd.DataFrame([nova])], ignore_index=True),
                         TROCAS_FILE,
                     )
-                    st.success("Solicitação enviada! Todos verão no Dashboard se for divulgação aberta.")
+                    st.success(
+                        "Solicitação enviada! Ela aparece em destaque no Dashboard e em Escalas."
+                    )
                     st.rerun()
 
     with tab_pedidos:
@@ -5683,10 +5847,13 @@ def show_escalas_page(
                     st.rerun()
             with c2:
                 if st.button("❌ Recusar", key=f"r{t['id']}", use_container_width=True):
-                    trocas_df.loc[trocas_df["id"] == t["id"], "status"] = "recusada"
-                    trocas_df.loc[trocas_df["id"] == t["id"], "responded_at"] = (
-                        datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    trocas_df = prepare_trocas(trocas_df)
+                    trocas_df.loc[trocas_df["id"].astype(str) == str(t["id"]), "status"] = (
+                        "recusada"
                     )
+                    trocas_df.loc[
+                        trocas_df["id"].astype(str) == str(t["id"]), "responded_at"
+                    ] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     save_data(trocas_df, TROCAS_FILE)
                     st.rerun()
         st.subheader("📤 Enviados")
@@ -6087,11 +6254,28 @@ def _run_app() -> None:
     menu = render_sidebar_navigation()
     _escalas_global_sync()
     inject_chat_unread_badges(int(st.session_state.get("chat_unread_count", 0)))
+    try:
+        _, _, _, trocas_alert_df = get_escalas_bundle()
+        swap_alert_count = count_swap_alerts_for_user(
+            trocas_alert_df, st.session_state.user_email
+        )
+    except Exception:
+        swap_alert_count = 0
+    inject_swap_alerts_badges(swap_alert_count)
     render_sidebar_footer()
     render_push_admin_sidebar(members_df)
     render_data_loss_warning(members_df)
 
     page_header(menu)
+
+    if menu in SWAP_ALERT_MENUS:
+        escalas_alert, programa_alert, equipe_alert, trocas_alert = get_escalas_bundle()
+        render_swap_alerts_panel(
+            trocas_alert,
+            escalas_alert,
+            equipe_alert,
+            key_prefix=f"alert_{menu}",
+        )
 
     if menu == "Gerenciar Escalas":
         show_gerenciar_escalas(
