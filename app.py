@@ -2839,10 +2839,32 @@ def render_data_backup_sidebar():
 
     from data_backup_io import build_data_backup_zip, restore_data_from_zip
 
-    from remote_store import is_remote_enabled, remote_status_message, sync_all_local_to_remote
+    from remote_store import (
+        is_remote_enabled,
+        remote_config_hint,
+        remote_status_message,
+        sync_all_local_to_remote,
+        test_remote_connection,
+    )
 
     with st.sidebar.expander("💾 Dados na nuvem / backup", expanded=False):
-        st.caption(remote_status_message())
+        status = remote_status_message()
+        if "desconectado" in status.lower() or "desativada" in status.lower():
+            st.warning(status)
+        else:
+            st.success(status)
+
+        if st.button(
+            "🔌 Testar conexão Supabase",
+            use_container_width=True,
+            key="test_supabase_connection",
+        ):
+            ok, detail = test_remote_connection()
+            if ok:
+                st.success(detail)
+            else:
+                st.error(detail)
+
         if is_remote_enabled():
             if st.button(
                 "☁️ Enviar tudo para a nuvem agora",
@@ -2854,10 +2876,18 @@ def render_data_backup_sidebar():
                 st.success(f"{n} arquivo(s) enviado(s) ao Supabase.")
                 st.rerun()
         else:
-            st.caption(
-                "Ative **Supabase** em secrets (`[persistence]`) para cadastros não sumirem "
-                "ao renomear o app. Guia: **CONFIGURAR_SUPABASE.md**."
-            )
+            hint = remote_config_hint()
+            if hint:
+                st.caption(hint)
+            with st.expander("Exemplo de Secrets (copiar)"):
+                st.code(
+                    '[persistence]\n'
+                    "enabled = true\n"
+                    'supabase_url = "https://SEU-ID.supabase.co"\n'
+                    'supabase_key = "eyJ... service_role ..."',
+                    language="toml",
+                )
+            st.caption("Guia completo: **CONFIGURAR_SUPABASE.md**.")
         st.caption("Backup ZIP (opcional, emergência):")
         stamp = datetime.now().strftime("%Y%m%d_%H%M")
         st.download_button(
