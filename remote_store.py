@@ -194,6 +194,33 @@ def remote_status_message() -> str:
     return f"Supabase desconectado — {detail}"
 
 
+def fetch_sync_revisions(names: tuple[str, ...] | frozenset[str]) -> str:
+    """Fingerprint leve (updated_at na nuvem) para detectar alteração sem baixar CSVs."""
+    wanted = tuple(sorted(set(names)))
+    if not wanted:
+        return ""
+    if not is_remote_enabled():
+        return ""
+    try:
+        res = (
+            _get_client()
+            .table(TABLE_NAME)
+            .select("name,updated_at")
+            .in_("name", list(wanted))
+            .execute()
+        )
+        rows = res.data or []
+        parts = sorted(
+            f"{r.get('name', '')}:{r.get('updated_at') or ''}"
+            for r in rows
+            if r.get("name") in wanted
+        )
+        return "|".join(parts)
+    except Exception as exc:
+        logger.warning("fetch_sync_revisions: %s", exc)
+        return ""
+
+
 def fetch_csv_text(name: str) -> str | None:
     if name not in SYNC_CSV_NAMES:
         return None

@@ -574,6 +574,11 @@ def save_data(df: pd.DataFrame, file_path: Path, *, force: bool = False) -> bool
                 )
 
     load_data.clear()
+    if file_path.name in ESCALA_LIVE_FILE_NAMES:
+        try:
+            refresh_escalas_bundle()
+        except Exception:
+            pass
     return True
 
 
@@ -830,7 +835,11 @@ def prepare_trocas(df: pd.DataFrame) -> pd.DataFrame:
     for column in TROCA_COLUMNS:
         if column not in df.columns:
             df[column] = ""
-    return df[list(TROCA_COLUMNS)].copy()
+    out = df[list(TROCA_COLUMNS)].copy()
+    # CSV com responded_at vazio vira float64 (NaN) — impede gravar data ao aceitar/assumir troca
+    for column in TROCA_COLUMNS:
+        out[column] = out[column].fillna("").astype(str)
+    return out
 
 
 def prepare_chat_ensaio(df: pd.DataFrame) -> pd.DataFrame:
@@ -970,6 +979,7 @@ def accept_open_swap(
     trocas_df: pd.DataFrame,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """Aceita troca aberta ou assume vaga — atualiza escala e encerra pedidos relacionados."""
+    trocas_df = prepare_trocas(trocas_df)
     escala_id = str(troca_row["escala_id_origem"])
     dest_id = str(troca_row.get("escala_id_destino", "")).strip()
     tipo = str(troca_row.get("tipo", "")).lower()
@@ -3389,6 +3399,114 @@ def load_chat_df() -> pd.DataFrame:
     return prepare_chat(load_data(CHAT_FILE, CHAT_COLUMNS))
 
 
+ESCALA_LIVE_FILE_NAMES = frozenset(
+    {
+        "escalas.csv",
+        "escala_equipe.csv",
+        "programa_culto.csv",
+        "trocas_escalas.csv",
+    }
+)
+MENUS_AUTO_REFRESH_ESCALA = frozenset({"Dashboard", "Escalas"})
+ESCALA_POLL_SECONDS = 3
+ESCALA_FORCE_RELOAD_EVERY_POLLS = 15
+
+
+def _load_csv_fresh(file_path: Path, columns: tuple) -> pd.DataFrame:
+    """Lê CSV direto da nuvem/disco, sem cache do Streamlit."""
+    from remote_store import dataframe_from_remote, is_remote_enabled, should_sync_file
+
+    if should_sync_file(file_path) and is_remote_enabled():
+        try:
+            df = dataframe_from_remote(columns, file_path.name)
+            if df is not None:
+                file_path.parent.mkdir(parents=True, exist_ok=True)
+                df.to_csv(file_path, index=False)
+                return df
+        except Exception:
+            pass
+    return load_csv_preserve_rows(file_path, columns)
+
+
+def escalas_data_revision() -> str:
+    """Identificador da versão atual dos arquivos de escala (nuvem ou mtime local)."""
+    from remote_store import fetch_sync_revisions, is_remote_enabled
+
+    if is_remote_enabled():
+        try:
+            remote = fetch_sync_revisions(ESCALA_LIVE_FILE_NAMES)
+            if remote:
+                return f"remote:{remote}"
+        except Exception:
+            pass
+    parts: list[str] = []
+    for path in (ESCALAS_FILE, EQUIPE_FILE, PROGRAMA_FILE, TROCAS_FILE):
+        try:
+            stat = path.stat()
+            parts.append(f"{path.name}:{stat.st_mtime_ns}:{stat.st_size}")
+        except OSError:
+            parts.append(f"{path.name}:missing")
+    return "local:" + "|".join(parts)
+
+
+def load_escalas_bundle_live() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """Recarrega escalas, equipe, programa e trocas sempre da fonte oficial."""
+    escalas_df = prepare_escalas(_load_csv_fresh(ESCALAS_FILE, ESCALA_COLUMNS))
+    programa_df = prepare_programa(_load_csv_fresh(PROGRAMA_FILE, PROGRAMA_COLUMNS))
+    equipe_df = prepare_equipe(_load_csv_fresh(EQUIPE_FILE, EQUIPE_COLUMNS))
+    trocas_df = prepare_trocas(_load_csv_fresh(TROCAS_FILE, TROCA_COLUMNS))
+    return escalas_df, programa_df, equipe_df, trocas_df
+
+
+def refresh_escalas_bundle() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    bundle = load_escalas_bundle_live()
+    st.session_state["_escalas_bundle"] = bundle
+    st.session_state["_escalas_rev"] = escalas_data_revision()
+    return bundle
+
+
+def get_escalas_bundle() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    cached = st.session_state.get("_escalas_bundle")
+    if cached:
+        return cached
+    return refresh_escalas_bundle()
+
+
+@st.fragment(run_every=timedelta(seconds=ESCALA_POLL_SECONDS))
+def _escalas_global_sync():
+    """Sincronização em tempo real: detecta mudanças na nuvem e atualiza a tela aberta."""
+    if not st.session_state.get("authenticated"):
+        return
+
+    poll = int(st.session_state.get("_escalas_poll_count", 0)) + 1
+    st.session_state._escalas_poll_count = poll
+    force_reload = poll % ESCALA_FORCE_RELOAD_EVERY_POLLS == 0
+
+    try:
+        new_rev = escalas_data_revision()
+    except Exception:
+        return
+
+    old_rev = st.session_state.get("_escalas_rev")
+    if (
+        not force_reload
+        and new_rev
+        and old_rev == new_rev
+        and st.session_state.get("_escalas_bundle")
+    ):
+        return
+
+    try:
+        refresh_escalas_bundle()
+    except Exception:
+        return
+
+    menu = st.session_state.get("app_menu", "")
+    changed = old_rev is not None and new_rev != old_rev
+    if menu in MENUS_AUTO_REFRESH_ESCALA and changed:
+        st.rerun()
+
+
 def append_chat_message(
     *,
     message: str,
@@ -3791,11 +3909,9 @@ def show_dashboard(
     trocas_df: pd.DataFrame,
     eventos_df: pd.DataFrame,
 ):
-    if "week_offset" not in st.session_state:
-        st.session_state.week_offset = 0
+    escalas_df, programa_df, equipe_df, trocas_df = get_escalas_bundle()
 
     nome = st.session_state.user_name
-    is_mgr = is_scale_manager(st.session_state.user_roles)
     st.markdown(
         f"""
         <div class="welcome-card">
@@ -3806,6 +3922,10 @@ def show_dashboard(
         unsafe_allow_html=True,
     )
 
+    if "week_offset" not in st.session_state:
+        st.session_state.week_offset = 0
+
+    is_mgr = is_scale_manager(st.session_state.user_roles)
     start, end = week_bounds(st.session_state.week_offset)
     my_email = st.session_state.user_email.strip().lower()
     minhas = user_on_escala_semana(escalas_df, equipe_df, my_email, start, end)
@@ -5014,7 +5134,8 @@ def show_escala_completa_editor(
                     new_escala["responsible"],
                 )
                 st.success(
-                    "Escala salva! Equipe e louvores já estão visíveis no Dashboard de todos."
+                    "Escala salva! Quem estiver no Dashboard ou em Escalas vê a atualização em poucos segundos, "
+                    "sem precisar sair do app."
                 )
                 clear_louvor_picker_state("nova_esc")
                 st.rerun()
@@ -5354,6 +5475,7 @@ def show_gerenciar_escalas(
     members_df: pd.DataFrame,
     chat_ensaio_df: pd.DataFrame,
 ):
+    escalas_df, programa_df, equipe_df, _ = get_escalas_bundle()
     primary = st.session_state.get("user_primary_role", "membro")
     if is_leader(st.session_state.user_roles):
         st.success(
@@ -5415,6 +5537,8 @@ def show_escalas_page(
     louvores_df: pd.DataFrame,
     chat_ensaio_df: pd.DataFrame,
 ):
+    escalas_df, programa_df, equipe_df, trocas_df = get_escalas_bundle()
+
     if is_scale_manager(st.session_state.user_roles):
         st.info(
             "🎯 Líderes e organizadores montam escalas em **Gerenciar Escalas**. "
@@ -5955,7 +6079,13 @@ def _run_app() -> None:
         return
 
     render_sidebar_profile()
+    if "_escalas_bundle" not in st.session_state:
+        try:
+            refresh_escalas_bundle()
+        except Exception:
+            pass
     menu = render_sidebar_navigation()
+    _escalas_global_sync()
     inject_chat_unread_badges(int(st.session_state.get("chat_unread_count", 0)))
     render_sidebar_footer()
     render_push_admin_sidebar(members_df)
