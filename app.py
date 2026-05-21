@@ -44,6 +44,12 @@ from password_reset import (
     validate_reset_token,
 )
 from escala_member_stats import format_date_br, member_escala_stats
+from escala_pdf import (
+    build_escalas_pdf,
+    filter_escalas_by_period,
+    format_period_label,
+    suggested_filename,
+)
 from user_feedback import (
     MSG_IMPROVEMENTS,
     show_exception_error,
@@ -5179,6 +5185,167 @@ def render_ensaio_chat(
     )
 
 
+def render_escalas_pdf_export(
+    escalas_df: pd.DataFrame,
+    programa_df: pd.DataFrame,
+    equipe_df: pd.DataFrame,
+):
+    """PDF em uma pagina para lideres/organizadores compartilharem no WhatsApp."""
+    st.markdown(
+        '<p class="music-panel-title">📄 PDF das escalas (WhatsApp)</p>',
+        unsafe_allow_html=True,
+    )
+    st.caption(
+        "Selecione o periodo e os cultos. O PDF cabe em **uma folha** (paisagem) "
+        "com equipe e programacao de cada escala."
+    )
+
+    if escalas_df.empty:
+        st.info("Nenhuma escala cadastrada ainda. Monte uma escala na aba ao lado.")
+        return
+
+    today = date.today()
+    default_end = today + timedelta(days=60)
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        date_start = st.date_input(
+            "Data inicial",
+            value=today,
+            key="pdf_escala_date_start",
+        )
+    with c2:
+        date_end = st.date_input(
+            "Data final",
+            value=default_end,
+            key="pdf_escala_date_end",
+        )
+    with c3:
+        preset = st.selectbox(
+            "Atalho de periodo",
+            ["Personalizado", "Proximos 7 dias", "Proximos 30 dias", "Este mes"],
+            key="pdf_escala_preset",
+        )
+
+    if preset == "Proximos 7 dias":
+        date_start, date_end = today, today + timedelta(days=7)
+    elif preset == "Proximos 30 dias":
+        date_start, date_end = today, today + timedelta(days=30)
+    elif preset == "Este mes":
+        date_start = today.replace(day=1)
+        if today.month == 12:
+            date_end = date(today.year + 1, 1, 1) - timedelta(days=1)
+        else:
+            date_end = date(today.year, today.month + 1, 1) - timedelta(days=1)
+
+    in_period = filter_escalas_by_period(
+        escalas_df,
+        date_start=date_start,
+        date_end=date_end,
+    )
+    if in_period.empty:
+        st.warning("Nenhuma escala nesse periodo. Ajuste as datas ou cadastre cultos.")
+        return
+
+    eventos = sorted(
+        {str(e).strip() for e in in_period["event"].astype(str) if str(e).strip()}
+    )
+    filtro_evento = st.selectbox(
+        "Filtrar por evento (opcional)",
+        ["Todos os eventos"] + eventos,
+        key="pdf_escala_event_filter",
+    )
+    event_filter = None if filtro_evento == "Todos os eventos" else filtro_evento
+
+    pool = filter_escalas_by_period(
+        in_period,
+        date_start=None,
+        date_end=None,
+        event_filter=event_filter,
+    )
+    ordenadas = escalas_ordenadas(pool)
+    if ordenadas.empty:
+        st.warning("Nenhuma escala para o evento selecionado.")
+        return
+
+    options = {escala_label(r): str(r["id"]) for _, r in ordenadas.iterrows()}
+    default_labels = list(options.keys())
+    selected_labels = st.multiselect(
+        "Escalas incluidas no PDF",
+        options=list(options.keys()),
+        default=default_labels,
+        key="pdf_escala_multiselect",
+        help="Marque os cultos que deseja compilar. Pode juntar varios do mesmo evento.",
+    )
+
+    if not selected_labels:
+        st.info("Selecione ao menos uma escala.")
+        return
+
+    selected_ids = [options[lbl] for lbl in selected_labels]
+    selected_df = filter_escalas_by_period(
+        ordenadas,
+        date_start=None,
+        date_end=None,
+        escala_ids=selected_ids,
+    )
+    period_label = format_period_label(date_start, date_end)
+    if event_filter:
+        period_label = f"{event_filter} · {period_label}"
+
+    st.caption(f"**{len(selected_df)}** escala(s) no PDF · periodo: {period_label}")
+
+    if len(selected_df) > 6:
+        st.warning(
+            "Mais de 6 escalas podem ficar apertadas na folha. "
+            "Para melhor leitura no WhatsApp, prefira ate 4–6 cultos por PDF."
+        )
+
+    if st.button(
+        "📄 Gerar PDF",
+        type="primary",
+        use_container_width=True,
+        key="pdf_escala_generate",
+    ):
+        try:
+            pdf_bytes = build_escalas_pdf(
+                selected_df,
+                programa_df,
+                equipe_df,
+                period_label=period_label,
+                integrantes_escalados=integrantes_escalados,
+                normalize_funcao_escala=normalize_funcao_escala,
+                programa_por_escala=programa_por_escala,
+                fix_louvor_display_title=fix_louvor_display_title,
+                funcao_ministrador=FUNCAO_MINISTRADOR,
+                rehearsal_date_is_set=rehearsal_date_is_set,
+                format_rehearsal_date_pt=format_rehearsal_date_pt,
+            )
+            st.session_state["escala_pdf_bytes"] = pdf_bytes
+            st.session_state["escala_pdf_filename"] = suggested_filename(
+                period_label, len(selected_df)
+            )
+            st.success("PDF pronto! Use o botao abaixo para baixar e enviar no WhatsApp.")
+        except ValueError as exc:
+            show_form_error(str(exc))
+        except Exception as exc:
+            show_technical_error(f"Nao foi possivel gerar o PDF: {exc}")
+
+    pdf_bytes = st.session_state.get("escala_pdf_bytes")
+    if pdf_bytes:
+        fname = st.session_state.get(
+            "escala_pdf_filename",
+            suggested_filename(period_label, len(selected_df)),
+        )
+        st.download_button(
+            "⬇️ Baixar PDF para WhatsApp",
+            data=pdf_bytes,
+            file_name=fname,
+            mime="application/pdf",
+            use_container_width=True,
+            key="pdf_escala_download",
+        )
+
+
 def show_gerenciar_escalas(
     escalas_df: pd.DataFrame,
     programa_df: pd.DataFrame,
@@ -5206,7 +5373,9 @@ def show_gerenciar_escalas(
         ]
     )
 
-    tab_montar, tab_membros = st.tabs(["🎯 Montar / editar escala", "👥 Integrantes"])
+    tab_montar, tab_pdf, tab_membros = st.tabs(
+        ["🎯 Montar / editar escala", "📄 PDF WhatsApp", "👥 Integrantes"]
+    )
 
     with tab_montar:
         show_escala_completa_editor(
@@ -5217,6 +5386,9 @@ def show_gerenciar_escalas(
             members_df,
             chat_ensaio_df,
         )
+
+    with tab_pdf:
+        render_escalas_pdf_export(escalas_df, programa_df, equipe_df)
 
     with tab_membros:
         show_members_overview(members_df, louvores_df, escalas_df, equipe_df)
