@@ -43,7 +43,34 @@ from password_reset import (
     email_is_configured,
     validate_reset_token,
 )
-from escala_member_stats import format_date_br, member_escala_stats
+from escala_member_stats import (
+    format_date_br,
+    member_escala_occurrences,
+    member_escala_stats,
+)
+from app_features import (
+    count_pending_sugestoes,
+    feed_image_display_path,
+    inject_app_notification_badges,
+    lookup_louvor_meta,
+    member_escala_option_label,
+    programa_duracao_total,
+    render_dashboard_future_escalas,
+    render_escala_planner_panel,
+    save_feed_image_file,
+)
+from louvor_meta import (
+    LOUVOR_THEMES,
+    classify_themes,
+    ensure_louvor_row_metadata,
+    format_duracao_total,
+    guia_ministracao_text,
+    parse_duracao_min,
+    suggest_biblical_refs,
+    themes_from_csv,
+    themes_to_csv,
+    validate_louvor,
+)
 from escala_pdf import (
     build_escalas_pdf,
     filter_escalas_by_period,
@@ -194,6 +221,14 @@ CHAT_ENSAIO_COLUMNS = (
 )
 CHAT_AUDIO_DIR = DATA_DIR / "chat_audio"
 CHAT_IMAGES_DIR = DATA_DIR / "chat_images"
+FEED_IMAGES_DIR = DATA_DIR / "feed_images"
+LOUVOR_EXTRA_COLUMNS = (
+    "temas",
+    "ref_biblica",
+    "duracao_min",
+    "validacao_status",
+    "validacao_nota",
+)
 ENSAIO_AUDIO_DIR = DATA_DIR / "audios_ensaio"
 EVENTO_COLUMNS = (
     "id",
@@ -790,6 +825,82 @@ def members_options_escala(members_df: pd.DataFrame) -> dict[str, str]:
         if email:
             options[member_display_name(row)] = email
     return options
+
+
+def member_escala_select_format(
+    label: str,
+    member_map: dict[str, str],
+    escalas_df: pd.DataFrame,
+    equipe_df: pd.DataFrame,
+    culto_ref: date,
+) -> str:
+    email = member_map.get(label, "")
+    if not email:
+        return label
+    return member_escala_option_label(label, email, escalas_df, equipe_df, culto_ref)
+
+
+def prepare_louvores_with_meta(df: pd.DataFrame) -> pd.DataFrame:
+    from catalog_sanitize import prepare_louvores_df
+
+    df = prepare_louvores_df(df)
+    for col in LOUVOR_EXTRA_COLUMNS:
+        if col not in df.columns:
+            df[col] = ""
+    return df
+
+
+def delete_feed_post(post_id: str) -> None:
+    posts, likes, comments = load_feed_bundle()
+    pid = str(post_id)
+    save_data(posts[posts["id"].astype(str) != pid], FEED_POSTS_FILE)
+    save_data(likes[likes["post_id"].astype(str) != pid], FEED_LIKES_FILE)
+    save_data(comments[comments["post_id"].astype(str) != pid], FEED_COMMENTS_FILE)
+
+
+def delete_feed_comment(comment_id: str) -> None:
+    df = prepare_feed_comments(load_data(FEED_COMMENTS_FILE, FEED_COMMENT_COLUMNS))
+    save_data(df[df["id"].astype(str) != str(comment_id)], FEED_COMMENTS_FILE)
+
+
+def delete_own_chat_message(timestamp: str, email: str) -> None:
+    df = prepare_chat(load_data(CHAT_FILE, CHAT_COLUMNS))
+    mask = ~(
+        (df["timestamp"].astype(str) == str(timestamp))
+        & (df["email"].astype(str).str.lower() == email.strip().lower())
+    )
+    save_data(df[mask], CHAT_FILE)
+    load_chat_df.clear()
+
+
+def delete_own_ensaio_message(timestamp: str, escala_id: str, email: str) -> None:
+    df = prepare_chat_ensaio(load_data(CHAT_ENSAIO_FILE, CHAT_ENSAIO_COLUMNS))
+    mask = ~(
+        (df["timestamp"].astype(str) == str(timestamp))
+        & (df["escala_id"].astype(str) == str(escala_id))
+        & (df["email"].astype(str).str.lower() == email.strip().lower())
+    )
+    save_data(df[mask], CHAT_ENSAIO_FILE)
+
+
+def feed_data_revision() -> str:
+    from remote_store import fetch_sync_revisions, is_remote_enabled
+
+    if is_remote_enabled():
+        try:
+            remote = fetch_sync_revisions(FEED_LIVE_FILE_NAMES)
+            if remote:
+                return f"remote:{remote}"
+        except Exception:
+            pass
+    parts: list[str] = []
+    for path in (FEED_POSTS_FILE, FEED_LIKES_FILE, FEED_COMMENTS_FILE):
+        try:
+            stat = path.stat()
+            parts.append(f"{path.name}:{stat.st_mtime_ns}:{stat.st_size}")
+        except OSError:
+            parts.append(f"{path.name}:missing")
+    return "local:" + "|".join(parts)
 
 
 def sync_member_name_in_records(
@@ -1414,7 +1525,7 @@ def accept_open_swap(
 def enrich_programa_from_catalog(
     programa_df: pd.DataFrame, louvores_df: pd.DataFrame
 ) -> pd.DataFrame:
-    """Preenche youtube/cifra do catálogo quando ausentes na programação."""
+    """Preenche youtube/cifra do repertório quando ausentes na programação."""
     from catalog_sanitize import sanitize_catalog_text
 
     if programa_df.empty or louvores_df.empty:
@@ -2153,6 +2264,7 @@ def catalog_link_label(url: str) -> str:
 def ensure_media_dirs():
     CHAT_AUDIO_DIR.mkdir(parents=True, exist_ok=True)
     CHAT_IMAGES_DIR.mkdir(parents=True, exist_ok=True)
+    FEED_IMAGES_DIR.mkdir(parents=True, exist_ok=True)
     ENSAIO_AUDIO_DIR.mkdir(parents=True, exist_ok=True)
 
 
@@ -3112,6 +3224,44 @@ def apply_music_theme():
         }
         .feed-comment b { color: #c4b5fd; }
         .feed-comment time { color: #8b7aa8; font-size: 0.75rem; }
+        .future-escala-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+            gap: 0.65rem;
+            margin-bottom: 1rem;
+        }
+        .future-escala-card {
+            background: rgba(251, 191, 36, 0.1);
+            border: 1px solid rgba(251, 191, 36, 0.35);
+            border-radius: 12px;
+            padding: 0.75rem 0.9rem;
+        }
+        .future-escala-card .fe-date { color: #fbbf24; font-weight: 700; margin: 0; font-size: 0.88rem; }
+        .future-escala-card .fe-event { color: #e9d5ff; margin: 0.25rem 0 0; font-size: 0.82rem; }
+        .planner-panel-card {
+            background: rgba(30, 20, 50, 0.85);
+            border: 1px solid rgba(167, 139, 250, 0.35);
+            border-radius: 14px;
+            padding: 0.85rem 1rem;
+            margin-bottom: 0.65rem;
+        }
+        .planner-title { color: #c4b5fd; font-weight: 700; margin: 0; font-size: 0.95rem; }
+        .planner-sub { color: #a89bc4; font-size: 0.78rem; margin: 0.25rem 0 0; }
+        .planner-row {
+            display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem 0.5rem;
+            padding: 0.4rem 0; border-bottom: 1px solid rgba(139, 92, 246, 0.15);
+            font-size: 0.8rem;
+        }
+        .planner-name { color: #e9d5ff; font-weight: 600; flex: 1 1 auto; }
+        .planner-date { color: #a89bc4; font-size: 0.75rem; }
+        .planner-badge-warn {
+            background: rgba(251, 191, 36, 0.2); color: #fbbf24;
+            font-size: 0.65rem; padding: 0.1rem 0.4rem; border-radius: 999px;
+        }
+        .planner-badge-ok {
+            background: rgba(74, 222, 128, 0.15); color: #86efac;
+            font-size: 0.65rem; padding: 0.1rem 0.4rem; border-radius: 999px;
+        }
         .playlist-track-card {
             background: rgba(244, 114, 182, 0.08);
             border: 1px solid rgba(244, 114, 182, 0.3);
@@ -3949,8 +4099,14 @@ ESCALA_LIVE_FILE_NAMES = frozenset(
         "trocas_escalas.csv",
     }
 )
-MENUS_AUTO_REFRESH_ESCALA = frozenset({"Dashboard", "Escalas"})
-ESCALA_POLL_SECONDS = 3
+MENUS_AUTO_REFRESH_ESCALA = frozenset(
+    {"Dashboard", "Escalas", "Gerenciar Escalas", "Chat", "Feed", "Repertório"}
+)
+ESCALA_POLL_SECONDS = 2
+FEED_POLL_SECONDS = 2
+FEED_LIVE_FILE_NAMES = frozenset(
+    {"feed_posts.csv", "feed_likes.csv", "feed_comments.csv"}
+)
 ESCALA_FORCE_RELOAD_EVERY_POLLS = 15
 
 
@@ -4046,6 +4202,22 @@ def _escalas_global_sync():
     menu = st.session_state.get("app_menu", "")
     changed = old_rev is not None and new_rev != old_rev
     if menu in MENUS_AUTO_REFRESH_ESCALA and changed:
+        st.rerun()
+
+
+@st.fragment(run_every=timedelta(seconds=FEED_POLL_SECONDS))
+def _feed_global_sync():
+    if not st.session_state.get("authenticated"):
+        return
+    try:
+        new_rev = feed_data_revision()
+    except Exception:
+        return
+    old_rev = st.session_state.get("_feed_rev")
+    if old_rev == new_rev:
+        return
+    st.session_state._feed_rev = new_rev
+    if st.session_state.get("app_menu") == "Feed" and old_rev is not None:
         st.rerun()
 
 
@@ -4172,6 +4344,17 @@ def render_chat_messages(chat_df: pd.DataFrame, members_df: pd.DataFrame):
     parts.append('<div id="chat-scroll-end" style="height:1px;"></div>')
     parts.append("</div>")
     st.markdown("".join(parts), unsafe_allow_html=True)
+    for _, row in chat_sorted.iterrows():
+        if str(row.get("email", "")).strip().lower() != my_email:
+            continue
+        ts = str(row.get("timestamp", ""))
+        if st.button(
+            "🗑️ Apagar minha mensagem",
+            key=f"del_chat_{ts}",
+            use_container_width=True,
+        ):
+            delete_own_chat_message(ts, my_email)
+            st.rerun()
     inject_chat_scroll_to_bottom()
 
 
@@ -4330,12 +4513,19 @@ def render_culto_programa(
             "(ex.: Vocalista - Tenor) em **Perfil**."
         )
 
+    total_prog_min = 0.0
     for _, item in prog.iterrows():
         artist = sanitize_catalog_text(item.get("artist", ""))
         louvor = fix_louvor_display_title(sanitize_catalog_text(item.get("louvor_title", "")))
         titulo = format_louvor_display(louvor, artist)
         tom = sanitize_catalog_text(item.get("key", ""))
         leader = sanitize_catalog_text(item.get("leader_name", ""))
+        meta_l = (
+            lookup_louvor_meta(louvores_df, louvor, artist) if louvores_df is not None else {}
+        )
+        dur_item = parse_duracao_min(meta_l.get("duracao_min", ""))
+        total_prog_min += dur_item
+        dur_txt = format_duracao_total(dur_item)
         yt = sanitize_catalog_text(item.get("youtube_url", ""))
         cifra = sanitize_catalog_text(item.get("cifra_url", ""))
         if cifra and not cifra.startswith("http"):
@@ -4358,7 +4548,15 @@ def render_culto_programa(
             f'<a class="prog-btn prog-btn-letra" href="{cifra}" target="_blank" rel="noopener">📜 Letra / Cifra</a>'
         )
         btns_html = f'<div class="prog-actions">{"".join(btns)}</div>' if btns else ""
-        meta = " · ".join(x for x in [f"Tom: {tom}" if tom else "", f"🎤 {leader}" if leader else ""] if x)
+        meta_parts = [
+            f"Tom: {tom}" if tom else "",
+            f"🎤 {leader}" if leader else "",
+            f"⏱ ~{dur_txt}",
+        ]
+        ref_b = str(meta_l.get("ref_biblica", "")).strip()
+        if ref_b:
+            meta_parts.append(f"📖 {html.escape(ref_b[:80])}")
+        meta = " · ".join(x for x in meta_parts if x)
         st.markdown(
             f"""
             <div class="prog-card">
@@ -4371,6 +4569,49 @@ def render_culto_programa(
             """,
             unsafe_allow_html=True,
         )
+
+    if total_prog_min > 0:
+        st.caption(
+            f"⏱ Duração estimada do bloco de louvor: **{format_duracao_total(total_prog_min)}**"
+        )
+
+    my_email = st.session_state.user_email.strip().lower()
+    is_ministrador_culto = (
+        str(escala_row.get("member_email", "")).strip().lower() == my_email
+    )
+    if not is_ministrador_culto and not equipe_df.empty:
+        eq = equipe_por_escala(equipe_df, escala_id)
+        is_ministrador_culto = any(
+            str(r.get("member_email", "")).strip().lower() == my_email
+            and FUNCAO_MINISTRADOR in normalize_funcao_escala(str(r.get("funcao", "")))
+            for _, r in eq.iterrows()
+        )
+    if is_ministrador_culto or is_mgr:
+        nomes_l = [
+            format_louvor_display(
+                fix_louvor_display_title(sanitize_catalog_text(p.get("louvor_title", ""))),
+                sanitize_catalog_text(p.get("artist", "")),
+            )
+            for _, p in prog.iterrows()
+        ]
+        themes_lines: list[str] = []
+        if louvores_df is not None:
+            for _, p in prog.iterrows():
+                m = lookup_louvor_meta(
+                    louvores_df,
+                    str(p.get("louvor_title", "")),
+                    str(p.get("artist", "")),
+                )
+                themes_lines.extend(themes_from_csv(str(m.get("temas", ""))))
+        with st.expander("📖 Guia de ministração", expanded=False):
+            st.markdown(
+                guia_ministracao_text(
+                    evento=event,
+                    culto_date=date_fmt,
+                    louvores=nomes_l,
+                    themes_lines=list(dict.fromkeys(themes_lines))[:8],
+                )
+            )
 
 
 def _feed_post_badge(post_type: str) -> str:
@@ -4409,9 +4650,13 @@ def render_feed_post_card(
         st.markdown(body_raw)
 
     img = str(post.get("image_url", "")).strip()
-    if img.startswith("http"):
+    img_path = feed_image_display_path(img, DATA_DIR) if img else None
+    if img_path:
         try:
-            st.image(img, use_container_width=True)
+            if img_path.startswith("http"):
+                st.image(img_path, use_container_width=True)
+            else:
+                st.image(img_path, use_container_width=True)
         except Exception:
             pass
 
@@ -4429,13 +4674,22 @@ def render_feed_post_card(
             st.session_state.app_menu = "Repertório"
             st.rerun()
 
+    likes_df = prepare_feed_likes(likes_df)
+    comments_df = prepare_feed_comments(comments_df)
     likes_n = feed_likes_count(pid, likes_df)
     liked = user_liked_post(pid, my_email, likes_df)
-    lc1, lc2 = st.columns([1, 3])
+    author_email = str(post.get("author_email", "")).strip().lower()
+    lc1, lc2, lc3 = st.columns([1, 2, 1])
     with lc1:
         label = f"{'💔' if liked else '❤️'} Curtir ({likes_n})"
         if st.button(label, key=f"{key_prefix}_like_{pid}", use_container_width=True):
             toggle_feed_like(pid, my_email, likes_df)
+            st.rerun()
+    with lc3:
+        if author_email == my_email and st.button(
+            "🗑️ Apagar post", key=f"{key_prefix}_delpost_{pid}", use_container_width=True
+        ):
+            delete_feed_post(pid)
             st.rerun()
 
     if show_comments:
@@ -4450,6 +4704,14 @@ def render_feed_post_card(
                     f'{html.escape(str(c.get("message", "")))}</div>',
                     unsafe_allow_html=True,
                 )
+                if str(c.get("email", "")).strip().lower() == my_email:
+                    if st.button(
+                        "Apagar comentário",
+                        key=f"{key_prefix}_delcmt_{c['id']}",
+                        use_container_width=True,
+                    ):
+                        delete_feed_comment(str(c["id"]))
+                        st.rerun()
         with st.form(key=f"{key_prefix}_cmt_{pid}", clear_on_submit=True):
             msg = st.text_input("Comentar", placeholder="Escreva um comentário...")
             if st.form_submit_button("Enviar", use_container_width=True) and msg.strip():
@@ -4486,45 +4748,65 @@ def show_feed_page(
     likes_df: pd.DataFrame,
     comments_df: pd.DataFrame,
 ):
-    st.markdown('<p class="music-panel-title">📰 Feed do ministério</p>', unsafe_allow_html=True)
     st.write(
-        "Novidades, músicas aprovadas e comunicados. Curta e comente para manter o grupo engajado."
+        "Novidades, músicas aprovadas e comunicados. Curta e comente — as atualizações "
+        "sincronizam automaticamente a cada poucos segundos."
     )
 
-    if is_scale_manager(st.session_state.user_roles):
-        with st.expander("➕ Publicar comunicado ou evento", expanded=False):
-            with st.form(key="feed_post_form"):
-                titulo = st.text_input("Título")
-                corpo = st.text_area("Mensagem")
-                tipo = st.selectbox(
-                    "Tipo",
-                    ["comunicado", "evento"],
-                    format_func=lambda x: "📢 Comunicado" if x == "comunicado" else "📅 Evento",
+    with st.expander("➕ Nova publicação", expanded=False):
+        with st.form(key="feed_post_form"):
+            titulo = st.text_input("Título")
+            corpo = st.text_area("Mensagem")
+            tipo_opts = ["comunicado", "evento"]
+            if is_scale_manager(st.session_state.user_roles):
+                tipo_opts = ["comunicado", "evento"]
+            tipo = st.selectbox(
+                "Tipo",
+                tipo_opts,
+                format_func=lambda x: "📢 Comunicado" if x == "comunicado" else "📅 Evento",
+            )
+            yt = st.text_input("Link YouTube (opcional)")
+            img_url = st.text_input("URL da imagem (opcional)")
+            img_file = st.file_uploader(
+                "Ou envie uma imagem",
+                type=["jpg", "jpeg", "png", "webp"],
+                key="feed_post_img_up",
+            )
+            pub = st.form_submit_button("Publicar no feed", type="primary")
+        if pub:
+            if not titulo.strip() or not corpo.strip():
+                show_form_error("Informe título e mensagem.")
+            else:
+                image_ref = img_url.strip()
+                if img_file is not None:
+                    image_ref = save_feed_image_file(img_file, DATA_DIR, FEED_IMAGES_DIR)
+                append_feed_post(
+                    post_type=tipo,
+                    title=titulo.strip(),
+                    body=corpo.strip(),
+                    youtube_url=yt.strip(),
+                    author_email=st.session_state.user_email,
+                    author_name=st.session_state.user_full_name
+                    or st.session_state.user_name,
+                    image_url=image_ref,
                 )
-                yt = st.text_input("Link YouTube (opcional)")
-                img = st.text_input("URL da imagem (opcional)")
-                pub = st.form_submit_button("Publicar no feed", type="primary")
-            if pub:
-                if not titulo.strip() or not corpo.strip():
-                    show_form_error("Informe título e mensagem.")
-                else:
-                    append_feed_post(
-                        post_type=tipo,
-                        title=titulo.strip(),
-                        body=corpo.strip(),
-                        youtube_url=yt.strip(),
-                        author_email=st.session_state.user_email,
-                        author_name=st.session_state.user_full_name
-                        or st.session_state.user_name,
-                        image_url=img.strip(),
-                    )
-                    st.success("Publicado no feed!")
-                    st.rerun()
+                st.success("Publicado no feed!")
+                st.rerun()
+
+    _feed_global_sync()
 
     if posts_df.empty:
         st.info("Nenhuma publicação ainda. Músicas aprovadas aparecem aqui automaticamente.")
         return
 
+    _render_feed_posts_live()
+
+
+@st.fragment(run_every=timedelta(seconds=FEED_POLL_SECONDS))
+def _render_feed_posts_live():
+    posts_df, likes_df, comments_df = load_feed_bundle()
+    if posts_df.empty:
+        return
     df = posts_df.copy()
     df["_sort"] = pd.to_datetime(df["created_at"], errors="coerce")
     df = df.sort_values("_sort", ascending=False)
@@ -4776,6 +5058,7 @@ def show_dashboard(
             unsafe_allow_html=True,
         )
 
+    render_dashboard_future_escalas(my_email, escalas_df, equipe_df)
     render_feed_preview(limit=3)
     render_events_feed(eventos_df)
     render_dashboard_quick_actions(st.session_state.user_roles)
@@ -4807,7 +5090,7 @@ def show_dashboard(
             [
                 ("🎤", "Cultos na semana", len(semana)),
                 ("🎹", "Integrantes", len(members_visible_to_group(members_df))),
-                ("🎶", "Louvores catálogo", len(louvores_df)),
+                ("🎶", "Louvores no repertório", len(louvores_df)),
             ]
         )
     else:
@@ -5303,7 +5586,7 @@ def show_members_overview(
         display["roles"] = display["roles"].apply(roles_for_public_display)
         display.columns = ["Nome", "Sobrenome", "Email", "Funções", "Cadastro"]
         st.dataframe(display, use_container_width=True, hide_index=True)
-    st.caption(f"🎶 {len(louvores_df)} louvores disponíveis no catálogo para montar o culto.")
+    st.caption(f"🎶 {len(louvores_df)} louvores disponíveis no repertório para montar o culto.")
 
 
 def _picker_key_slug(text: str) -> str:
@@ -5583,7 +5866,7 @@ def show_louvores_picker(louvores_df: pd.DataFrame, key_prefix: str = "pick"):
     show = filtered[["title", "artist", "key", "ritmo"]]
     show.columns = ["Louvor", "Artista", "Tom", "Ritmo"]
     st.dataframe(show, use_container_width=True, hide_index=True)
-    st.caption(f"{len(filtered)} louvor(es) no catálogo (sem limite de exibição).")
+    st.caption(f"{len(filtered)} louvor(es) no repertório (sem limite de exibição).")
 
 
 def render_equipe_editor(
@@ -5651,12 +5934,16 @@ def render_equipe_editor(
     if prev_eq_key not in st.session_state:
         st.session_state[prev_eq_key] = list(st.session_state.get(f"{key_prefix}_eq_add", []))
 
+    fmt_eq = lambda lbl: member_escala_select_format(
+        lbl, member_map, escalas_df, equipe_df, culto_ref
+    )
     novos = st.multiselect(
         "Adicionar integrantes à escala",
         available,
         key=f"{key_prefix}_eq_add",
         placeholder="Selecione um ou vários integrantes",
         on_change=_on_equipe_add_change,
+        format_func=fmt_eq,
     )
     funcao_idx = default_funcao_escala_index(members_df, member_map, novos)
     funcao_nova = st.selectbox(
@@ -5794,6 +6081,14 @@ def render_programa_louvores_editor(
             clear_louvor_picker_state(key_prefix)
             st.rerun()
 
+    total_min = programa_duracao_total(programa_df, escala_id, louvores_df)
+    if total_min > 0:
+        st.markdown(
+            f'<div class="prog-duracao-total">⏱ <b>Duração estimada do louvor:</b> '
+            f"{html.escape(format_duracao_total(total_min))}</div>",
+            unsafe_allow_html=True,
+        )
+
 
 def show_escala_completa_editor(
     escalas_df: pd.DataFrame,
@@ -5822,10 +6117,7 @@ def show_escala_completa_editor(
     is_nova = escolha == NOVA_ESCALA
 
     if is_nova:
-        st.markdown("#### 📅 Novo culto")
-        culto_date = st.date_input("Data do culto", key="nova_esc_data")
-        culto_event = st.text_input("Evento / Culto", key="nova_esc_event")
-        data_ensaio = st.date_input("Data do ensaio", key="nova_esc_ensaio")
+        col_nova, col_painel = st.columns([2, 1])
 
         def _on_nova_resp_change():
             cd = st.session_state.get("nova_esc_data", date.today())
@@ -5854,109 +6146,136 @@ def show_escala_completa_editor(
                 st.session_state.get("nova_esc_equipe", [])
             )
 
-        responsavel = st.selectbox(
-            f"{FUNCAO_MINISTRADOR} (todos os integrantes)",
-            list(member_map.keys()),
-            key="nova_esc_resp",
-            on_change=_on_nova_resp_change,
-        )
-        equipe_labels = st.multiselect(
-            "Demais integrantes da escala",
-            [l for l in member_map.keys() if l != responsavel],
-            key="nova_esc_equipe",
-            on_change=_on_nova_equipe_change,
-        )
-        notas = st.text_area("Notas", key="nova_esc_notas")
+        with col_nova:
+            st.markdown("#### 📅 Novo culto")
+            culto_date = st.date_input("Data do culto", key="nova_esc_data")
+            culto_event = st.text_input("Evento / Culto", key="nova_esc_event")
+            data_ensaio = st.date_input("Data do ensaio", key="nova_esc_ensaio")
+            culto_ref = st.session_state.get("nova_esc_data", date.today())
+            fmt_nova = lambda lbl: member_escala_select_format(
+                lbl, member_map, escalas_df, equipe_df, culto_ref
+            )
+            responsavel = st.selectbox(
+                f"{FUNCAO_MINISTRADOR} (todos os integrantes)",
+                list(member_map.keys()),
+                key="nova_esc_resp",
+                on_change=_on_nova_resp_change,
+                format_func=fmt_nova,
+            )
+            equipe_labels = st.multiselect(
+                "Demais integrantes da escala",
+                [l for l in member_map.keys() if l != responsavel],
+                key="nova_esc_equipe",
+                on_change=_on_nova_equipe_change,
+                format_func=fmt_nova,
+            )
+            notas = st.text_area("Notas", key="nova_esc_notas")
 
-        st.markdown("---")
-        st.subheader("🎶 Louvores do culto")
-        st.caption("Em **Selecionados**, escolha a **parte do culto** de cada música.")
-        render_louvor_search_picker(louvores_df, "nova_esc")
+            st.markdown("---")
+            st.subheader("🎶 Louvores do culto")
+            st.caption("Em **Selecionados**, escolha a **parte do culto** de cada música.")
+            render_louvor_search_picker(louvores_df, "nova_esc")
 
-        if st.button(
-            "💾 Salvar escala completa",
-            type="primary",
-            use_container_width=True,
-            key="nova_esc_save",
-        ):
-            if not culto_event.strip():
-                show_form_error("Informe o nome do culto/evento.")
-            else:
-                email = member_map[responsavel]
-                row = members_df[members_df["email"].astype(str).str.lower() == email].iloc[0]
-                name = member_display_name(row)
-                escala_id = new_id()
-                new_escala = {
-                    "id": escala_id,
-                    "date": culto_date.strftime("%Y-%m-%d"),
-                    "event": culto_event.strip(),
-                    "responsible": name,
-                    "member_email": email,
-                    "member_name": name,
-                    "notes": notas.strip(),
-                    "rehearsal_date": data_ensaio.strftime("%Y-%m-%d"),
-                }
-                escalas_df = pd.concat(
-                    [escalas_df, pd.DataFrame([new_escala])], ignore_index=True
-                )
-                save_data(escalas_df, ESCALAS_FILE)
-
-                novas_eq = []
-                for label in equipe_labels:
-                    em = member_map[label]
-                    mrow = members_df[members_df["email"].astype(str).str.lower() == em].iloc[0]
-                    funcao = default_funcao_para_escala(mrow)
-                    novas_eq.append(
-                        {
-                            "id": new_id(),
-                            "escala_id": escala_id,
-                            "member_email": em,
-                            "member_name": member_display_name(mrow),
-                            "funcao": funcao,
-                        }
+            if st.button(
+                "💾 Salvar escala completa",
+                type="primary",
+                use_container_width=True,
+                key="nova_esc_save",
+            ):
+                if not culto_event.strip():
+                    show_form_error("Informe o nome do culto/evento.")
+                else:
+                    email = member_map[responsavel]
+                    row = members_df[
+                        members_df["email"].astype(str).str.lower() == email
+                    ].iloc[0]
+                    name = member_display_name(row)
+                    escala_id = new_id()
+                    new_escala = {
+                        "id": escala_id,
+                        "date": culto_date.strftime("%Y-%m-%d"),
+                        "event": culto_event.strip(),
+                        "responsible": name,
+                        "member_email": email,
+                        "member_name": name,
+                        "notes": notas.strip(),
+                        "rehearsal_date": data_ensaio.strftime("%Y-%m-%d"),
+                    }
+                    escalas_df = pd.concat(
+                        [escalas_df, pd.DataFrame([new_escala])], ignore_index=True
                     )
-                if novas_eq:
-                    equipe_df = pd.concat([equipe_df, pd.DataFrame(novas_eq)], ignore_index=True)
-                    save_data(equipe_df, EQUIPE_FILE)
+                    save_data(escalas_df, ESCALAS_FILE)
 
-                picked_rows = get_picked_louvores_for_programa(
-                    "nova_esc", louvores_catalog_options(louvores_df), email, name
-                )
-                if picked_rows:
-                    novas_prog = []
-                    for i, row in enumerate(picked_rows):
-                        novas_prog.append(
+                    novas_eq = []
+                    for label in equipe_labels:
+                        em = member_map[label]
+                        mrow = members_df[
+                            members_df["email"].astype(str).str.lower() == em
+                        ].iloc[0]
+                        funcao = default_funcao_para_escala(mrow)
+                        novas_eq.append(
                             {
                                 "id": new_id(),
                                 "escala_id": escala_id,
-                                "ordem": i + 1,
-                                "parte": row["parte"],
-                                "louvor_title": row["titulo"],
-                                "artist": row["artist"],
-                                "key": row["key"],
-                                "youtube_url": row["youtube_url"],
-                                "cifra_url": row["cifra_url"],
-                                "leader_email": email,
-                                "leader_name": name,
-                                "notes": "",
+                                "member_email": em,
+                                "member_name": member_display_name(mrow),
+                                "funcao": funcao,
                             }
                         )
-                    save_data(
-                        pd.concat([programa_df, pd.DataFrame(novas_prog)], ignore_index=True),
-                        PROGRAMA_FILE,
-                    )
+                    if novas_eq:
+                        equipe_df = pd.concat(
+                            [equipe_df, pd.DataFrame(novas_eq)], ignore_index=True
+                        )
+                        save_data(equipe_df, EQUIPE_FILE)
 
-                notify_new_escala(
-                    new_escala["event"],
-                    new_escala["date"],
-                    new_escala["responsible"],
-                )
-                st.success(
-                    "Escala salva! Quem estiver no Dashboard ou em Escalas vê a atualização em poucos segundos, "
-                    "sem precisar sair do app."
-                )
-                clear_louvor_picker_state("nova_esc")
-                st.rerun()
+                    picked_rows = get_picked_louvores_for_programa(
+                        "nova_esc", louvores_catalog_options(louvores_df), email, name
+                    )
+                    if picked_rows:
+                        novas_prog = []
+                        for i, row in enumerate(picked_rows):
+                            novas_prog.append(
+                                {
+                                    "id": new_id(),
+                                    "escala_id": escala_id,
+                                    "ordem": i + 1,
+                                    "parte": row["parte"],
+                                    "louvor_title": row["titulo"],
+                                    "artist": row["artist"],
+                                    "key": row["key"],
+                                    "youtube_url": row["youtube_url"],
+                                    "cifra_url": row["cifra_url"],
+                                    "leader_email": email,
+                                    "leader_name": name,
+                                    "notes": "",
+                                }
+                            )
+                        save_data(
+                            pd.concat(
+                                [programa_df, pd.DataFrame(novas_prog)], ignore_index=True
+                            ),
+                            PROGRAMA_FILE,
+                        )
+
+                    notify_new_escala(
+                        new_escala["event"],
+                        new_escala["date"],
+                        new_escala["responsible"],
+                    )
+                    st.success(
+                        "Escala salva! Quem estiver no Dashboard ou em Escalas vê a atualização "
+                        "em poucos segundos, sem precisar sair do app."
+                    )
+                    clear_louvor_picker_state("nova_esc")
+                    st.rerun()
+
+        with col_painel:
+            render_escala_planner_panel(
+                members_df,
+                escalas_df,
+                equipe_df,
+                st.session_state.get("nova_esc_data", date.today()),
+            )
         return
 
     escala_id = None
@@ -5969,11 +6288,22 @@ def show_escala_completa_editor(
         return
 
     escala_row = escalas_df[escalas_df["id"].astype(str) == escala_id].iloc[0]
+    culto_ref_edit = date.today()
+    cd_edit = pd.to_datetime(escala_row.get("date"), errors="coerce")
+    if pd.notna(cd_edit):
+        culto_ref_edit = cd_edit.date()
 
-    st.markdown("#### ✏️ Editar escala")
-    st.caption(
-        "Líderes e organizadores podem alterar dados, equipe, louvores ou **excluir** esta escala."
-    )
+    col_main_hdr, col_painel_edit = st.columns([2, 1])
+    with col_painel_edit:
+        render_escala_planner_panel(
+            members_df, escalas_df, equipe_df, culto_ref_edit
+        )
+    with col_main_hdr:
+        st.markdown("#### ✏️ Editar escala")
+        st.caption(
+            "Líderes e organizadores podem alterar dados, equipe, louvores ou **excluir** esta escala."
+        )
+
     confirm_key = f"confirm_del_esc_{escala_id}"
     if st.session_state.get(confirm_key):
         show_form_error("Confirma a exclusão permanente desta escala (equipe e louvores)?")
@@ -6006,8 +6336,14 @@ def show_escala_completa_editor(
         idx_resp = next(
             (i for i, l in enumerate(labels_resp) if l.startswith(resp_atual)), 0
         )
+        fmt_edit = lambda lbl: member_escala_select_format(
+            lbl, member_map, escalas_df, equipe_df, culto_ref_edit
+        )
         novo_resp = st.selectbox(
-            f"{FUNCAO_MINISTRADOR} (todos os integrantes)", labels_resp, index=idx_resp
+            f"{FUNCAO_MINISTRADOR} (todos os integrantes)",
+            labels_resp,
+            index=idx_resp,
+            format_func=fmt_edit,
         )
         dt_ensaio = pd.to_datetime(escala_row.get("rehearsal_date", ""), errors="coerce")
         nova_data_ensaio = st.date_input(
@@ -6110,6 +6446,18 @@ def render_ensaio_chat(
     subset = subset[subset["escala_id"].astype(str) == str(escala_id)].copy()
 
     render_chat_messages(subset, members_df)
+    my_email = st.session_state.user_email.strip().lower()
+    for _, row in sort_chat_messages(subset).iterrows():
+        if str(row.get("email", "")).strip().lower() != my_email:
+            continue
+        ts = str(row.get("timestamp", ""))
+        if st.button(
+            "🗑️ Apagar minha mensagem (ensaio)",
+            key=f"del_ensaio_{escala_id}_{ts}",
+            use_container_width=True,
+        ):
+            delete_own_ensaio_message(ts, escala_id, my_email)
+            st.rerun()
 
     ensaio_dir = ENSAIO_AUDIO_DIR / str(escala_id)
     ensaio_dir.mkdir(parents=True, exist_ok=True)
@@ -6363,8 +6711,14 @@ def show_escalas_page(
             "Aqui você solicita trocas e acompanha o chat do ensaio."
         )
 
-    tab_equipe, tab_trocar, tab_pedidos, tab_ensaio = st.tabs(
-        ["👥 Minha equipe", "🔄 Trocar escala", "📬 Solicitações", "💬 Chat do ensaio"]
+    tab_equipe, tab_todas, tab_trocar, tab_pedidos, tab_ensaio = st.tabs(
+        [
+            "👥 Minha equipe",
+            "📆 Todas minhas escalas",
+            "🔄 Trocar escala",
+            "📬 Solicitações",
+            "💬 Chat do ensaio",
+        ]
     )
 
     member_map = members_options_escala(members_df)
@@ -6384,6 +6738,25 @@ def show_escalas_page(
                 louvores_df,
                 ensaio_notice=True,
             )
+
+    with tab_todas:
+        occ = member_escala_occurrences(my_email, escalas_df, equipe_df)
+        if not occ:
+            st.info("Você ainda não aparece em nenhuma escala registrada.")
+        else:
+            st.caption(f"{len(occ)} culto(s) no seu histórico de escalas.")
+            for culto_d, eid, ev in occ:
+                row_match = escalas_df[escalas_df["id"].astype(str) == str(eid)]
+                if row_match.empty:
+                    continue
+                render_culto_programa(
+                    row_match.iloc[0],
+                    programa_df,
+                    equipe_df,
+                    members_df,
+                    louvores_df,
+                    ensaio_notice=True,
+                )
 
     with tab_trocar:
         st.write(
@@ -6543,12 +6916,8 @@ def show_escalas_page(
 
 
 def show_louvores_catalog(louvores_df: pd.DataFrame):
-    st.markdown(
-        '<p class="music-panel-title">🎶 Repertório completo</p>',
-        unsafe_allow_html=True,
-    )
     st.write(
-        "Navegue pelo repertório com busca, filtros e paginação."
+        "Navegue pelo repertório com busca, filtros por tema e validação bíblica para a liderança."
     )
     render_voice_kit_link()
     st.caption(
@@ -6606,6 +6975,34 @@ def show_louvores_catalog(louvores_df: pd.DataFrame):
         )
         return
 
+    if is_scale_manager(st.session_state.user_roles):
+        with st.expander("✅ Validação bíblica de louvor", expanded=False):
+            opts = [
+                f"{r['title']} — {r.get('artist', '')}".strip(" —")
+                for _, r in louvores_df.iterrows()
+            ]
+            escolha_val = st.selectbox("Música", opts, key="val_louvor_sel")
+            if st.button("Analisar louvor", key="val_louvor_btn", type="primary"):
+                tit = escolha_val.split(" — ")[0].strip()
+                row_v = louvores_df[
+                    louvores_df["title"].astype(str).str.strip() == tit
+                ]
+                artist_v = str(row_v.iloc[0].get("artist", "")) if not row_v.empty else ""
+                themes_v = themes_from_csv(
+                    str(row_v.iloc[0].get("temas", "")) if not row_v.empty else ""
+                )
+                if not themes_v:
+                    themes_v = classify_themes(tit, artist_v)
+                res = validate_louvor(tit, artist_v, themes_v)
+                st.markdown(f"**{res['summary']}**")
+                for p in res["positives"]:
+                    st.success(p)
+                for i in res["issues"]:
+                    st.warning(i)
+                st.caption(f"Temas: {', '.join(res['themes'])}")
+                st.caption(f"Referências: {res['refs']}")
+                st.info(res["guidance"])
+
     search = st.text_input("🔍 Buscar música ou artista", "")
     letters = sorted(
         {letter for letter in louvores_df["letter"].dropna().astype(str) if letter}
@@ -6619,6 +7016,7 @@ def show_louvores_catalog(louvores_df: pd.DataFrame):
         }
     )
     ritmo_filter = st.selectbox("🥁 Ritmo", ["Todos"] + ritmos)
+    tema_filter = st.multiselect("📖 Filtrar por tema bíblico", list(LOUVOR_THEMES))
 
     filtered = louvores_df.copy()
     if search.strip():
@@ -6632,12 +7030,18 @@ def show_louvores_catalog(louvores_df: pd.DataFrame):
         filtered = filtered[filtered["letter"].astype(str) == letter_filter]
     if ritmo_filter != "Todos":
         filtered = filtered[filtered["ritmo"].astype(str) == ritmo_filter]
+    if tema_filter:
+        def _has_tema(row) -> bool:
+            ts = themes_from_csv(str(row.get("temas", "")))
+            return any(t in ts for t in tema_filter)
 
-    if search.strip() or letter_filter != "Todas" or ritmo_filter != "Todos":
+        filtered = filtered[filtered.apply(_has_tema, axis=1)]
+
+    if search.strip() or letter_filter != "Todas" or ritmo_filter != "Todos" or tema_filter:
         st.session_state["page_repertorio"] = 1
 
     st.markdown(
-        f"**🎵 {len(filtered)}** faixa(s) encontrada(s) · catálogo com **{len(louvores_df)}** louvores",
+        f"**🎵 {len(filtered)}** faixa(s) encontrada(s) · repertório com **{len(louvores_df)}** louvores",
         unsafe_allow_html=True,
     )
 
@@ -6780,7 +7184,9 @@ def show_sugestao_louvor(sugestoes_df: pd.DataFrame, louvores_df: pd.DataFrame):
                 pd.concat([sugestoes_df, pd.DataFrame([nova])], ignore_index=True),
                 SUGESTOES_FILE,
             )
-            st.success("Sugestão enviada! Aguarde análise da liderança.")
+            st.success(
+                "Sugestão enviada, obrigado pela sua contribuição, aguardamos mais sugestões!"
+            )
             st.rerun()
 
     if is_scale_manager(st.session_state.user_roles):
@@ -6795,6 +7201,7 @@ def show_sugestao_louvor(sugestoes_df: pd.DataFrame, louvores_df: pd.DataFrame):
             c1, c2 = st.columns(2)
             with c1:
                 if st.button("✅ Aprovar", key=f"ap_{s['id']}", use_container_width=True):
+                    meta = ensure_louvor_row_metadata(str(s["title"]), "")
                     row = {
                         "title": s["title"],
                         "artist": "",
@@ -6804,6 +7211,7 @@ def show_sugestao_louvor(sugestoes_df: pd.DataFrame, louvores_df: pd.DataFrame):
                         "ritmo": "",
                         "letter": s["title"][0].upper() if s["title"] else "A",
                         "source": "sugestao",
+                        **meta,
                     }
                     save_data(
                         pd.concat([louvores_df, pd.DataFrame([row])], ignore_index=True),
@@ -6851,9 +7259,7 @@ def _run_app() -> None:
     equipe_df = prepare_equipe(load_data(EQUIPE_FILE, EQUIPE_COLUMNS))
     playlist_df = prepare_playlist(load_data(PLAYLIST_FILE, PLAYLIST_COLUMNS))
     feed_posts_df, feed_likes_df, feed_comments_df = load_feed_bundle()
-    from catalog_sanitize import prepare_louvores_df
-
-    louvores_df = prepare_louvores_df(
+    louvores_df = prepare_louvores_with_meta(
         load_data(
             LOUVORES_FILE,
             (
@@ -6865,6 +7271,7 @@ def _run_app() -> None:
                 "ritmo",
                 "letter",
                 "source",
+                *LOUVOR_EXTRA_COLUMNS,
             ),
         )
     )
@@ -6899,7 +7306,14 @@ def _run_app() -> None:
             pass
     menu = render_sidebar_navigation()
     _escalas_global_sync()
-    inject_chat_unread_badges(int(st.session_state.get("chat_unread_count", 0)))
+    _feed_global_sync()
+    chat_unread = int(st.session_state.get("chat_unread_count", 0))
+    sug_badge = (
+        count_pending_sugestoes(sugestoes_df)
+        if is_scale_manager(st.session_state.user_roles)
+        else 0
+    )
+    inject_app_notification_badges(chat_unread, sug_badge)
     try:
         _, _, _, trocas_alert_df = get_escalas_bundle()
         swap_alert_count = count_swap_alerts_for_user(

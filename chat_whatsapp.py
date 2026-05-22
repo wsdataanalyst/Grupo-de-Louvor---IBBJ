@@ -86,6 +86,29 @@ def render_simple_chat_composer(
                 st.session_state[ak] = None
                 st.rerun()
 
+    elif mode == "record":
+        rec = st.audio_input(
+            "Gravar mensagem de voz",
+            key=f"{key_prefix}_rec",
+        )
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button("Enviar", type="primary", use_container_width=True, key=f"{key_prefix}_rec_ok"):
+                if rec is not None:
+                    rel = save_audio_upload(
+                        rec, audio_dir, prefix=audio_prefix, data_dir=data_dir
+                    )
+                    append_fn(message="🎤 Áudio", message_type="audio", media_file=rel)
+                    st.session_state[ak] = None
+                    mark_chat_scroll_bottom()
+                    st.rerun()
+                else:
+                    st.warning("Grave o áudio antes de enviar.")
+        with c2:
+            if st.button("Cancelar", use_container_width=True, key=f"{key_prefix}_rec_no"):
+                st.session_state[ak] = None
+                st.rerun()
+
     elif mode == "audio":
         aud = st.file_uploader(
             "Áudio",
@@ -122,6 +145,9 @@ def render_simple_chat_composer(
                 st.rerun()
             if st.button("🎤 Áudio", use_container_width=True, key=f"{key_prefix}_m_aud"):
                 st.session_state[ak] = "audio"
+                st.rerun()
+            if st.button("🔴 Gravar", use_container_width=True, key=f"{key_prefix}_m_rec"):
+                st.session_state[ak] = "record"
                 st.rerun()
 
     prompt = st.chat_input("Mensagem", key=f"{key_prefix}_input")
