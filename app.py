@@ -97,7 +97,37 @@ EQUIPE_FILE = DATA_DIR / "escala_equipe.csv"
 PLAYLIST_FILE = DATA_DIR / "playlist.csv"
 LOUVORES_FILE = DATA_DIR / "louvores.csv"
 EVENTOS_FILE = DATA_DIR / "eventos.csv"
+FEED_POSTS_FILE = DATA_DIR / "feed_posts.csv"
+FEED_LIKES_FILE = DATA_DIR / "feed_likes.csv"
+FEED_COMMENTS_FILE = DATA_DIR / "feed_comments.csv"
 SUGESTOES_FILE = DATA_DIR / "sugestoes_louvor.csv"
+PLAYLIST_COLUMNS = (
+    "id",
+    "member_email",
+    "title",
+    "artist",
+    "key",
+    "youtube_url",
+    "cifra_url",
+    "ritmo",
+    "notes",
+    "added_at",
+)
+FEED_POST_COLUMNS = (
+    "id",
+    "post_type",
+    "title",
+    "body",
+    "youtube_url",
+    "cifra_url",
+    "ref_id",
+    "author_email",
+    "author_name",
+    "created_at",
+    "image_url",
+)
+FEED_LIKE_COLUMNS = ("id", "post_id", "email", "created_at")
+FEED_COMMENT_COLUMNS = ("id", "post_id", "email", "name", "message", "created_at")
 CHAT_ENSAIO_FILE = DATA_DIR / "chat_ensaio.csv"
 
 CULTO_PARTES = [
@@ -191,11 +221,12 @@ FUNCAO_MINISTRADOR = "Ministrador"
 MENU_ITEMS_BASE = [
     ("Dashboard", "🎼", "Sua semana, equipe e novidades"),
     ("Gerenciar Escalas", "🎯", "Montar cultos, equipe e louvores"),
-    ("Catálogo", "🎶", "Repertório de louvores"),
+    ("Repertório", "🎶", "Todas as músicas do ministério"),
     ("Escalas", "🎤", "Escalas, ensaio e trocas"),
+    ("Feed", "📰", "Novidades, músicas e comunicados"),
     ("Eventos", "📅", "Próximos eventos do ministério"),
-    ("Sugestão de louvor", "💡", "Sugerir música para o catálogo"),
-    ("Playlist", "🎧", "Músicas do grupo"),
+    ("Sugestão de louvor", "💡", "Sugerir música para o repertório"),
+    ("Playlist", "🎧", "Sua playlist de treino"),
     ("Chat", "💬", "Comunicação"),
     ("Membros", "🎹", "Integrantes do ministério"),
     ("Perfil", "👤", "Sua foto e dados cadastrais"),
@@ -203,11 +234,12 @@ MENU_ITEMS_BASE = [
 MENU_HEADERS = {
     "Dashboard": "Sua semana no ministério",
     "Gerenciar Escalas": "Painel de gestão de escalas",
-    "Catálogo": "Catálogo de louvores",
+    "Repertório": "Repertório de louvores",
     "Escalas": "Escalas, ensaio e trocas",
+    "Feed": "Feed do ministério",
     "Eventos": "Eventos e novidades",
-    "Sugestão de louvor": "Sugerir música ao catálogo",
-    "Playlist": "Playlist do grupo",
+    "Sugestão de louvor": "Sugerir música ao repertório",
+    "Playlist": "Sua playlist pessoal",
     "Chat": "Chat do grupo",
     "Membros": "Integrantes do grupo",
     "Perfil": "Sua foto e dados cadastrais",
@@ -215,8 +247,9 @@ MENU_HEADERS = {
 MENU_ACCENTS = {
     "Dashboard": "#a78bfa",
     "Gerenciar Escalas": "#f59e0b",
-    "Catálogo": "#fbbf24",
+    "Repertório": "#fbbf24",
     "Escalas": "#60a5fa",
+    "Feed": "#f472b6",
     "Eventos": "#38bdf8",
     "Sugestão de louvor": "#4ade80",
     "Playlist": "#f472b6",
@@ -229,8 +262,8 @@ MENU_ACCENTS = {
 NAV_GROUP_ORDER = (
     ("Início", ("Dashboard",)),
     ("Culto & escalas", ("Escalas", "Gerenciar Escalas")),
-    ("Repertório", ("Catálogo", "Playlist", "Sugestão de louvor")),
-    ("Comunidade", ("Chat", "Eventos", "Membros")),
+    ("Repertório", ("Repertório", "Playlist", "Sugestão de louvor")),
+    ("Comunidade", ("Feed", "Chat", "Eventos", "Membros")),
     ("Conta", ("Perfil",)),
 )
 
@@ -239,7 +272,8 @@ DASHBOARD_QUICK_LINKS = (
     "Chat",
     "Eventos",
     "Playlist",
-    "Catálogo",
+    "Feed",
+    "Repertório",
     "Perfil",
 )
 
@@ -336,7 +370,7 @@ def sync_recognized_member_roles(members_df: pd.DataFrame) -> pd.DataFrame:
 
 
 def get_menu_items_for_user(roles: str) -> list:
-    hidden_for_members = {"Gerenciar Escalas", "Catálogo", "Membros"}
+    hidden_for_members = {"Gerenciar Escalas", "Repertório", "Membros"}
     items = [
         item for item in MENU_ITEMS_BASE if item[0] not in hidden_for_members
     ]
@@ -877,6 +911,214 @@ def prepare_sugestoes(df: pd.DataFrame) -> pd.DataFrame:
     return df[list(SUGESTAO_COLUMNS)].copy()
 
 
+def _prepare_text_columns(df: pd.DataFrame, columns: tuple) -> pd.DataFrame:
+    for column in columns:
+        if column not in df.columns:
+            df[column] = ""
+    out = df[list(columns)].copy()
+    for column in columns:
+        out[column] = out[column].fillna("").astype(str)
+    return out
+
+
+def prepare_playlist(df: pd.DataFrame) -> pd.DataFrame:
+    return _prepare_text_columns(df, PLAYLIST_COLUMNS)
+
+
+def prepare_feed_posts(df: pd.DataFrame) -> pd.DataFrame:
+    return _prepare_text_columns(df, FEED_POST_COLUMNS)
+
+
+def prepare_feed_likes(df: pd.DataFrame) -> pd.DataFrame:
+    return _prepare_text_columns(df, FEED_LIKE_COLUMNS)
+
+
+def prepare_feed_comments(df: pd.DataFrame) -> pd.DataFrame:
+    return _prepare_text_columns(df, FEED_COMMENT_COLUMNS)
+
+
+def load_feed_bundle() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    return (
+        prepare_feed_posts(load_data(FEED_POSTS_FILE, FEED_POST_COLUMNS)),
+        prepare_feed_likes(load_data(FEED_LIKES_FILE, FEED_LIKE_COLUMNS)),
+        prepare_feed_comments(load_data(FEED_COMMENTS_FILE, FEED_COMMENT_COLUMNS)),
+    )
+
+
+def append_feed_post(
+    *,
+    post_type: str,
+    title: str,
+    body: str,
+    youtube_url: str = "",
+    cifra_url: str = "",
+    ref_id: str = "",
+    author_email: str = "",
+    author_name: str = "",
+    image_url: str = "",
+) -> None:
+    posts_df, _, _ = load_feed_bundle()
+    row = {
+        "id": new_id(),
+        "post_type": post_type.strip(),
+        "title": title.strip(),
+        "body": body.strip(),
+        "youtube_url": youtube_url.strip(),
+        "cifra_url": cifra_url.strip(),
+        "ref_id": ref_id.strip(),
+        "author_email": author_email.strip().lower(),
+        "author_name": author_name.strip(),
+        "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "image_url": image_url.strip(),
+    }
+    save_data(
+        pd.concat([posts_df, pd.DataFrame([row])], ignore_index=True),
+        FEED_POSTS_FILE,
+    )
+
+
+def post_feed_louvor_aprovado(
+    *,
+    suggester_name: str,
+    suggester_email: str,
+    title: str,
+    youtube_url: str,
+    suggestion_id: str,
+) -> None:
+    nome = suggester_name.strip() or "Integrante"
+    titulo_musica = title.strip()
+    append_feed_post(
+        post_type="louvor_aprovado",
+        title=f"🎵 Nova no repertório: {titulo_musica}",
+        body=(
+            f"Veja a nova música sugerida por **{nome}** para o repertório do ministério! "
+            "Ouça, curta e comente — já está disponível para escalas e playlists."
+        ),
+        youtube_url=youtube_url.strip(),
+        ref_id=str(suggestion_id),
+        author_email=suggester_email.strip().lower(),
+        author_name=nome,
+    )
+
+
+def feed_likes_count(post_id: str, likes_df: pd.DataFrame) -> int:
+    if likes_df.empty:
+        return 0
+    return int((likes_df["post_id"].astype(str) == str(post_id)).sum())
+
+
+def user_liked_post(post_id: str, email: str, likes_df: pd.DataFrame) -> bool:
+    if likes_df.empty:
+        return False
+    email_l = email.strip().lower()
+    mask = (likes_df["post_id"].astype(str) == str(post_id)) & (
+        likes_df["email"].astype(str).str.strip().str.lower() == email_l
+    )
+    return bool(mask.any())
+
+
+def toggle_feed_like(post_id: str, email: str, likes_df: pd.DataFrame) -> pd.DataFrame:
+    likes_df = prepare_feed_likes(likes_df)
+    email_l = email.strip().lower()
+    mask = (likes_df["post_id"].astype(str) == str(post_id)) & (
+        likes_df["email"].astype(str).str.strip().str.lower() == email_l
+    )
+    if mask.any():
+        likes_df = likes_df[~mask]
+    else:
+        likes_df = pd.concat(
+            [
+                likes_df,
+                pd.DataFrame(
+                    [
+                        {
+                            "id": new_id(),
+                            "post_id": str(post_id),
+                            "email": email_l,
+                            "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        }
+                    ]
+                ),
+            ],
+            ignore_index=True,
+        )
+    save_data(likes_df, FEED_LIKES_FILE)
+    return likes_df
+
+
+def append_feed_comment(
+    post_id: str,
+    email: str,
+    name: str,
+    message: str,
+    comments_df: pd.DataFrame,
+) -> pd.DataFrame:
+    comments_df = prepare_feed_comments(comments_df)
+    row = {
+        "id": new_id(),
+        "post_id": str(post_id),
+        "email": email.strip().lower(),
+        "name": name.strip(),
+        "message": message.strip(),
+        "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+    }
+    comments_df = pd.concat([comments_df, pd.DataFrame([row])], ignore_index=True)
+    save_data(comments_df, FEED_COMMENTS_FILE)
+    return comments_df
+
+
+def playlist_for_user(playlist_df: pd.DataFrame, email: str) -> pd.DataFrame:
+    if playlist_df.empty:
+        return playlist_df
+    return playlist_df[
+        playlist_df["member_email"].astype(str).str.strip().str.lower()
+        == email.strip().lower()
+    ].copy()
+
+
+def add_louvor_to_playlist(
+    playlist_df: pd.DataFrame,
+    louvor_data: dict,
+    *,
+    notes: str = "",
+) -> pd.DataFrame:
+    from catalog_sanitize import sanitize_catalog_text
+
+    playlist_df = prepare_playlist(playlist_df)
+    my_email = st.session_state.user_email.strip().lower()
+    title = sanitize_catalog_text(louvor_data.get("title", ""))
+    if not title:
+        return playlist_df
+    dup = playlist_df[
+        (playlist_df["member_email"].astype(str).str.lower() == my_email)
+        & (playlist_df["title"].astype(str).str.lower() == title.lower())
+    ]
+    if not dup.empty:
+        return playlist_df
+    artist = sanitize_catalog_text(louvor_data.get("artist", ""))
+    yt = sanitize_catalog_text(louvor_data.get("youtube_url", ""))
+    cifra = sanitize_catalog_text(louvor_data.get("cifra_url", ""))
+    if cifra and not cifra.startswith("http"):
+        cifra = ""
+    if not cifra:
+        cifra = cifra_search_url(title, artist)
+    row = {
+        "id": new_id(),
+        "member_email": my_email,
+        "title": title,
+        "artist": artist,
+        "key": sanitize_catalog_text(louvor_data.get("key", "")),
+        "youtube_url": yt,
+        "cifra_url": cifra,
+        "ritmo": sanitize_catalog_text(louvor_data.get("ritmo", "")),
+        "notes": notes.strip(),
+        "added_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+    }
+    playlist_df = pd.concat([playlist_df, pd.DataFrame([row])], ignore_index=True)
+    save_data(playlist_df, PLAYLIST_FILE)
+    return playlist_df
+
+
 def user_on_escala_semana(
     escalas_df: pd.DataFrame, equipe_df: pd.DataFrame, email: str, start: date, end: date
 ) -> list[dict]:
@@ -1237,6 +1479,13 @@ def cifra_search_url(title: str, artist: str = "") -> str:
 
     q = f"{sanitize_catalog_text(title)} {sanitize_catalog_text(artist)}".strip()
     return f"https://www.cifraclub.com.br/?q={q.replace(' ', '+')}"
+
+
+def youtube_search_url(title: str, artist: str = "") -> str:
+    from catalog_sanitize import sanitize_catalog_text
+
+    q = f"{sanitize_catalog_text(title)} {sanitize_catalog_text(artist)}".strip()
+    return f"https://www.youtube.com/results?search_query={q.replace(' ', '+')}"
 
 
 def escala_label(row) -> str:
@@ -2795,6 +3044,58 @@ def apply_music_theme():
         }
         .event-feed-card h4 { color: #7dd3fc; margin: 0 0 0.35rem; }
         .event-feed-card .ev-date { color: #fbbf24; font-size: 0.82rem; }
+        .feed-post-card {
+            background: rgba(30, 20, 50, 0.75);
+            border: 1px solid rgba(244, 114, 182, 0.35);
+            border-radius: 16px;
+            padding: 1.1rem 1.25rem;
+            margin-bottom: 1rem;
+        }
+        .feed-post-card h4 {
+            color: #f9a8d4;
+            margin: 0 0 0.5rem;
+            font-size: 1.05rem;
+        }
+        .feed-post-meta {
+            color: #a89bc4;
+            font-size: 0.8rem;
+            margin-bottom: 0.65rem;
+        }
+        .feed-post-body {
+            color: #e9d5ff;
+            font-size: 0.92rem;
+            line-height: 1.5;
+            margin: 0 0 0.75rem;
+        }
+        .feed-post-badge {
+            display: inline-block;
+            background: rgba(74, 222, 128, 0.2);
+            border: 1px solid rgba(74, 222, 128, 0.45);
+            color: #86efac;
+            font-size: 0.72rem;
+            font-weight: 700;
+            padding: 0.15rem 0.5rem;
+            border-radius: 999px;
+            margin-bottom: 0.5rem;
+        }
+        .feed-comment {
+            background: rgba(15, 10, 30, 0.5);
+            border-radius: 10px;
+            padding: 0.55rem 0.75rem;
+            margin: 0.35rem 0;
+            font-size: 0.86rem;
+        }
+        .feed-comment b { color: #c4b5fd; }
+        .feed-comment time { color: #8b7aa8; font-size: 0.75rem; }
+        .playlist-track-card {
+            background: rgba(244, 114, 182, 0.08);
+            border: 1px solid rgba(244, 114, 182, 0.3);
+            border-radius: 14px;
+            padding: 1rem 1.1rem;
+            margin-bottom: 0.75rem;
+        }
+        .playlist-track-card h4 { color: #fbcfe8; margin: 0 0 0.25rem; }
+        .playlist-track-meta { color: #a89bc4; font-size: 0.82rem; margin-bottom: 0.5rem; }
         .swap-banner {
             background: rgba(96, 165, 250, 0.12);
             border: 1px solid rgba(96, 165, 250, 0.4);
@@ -3334,7 +3635,7 @@ def humanize_stat(value: int, label: str) -> tuple[str, str]:
     if "músico" in label_l or "musico" in label_l or "integrante" in label_l:
         return "—", "Equipe em formação"
     if "louvor" in label_l:
-        return "—", "Catálogo disponível no menu"
+        return "—", "Repertório disponível no menu"
     if "escala" in label_l:
         return "—", "Nenhuma escala registrada"
     return "—", "Sem informações no momento"
@@ -3411,7 +3712,7 @@ def render_login_brand():
             <h1>{GROUP_NAME}</h1>
             <p class="tagline">Sistema de organização do ministério de louvor</p>
             <p class="features">
-                🎶 Catálogo de louvores &nbsp;·&nbsp; 🎧 Playlist<br>
+                🎶 Repertório &nbsp;·&nbsp; 🎧 Playlist &nbsp;·&nbsp; 📰 Feed<br>
                 🎤 Escalas &nbsp;·&nbsp; 🎼 Painel do ministério
             </p>
         </div>
@@ -4047,6 +4348,313 @@ def render_culto_programa(
         )
 
 
+def _feed_post_badge(post_type: str) -> str:
+    badges = {
+        "louvor_aprovado": "🎵 Nova no repertório",
+        "evento": "📅 Evento",
+        "comunicado": "📢 Comunicado",
+    }
+    return badges.get(str(post_type).strip(), "📰 Novidade")
+
+
+def render_feed_post_card(
+    post: pd.Series,
+    likes_df: pd.DataFrame,
+    comments_df: pd.DataFrame,
+    *,
+    key_prefix: str = "feed",
+    show_comments: bool = True,
+):
+    pid = str(post.get("id", ""))
+    my_email = st.session_state.user_email.strip().lower()
+    badge = _feed_post_badge(post.get("post_type", ""))
+    author = html.escape(str(post.get("author_name", "Integrante")))
+    created = format_local(post.get("created_at"), "%d/%m/%Y %H:%M")
+    title = html.escape(str(post.get("title", "")))
+    body_raw = str(post.get("body", ""))
+
+    st.markdown(
+        f'<div class="feed-post-card">'
+        f'<span class="feed-post-badge">{badge}</span>'
+        f"<h4>{title}</h4>"
+        f'<p class="feed-post-meta">{author} · {html.escape(created)}</p></div>',
+        unsafe_allow_html=True,
+    )
+    if body_raw.strip():
+        st.markdown(body_raw)
+
+    img = str(post.get("image_url", "")).strip()
+    if img.startswith("http"):
+        try:
+            st.image(img, use_container_width=True)
+        except Exception:
+            pass
+
+    yt = str(post.get("youtube_url", "")).strip()
+    cifra = str(post.get("cifra_url", "")).strip()
+    link_cols = st.columns(3)
+    with link_cols[0]:
+        if yt.startswith("http"):
+            st.link_button("▶ Ouvir no YouTube", yt, use_container_width=True)
+    with link_cols[1]:
+        if cifra.startswith("http"):
+            st.link_button("🎸 Cifra", cifra, use_container_width=True)
+    with link_cols[2]:
+        if st.button("🎶 Ver repertório", key=f"{key_prefix}_rep_{pid}", use_container_width=True):
+            st.session_state.app_menu = "Repertório"
+            st.rerun()
+
+    likes_n = feed_likes_count(pid, likes_df)
+    liked = user_liked_post(pid, my_email, likes_df)
+    lc1, lc2 = st.columns([1, 3])
+    with lc1:
+        label = f"{'💔' if liked else '❤️'} Curtir ({likes_n})"
+        if st.button(label, key=f"{key_prefix}_like_{pid}", use_container_width=True):
+            toggle_feed_like(pid, my_email, likes_df)
+            st.rerun()
+
+    if show_comments:
+        post_comments = comments_df[comments_df["post_id"].astype(str) == pid]
+        if not post_comments.empty:
+            st.caption(f"💬 {len(post_comments)} comentário(s)")
+            for _, c in post_comments.sort_values("created_at").iterrows():
+                t = format_local(c.get("created_at"), "%d/%m %H:%M")
+                st.markdown(
+                    f'<div class="feed-comment"><b>{html.escape(str(c.get("name", "")))}</b> '
+                    f'<time>· {html.escape(t)}</time><br>'
+                    f'{html.escape(str(c.get("message", "")))}</div>',
+                    unsafe_allow_html=True,
+                )
+        with st.form(key=f"{key_prefix}_cmt_{pid}", clear_on_submit=True):
+            msg = st.text_input("Comentar", placeholder="Escreva um comentário...")
+            if st.form_submit_button("Enviar", use_container_width=True) and msg.strip():
+                append_feed_comment(
+                    pid,
+                    my_email,
+                    st.session_state.user_full_name or st.session_state.user_name,
+                    msg.strip(),
+                    comments_df,
+                )
+                st.rerun()
+    st.markdown("---")
+
+
+def render_feed_preview(limit: int = 3):
+    posts_df, likes_df, comments_df = load_feed_bundle()
+    if posts_df.empty:
+        return
+    st.markdown('<p class="music-panel-title">📰 Novidades do ministério</p>', unsafe_allow_html=True)
+    df = posts_df.copy()
+    df["_sort"] = pd.to_datetime(df["created_at"], errors="coerce")
+    df = df.sort_values("_sort", ascending=False).head(limit)
+    for _, post in df.iterrows():
+        render_feed_post_card(
+            post, likes_df, comments_df, key_prefix=f"prev_{post['id']}", show_comments=False
+        )
+    if st.button("Ver feed completo", key="dash_go_feed", use_container_width=True):
+        st.session_state.app_menu = "Feed"
+        st.rerun()
+
+
+def show_feed_page(
+    posts_df: pd.DataFrame,
+    likes_df: pd.DataFrame,
+    comments_df: pd.DataFrame,
+):
+    st.markdown('<p class="music-panel-title">📰 Feed do ministério</p>', unsafe_allow_html=True)
+    st.write(
+        "Novidades, músicas aprovadas e comunicados. Curta e comente para manter o grupo engajado."
+    )
+
+    if is_scale_manager(st.session_state.user_roles):
+        with st.expander("➕ Publicar comunicado ou evento", expanded=False):
+            with st.form(key="feed_post_form"):
+                titulo = st.text_input("Título")
+                corpo = st.text_area("Mensagem")
+                tipo = st.selectbox(
+                    "Tipo",
+                    ["comunicado", "evento"],
+                    format_func=lambda x: "📢 Comunicado" if x == "comunicado" else "📅 Evento",
+                )
+                yt = st.text_input("Link YouTube (opcional)")
+                img = st.text_input("URL da imagem (opcional)")
+                pub = st.form_submit_button("Publicar no feed", type="primary")
+            if pub:
+                if not titulo.strip() or not corpo.strip():
+                    show_form_error("Informe título e mensagem.")
+                else:
+                    append_feed_post(
+                        post_type=tipo,
+                        title=titulo.strip(),
+                        body=corpo.strip(),
+                        youtube_url=yt.strip(),
+                        author_email=st.session_state.user_email,
+                        author_name=st.session_state.user_full_name
+                        or st.session_state.user_name,
+                        image_url=img.strip(),
+                    )
+                    st.success("Publicado no feed!")
+                    st.rerun()
+
+    if posts_df.empty:
+        st.info("Nenhuma publicação ainda. Músicas aprovadas aparecem aqui automaticamente.")
+        return
+
+    df = posts_df.copy()
+    df["_sort"] = pd.to_datetime(df["created_at"], errors="coerce")
+    df = df.sort_values("_sort", ascending=False)
+    page_df = paginate_dataframe(df, 8, "feed_posts")
+    for _, post in page_df.iterrows():
+        render_feed_post_card(post, likes_df, comments_df, key_prefix=f"feed_{post['id']}")
+
+
+def render_playlist_track_links(row: pd.Series, members_df: pd.DataFrame):
+    from catalog_sanitize import sanitize_catalog_text
+    from voice_kit_links import vocal_nipe_from_roles, voice_kit_youtube_url
+
+    titulo = sanitize_catalog_text(row.get("title", ""))
+    artista = sanitize_catalog_text(row.get("artist", ""))
+    yt = sanitize_catalog_text(row.get("youtube_url", ""))
+    cifra = sanitize_catalog_text(row.get("cifra_url", ""))
+    if cifra and not cifra.startswith("http"):
+        cifra = ""
+    if not cifra:
+        cifra = cifra_search_url(titulo, artista)
+
+    idx_me, row_me = get_current_member_row(members_df)
+    roles_me = str(row_me.get("roles", "")) if row_me is not None else str(
+        st.session_state.get("user_roles", "")
+    )
+    bio_me = str(row_me.get("bio", "")) if row_me is not None else ""
+    nipe = vocal_nipe_from_roles(roles_me, bio=bio_me)
+
+    cols = st.columns(4)
+    with cols[0]:
+        if yt.startswith("http"):
+            st.link_button("▶ YouTube", yt, use_container_width=True)
+        else:
+            st.caption("YouTube indisponível")
+    with cols[1]:
+        if nipe and titulo:
+            st.link_button(
+                f"🎤 Kit Voz ({nipe})",
+                voice_kit_youtube_url(nipe, titulo),
+                use_container_width=True,
+            )
+        else:
+            st.caption("Kit Voz: cadastre função vocal no Perfil")
+    with cols[2]:
+        if cifra.startswith("http"):
+            st.link_button("🎸 Cifra", cifra, use_container_width=True)
+    with cols[3]:
+        st.link_button("🔍 YouTube", youtube_search_url(titulo, artista), use_container_width=True)
+
+
+def render_playlist_add_search(louvores_df: pd.DataFrame, playlist_df: pd.DataFrame):
+    """Busca no repertório (mesmo padrão das escalas) e adiciona à playlist ao tocar ➕."""
+    st.markdown("**🔍 Buscar no repertório**")
+    if louvores_df.empty:
+        st.warning("Repertório ainda não carregado neste ambiente.")
+        return
+
+    key_prefix = "pl_add"
+    qkey = f"{key_prefix}_lq"
+    active_key = f"{key_prefix}_lq_active"
+    if active_key not in st.session_state:
+        st.session_state[active_key] = ""
+
+    def commit_query():
+        st.session_state[active_key] = str(st.session_state.get(qkey, "")).strip()
+
+    col_inp, col_btn = st.columns([5, 1])
+    with col_inp:
+        input_kwargs = {
+            "label": "Buscar louvor",
+            "key": qkey,
+            "placeholder": "Nome do louvor ou artista...",
+            "label_visibility": "collapsed",
+            "on_change": commit_query,
+        }
+        if _TEXT_INPUT_HAS_BIND:
+            input_kwargs["bind"] = "query-params"
+        st.text_input(**input_kwargs)
+    with col_btn:
+        st.write("")
+        if st.button("Buscar", key=f"{key_prefix}_go", use_container_width=True):
+            commit_query()
+
+    query = str(st.session_state.get(active_key, "")).strip()
+    if len(query) < 1:
+        st.info("Digite e busque para adicionar músicas à sua playlist.")
+        return
+
+    filtered = filter_louvores_for_picker(louvores_df, query)
+    catalog = louvores_catalog_options(filtered)
+    opcoes = list(catalog.keys())[:15]
+    if not opcoes:
+        st.warning("Nenhum louvor encontrado.")
+        return
+
+    st.caption(f"**{len(catalog)}** encontrado(s) — toque em ➕ para incluir na sua playlist")
+    for label in opcoes:
+        data = catalog.get(label, {})
+        from catalog_sanitize import sanitize_catalog_text
+
+        titulo = sanitize_catalog_text(data.get("title", label.split(" — ")[0]))
+        btn = f"➕ {titulo}"
+        artista = sanitize_catalog_text(data.get("artist", ""))
+        if artista:
+            btn += f" — {artista}"
+        if st.button(btn, key=f"{key_prefix}_pick_{_picker_key_slug(label)}", use_container_width=True):
+            add_louvor_to_playlist(playlist_df, data)
+            st.toast(f"Adicionado à playlist: {titulo}", icon="🎧")
+            st.rerun()
+
+
+def show_playlist_page(louvores_df: pd.DataFrame, playlist_df: pd.DataFrame, members_df: pd.DataFrame):
+    st.markdown('<p class="music-panel-title">🎧 Minha playlist</p>', unsafe_allow_html=True)
+    st.write(
+        "Monte sua playlist pessoal a partir do repertório da igreja — com YouTube, Kit Voz do seu "
+        "nipe e cifra para treinar."
+    )
+    render_voice_kit_link()
+
+    my_email = st.session_state.user_email.strip().lower()
+    playlist_df = prepare_playlist(playlist_df)
+    mine = playlist_for_user(playlist_df, my_email)
+
+    st.markdown("### ➕ Adicionar música")
+    render_playlist_add_search(louvores_df, playlist_df)
+
+    st.markdown("### 🎧 Suas faixas")
+    if mine.empty:
+        st.info("Nenhuma música na sua playlist. Use a busca acima para adicionar do repertório.")
+        return
+
+    mine = mine.copy()
+    mine["_sort"] = pd.to_datetime(mine["added_at"], errors="coerce")
+    mine = mine.sort_values("_sort", ascending=False)
+    page_mine = paginate_dataframe(mine, 10, "my_playlist")
+
+    for _, track in page_mine.iterrows():
+        meta_parts = [p for p in [track.get("artist"), track.get("key"), track.get("ritmo")] if str(p).strip()]
+        meta = " · ".join(str(p) for p in meta_parts)
+        st.markdown(
+            f'<div class="playlist-track-card">'
+            f"<h4>🎵 {html.escape(str(track.get('title', '')))}</h4>"
+            f'<p class="playlist-track-meta">{html.escape(meta)}</p></div>',
+            unsafe_allow_html=True,
+        )
+        render_playlist_track_links(track, members_df)
+        if str(track.get("notes", "")).strip():
+            st.caption(str(track["notes"]))
+        if st.button("🗑 Remover", key=f"pl_rm_{track['id']}", use_container_width=True):
+            updated = playlist_df[playlist_df["id"].astype(str) != str(track["id"])]
+            save_data(updated, PLAYLIST_FILE)
+            st.rerun()
+        st.markdown("---")
+
+
 def render_events_feed(eventos_df: pd.DataFrame, limit: int = 5):
     if eventos_df.empty:
         return
@@ -4143,6 +4751,7 @@ def show_dashboard(
             unsafe_allow_html=True,
         )
 
+    render_feed_preview(limit=3)
     render_events_feed(eventos_df)
     render_dashboard_quick_actions(st.session_state.user_roles)
 
@@ -4911,7 +5520,7 @@ def render_louvor_search_picker(
     col_busca, col_sel = st.columns([3, 2], gap="large")
 
     with col_busca:
-        st.markdown("**🔍 Buscar no catálogo**")
+        st.markdown("**🔍 Buscar no repertório**")
         _louvor_search_panel(
             louvores_df, key_prefix, state_key, max_results=max_results
         )
@@ -4939,7 +5548,7 @@ def clear_louvor_picker_state(key_prefix: str):
 def show_louvores_picker(louvores_df: pd.DataFrame, key_prefix: str = "pick"):
     st.markdown('<p class="music-panel-title">🎶 Louvores disponíveis</p>', unsafe_allow_html=True)
     if louvores_df.empty:
-        st.caption("O catálogo de louvores ainda não foi carregado neste ambiente.")
+        st.caption("O repertório ainda não foi carregado neste ambiente.")
         return
     search = st.text_input(
         "🔍 Digite as primeiras letras do louvor ou do artista",
@@ -5909,7 +6518,7 @@ def show_louvores_catalog(louvores_df: pd.DataFrame):
         unsafe_allow_html=True,
     )
     st.write(
-        "Navegue pelo repertório com busca, filtros e paginação — como um catálogo musical."
+        "Navegue pelo repertório com busca, filtros e paginação."
     )
     render_voice_kit_link()
     st.caption(
@@ -5963,7 +6572,7 @@ def show_louvores_catalog(louvores_df: pd.DataFrame):
 
     if louvores_df.empty:
         st.warning(
-            "Catálogo ainda não gerado. Execute: `python build_louvores_db.py`"
+            "Repertório ainda não gerado. Execute: `python build_louvores_db.py`"
         )
         return
 
@@ -5995,7 +6604,7 @@ def show_louvores_catalog(louvores_df: pd.DataFrame):
         filtered = filtered[filtered["ritmo"].astype(str) == ritmo_filter]
 
     if search.strip() or letter_filter != "Todas" or ritmo_filter != "Todos":
-        st.session_state["page_catalogo"] = 1
+        st.session_state["page_repertorio"] = 1
 
     st.markdown(
         f"**🎵 {len(filtered)}** faixa(s) encontrada(s) · catálogo com **{len(louvores_df)}** louvores",
@@ -6014,7 +6623,7 @@ def show_louvores_catalog(louvores_df: pd.DataFrame):
         "Cifra",
         "Fonte",
     ]
-    page_df = paginate_dataframe(display, CATALOG_PAGE_SIZE, "catalogo")
+    page_df = paginate_dataframe(display, CATALOG_PAGE_SIZE, "repertorio")
     rows_html = []
     for _, r in page_df.iterrows():
         yt = str(r.get("YouTube", "")).strip()
@@ -6113,7 +6722,7 @@ def show_eventos_page(eventos_df: pd.DataFrame, members_df: pd.DataFrame):
 def show_sugestao_louvor(sugestoes_df: pd.DataFrame, louvores_df: pd.DataFrame):
     st.markdown('<p class="music-panel-title">💡 Sugerir louvor</p>', unsafe_allow_html=True)
     st.write(
-        "Envie o link do YouTube e o nome da música. Líderes e organizadores analisam para incluir no catálogo."
+        "Envie o link do YouTube e o nome da música. Líderes e organizadores analisam para incluir no repertório."
     )
 
     with st.form(key="sugestao_form"):
@@ -6172,6 +6781,14 @@ def show_sugestao_louvor(sugestoes_df: pd.DataFrame, louvores_df: pd.DataFrame):
                     )
                     sugestoes_df.loc[sugestoes_df["id"] == s["id"], "status"] = "aprovada"
                     save_data(sugestoes_df, SUGESTOES_FILE)
+                    post_feed_louvor_aprovado(
+                        suggester_name=str(s["suggester_name"]),
+                        suggester_email=str(s["suggester_email"]),
+                        title=str(s["title"]),
+                        youtube_url=str(s["youtube_url"]),
+                        suggestion_id=str(s["id"]),
+                    )
+                    st.success("Aprovada! Publicada no Feed e no repertório.")
                     st.rerun()
             with c2:
                 if st.button("❌ Recusar", key=f"rj_{s['id']}", use_container_width=True):
@@ -6202,9 +6819,8 @@ def _run_app() -> None:
     trocas_df = prepare_trocas(load_data(TROCAS_FILE, TROCA_COLUMNS))
     programa_df = prepare_programa(load_data(PROGRAMA_FILE, PROGRAMA_COLUMNS))
     equipe_df = prepare_equipe(load_data(EQUIPE_FILE, EQUIPE_COLUMNS))
-    playlist_df = load_data(
-        PLAYLIST_FILE, ("title", "artist", "url", "notes", "added_at")
-    )
+    playlist_df = prepare_playlist(load_data(PLAYLIST_FILE, PLAYLIST_COLUMNS))
+    feed_posts_df, feed_likes_df, feed_comments_df = load_feed_bundle()
     from catalog_sanitize import prepare_louvores_df
 
     louvores_df = prepare_louvores_df(
@@ -6294,8 +6910,11 @@ def _run_app() -> None:
             eventos_df,
         )
 
-    elif menu == "Catálogo":
+    elif menu == "Repertório":
         show_louvores_catalog(louvores_df)
+
+    elif menu == "Feed":
+        show_feed_page(feed_posts_df, feed_likes_df, feed_comments_df)
 
     elif menu == "Escalas":
         show_escalas_page(
@@ -6315,50 +6934,7 @@ def _run_app() -> None:
         show_sugestao_louvor(sugestoes_df, louvores_df)
 
     elif menu == "Playlist":
-        st.markdown('<p class="music-panel-title">🎧 Sua playlist</p>', unsafe_allow_html=True)
-        st.write("Monte a setlist com links de referência para ensaio e culto.")
-        with st.form(key="playlist_form"):
-            title = st.text_input("🎵 Nome da música")
-            artist = st.text_input("🎤 Artista / Banda")
-            url = st.text_input("🔗 Link (YouTube, Spotify, etc.)")
-            notes = st.text_area("Observações")
-            submit = st.form_submit_button("🎵 Adicionar música")
-
-        if submit:
-            if not title or not artist:
-                show_form_error("Informe pelo menos título e artista.")
-            else:
-                new_row = {
-                    "title": title.strip().title(),
-                    "artist": artist.strip().title(),
-                    "url": url.strip(),
-                    "notes": notes.strip(),
-                    "added_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                }
-                playlist_df = pd.concat(
-                    [playlist_df, pd.DataFrame([new_row])],
-                    ignore_index=True,
-                )
-                save_data(playlist_df, PLAYLIST_FILE)
-                st.success("Música adicionada à playlist.")
-                st.rerun()
-
-        if not playlist_df.empty:
-            st.subheader("🎧 Faixas na playlist")
-            playlist_display = playlist_df[
-                ["title", "artist", "url", "notes", "added_at"]
-            ].copy()
-            playlist_display.columns = ["Música", "Artista", "Link", "Notas", "Adicionada em"]
-            playlist_display["_sort_at"] = pd.to_datetime(
-                playlist_display["Adicionada em"], errors="coerce"
-            )
-            playlist_display = playlist_display.sort_values(
-                "_sort_at", ascending=False
-            ).drop(columns=["_sort_at"])
-            page_playlist = paginate_dataframe(playlist_display, 15, "playlist")
-            st.dataframe(page_playlist, use_container_width=True, hide_index=True)
-        else:
-            st.info("Nenhuma música adicionada ainda.")
+        show_playlist_page(louvores_df, playlist_df, members_df)
 
     elif menu == "Chat":
         show_group_chat(chat_df, members_df)
