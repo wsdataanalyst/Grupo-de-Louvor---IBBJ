@@ -217,6 +217,7 @@ SUGESTAO_COLUMNS = (
     "review_notes",
 )
 FUNCAO_MINISTRADOR = "Ministrador"
+FUNCAO_TECNICO_SOM = "Técnico de som"
 
 MENU_ITEMS_BASE = [
     ("Dashboard", "🎼", "Sua semana, equipe e novidades"),
@@ -302,6 +303,7 @@ MUSICIAN_ROLES = [
     "Violonista",
     "Baterista",
     "Tecladista",
+    "Técnico de som",
 ]
 ROLES = MUSICIAN_ROLES  # compatibilidade
 
@@ -516,7 +518,7 @@ def render_register_form(members_df: pd.DataFrame) -> pd.DataFrame:
                 "As funções musicais abaixo são opcionais."
             )
         roles = st.multiselect(
-            "Função(s) musicais (opcional para Líder e organizadores)",
+            "Função(ões) no ministério (música, técnico de som, etc.)",
             MUSICIAN_ROLES,
             key="reg_roles",
         )
@@ -528,7 +530,7 @@ def render_register_form(members_df: pd.DataFrame) -> pd.DataFrame:
         if not first_name or not last_name or not email or not password:
             show_form_error("Preencha nome, sobrenome, email e senha.")
         elif not special_hint and not roles:
-            show_form_error("Escolha pelo menos uma função musical.")
+            show_form_error("Escolha pelo menos uma função (música ou técnico de som).")
         elif not is_valid_email(email):
             show_form_error("Informe um email válido.")
         elif len(password) < 6:
@@ -723,8 +725,8 @@ def merge_member_roles(leadership: list[str], musician: list[str]) -> str:
     return ", ".join(merged)
 
 
-# Na montagem de escalas: só Integrante ou Banda (papéis de liderança ficam no perfil)
-ESCALA_FUNCOES_EXIBICAO = ["Integrante", "Banda"]
+# Funções exibidas ao montar a equipe da escala (papéis de liderança ficam no perfil)
+ESCALA_FUNCOES_EXIBICAO = ["Integrante", "Banda", FUNCAO_TECNICO_SOM]
 
 
 def roles_for_public_display(roles_str: str) -> str:
@@ -736,8 +738,11 @@ def roles_for_public_display(roles_str: str) -> str:
 
 
 def normalize_funcao_escala(funcao: str) -> str:
-    """Converte função salva antiga (ex.: Desenvolvedor) para Integrante ou Banda."""
+    """Normaliza função gravada na equipe da escala para exibição consistente."""
     f = str(funcao).strip()
+    fl = f.lower().replace("é", "e")
+    if f == FUNCAO_TECNICO_SOM or "tecnico" in fl and "som" in fl:
+        return FUNCAO_TECNICO_SOM
     if f in ("Integrante", "Banda", "Responsável", FUNCAO_MINISTRADOR):
         if f == "Responsável":
             return FUNCAO_MINISTRADOR
@@ -746,7 +751,6 @@ def normalize_funcao_escala(funcao: str) -> str:
         return "Integrante"
     if f in MUSICIAN_ROLES:
         return "Banda"
-    fl = f.lower()
     if any(k in fl for k in ("vocal", "guitar", "baix", "bater", "teclad", "violon")):
         return "Banda"
     return "Integrante"
@@ -754,7 +758,28 @@ def normalize_funcao_escala(funcao: str) -> str:
 
 def default_funcao_para_escala(row) -> str:
     _, musician = split_member_roles(str(row.get("roles", "")))
-    return "Banda" if musician else "Integrante"
+    if FUNCAO_TECNICO_SOM in musician:
+        return FUNCAO_TECNICO_SOM
+    if musician:
+        return "Banda"
+    return "Integrante"
+
+
+def default_funcao_escala_index(members_df: pd.DataFrame, member_map: dict, labels: list) -> int:
+    """Sugere função na escala conforme o cadastro do primeiro integrante selecionado."""
+    if not labels:
+        return 0
+    email = member_map.get(labels[0], "").strip().lower()
+    if not email or members_df.empty:
+        return 0
+    match = members_df[members_df["email"].astype(str).str.strip().str.lower() == email]
+    if match.empty:
+        return 0
+    sug = default_funcao_para_escala(match.iloc[0])
+    try:
+        return ESCALA_FUNCOES_EXIBICAO.index(sug)
+    except ValueError:
+        return 0
 
 
 def members_options_escala(members_df: pd.DataFrame) -> dict[str, str]:
@@ -4888,9 +4913,9 @@ def show_user_profile(
             if leadership:
                 st.caption("Funções de liderança: " + ", ".join(leadership))
             role_label = (
-                "Função(ões) musicais (opcional para líderes)"
+                "Função(ões) no ministério (opcional para líderes)"
                 if leadership
-                else "Função(ões) musicais"
+                else "Função(ões) no ministério"
             )
             new_musician = st.multiselect(
                 role_label,
@@ -4905,7 +4930,7 @@ def show_user_profile(
             if not first_name.strip() or not last_name.strip():
                 show_form_error("Nome e sobrenome são obrigatórios.")
             elif not leadership and not new_musician:
-                show_form_error("Selecione pelo menos uma função musical.")
+                show_form_error("Selecione pelo menos uma função (música ou técnico de som).")
             else:
                 fn = first_name.strip().title()
                 ln = last_name.strip().title()
@@ -5633,8 +5658,13 @@ def render_equipe_editor(
         placeholder="Selecione um ou vários integrantes",
         on_change=_on_equipe_add_change,
     )
+    funcao_idx = default_funcao_escala_index(members_df, member_map, novos)
     funcao_nova = st.selectbox(
-        "Função na escala", ESCALA_FUNCOES_EXIBICAO, key=f"{key_prefix}_eq_fun"
+        "Função na escala",
+        ESCALA_FUNCOES_EXIBICAO,
+        index=funcao_idx,
+        key=f"{key_prefix}_eq_fun",
+        help="Ex.: Técnico de som para quem opera mesa/PA no culto.",
     )
     if st.button("➕ Adicionar à equipe", key=f"{key_prefix}_eq_btn", use_container_width=True):
         if not novos:
