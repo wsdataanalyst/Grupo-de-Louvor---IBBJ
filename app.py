@@ -59,6 +59,16 @@ from app_features import (
     render_escala_planner_panel,
     save_feed_image_file,
 )
+from feed_graphics import generate_novo_louvor_banner
+from feed_scheduler import (
+    FEED_QUEUE_COLUMNS,
+    merge_queue,
+    process_due_posts,
+    schedule_culto_prayers,
+    schedule_weekly_team_post,
+)
+from instrument_kit_links import instrument_kits_from_roles, kit_youtube_url
+from whatsapp_share import share_escala_text, whatsapp_share_url
 from louvor_meta import (
     LOUVOR_THEMES,
     classify_themes,
@@ -127,6 +137,7 @@ EVENTOS_FILE = DATA_DIR / "eventos.csv"
 FEED_POSTS_FILE = DATA_DIR / "feed_posts.csv"
 FEED_LIKES_FILE = DATA_DIR / "feed_likes.csv"
 FEED_COMMENTS_FILE = DATA_DIR / "feed_comments.csv"
+FEED_QUEUE_FILE = DATA_DIR / "feed_queue.csv"
 SUGESTOES_FILE = DATA_DIR / "sugestoes_louvor.csv"
 PLAYLIST_COLUMNS = (
     "id",
@@ -255,11 +266,11 @@ FUNCAO_MINISTRADOR = "Ministrador"
 FUNCAO_TECNICO_SOM = "Técnico de som"
 
 MENU_ITEMS_BASE = [
+    ("Feed", "📰", "Novidades, músicas e comunicados"),
     ("Dashboard", "🎼", "Sua semana, equipe e novidades"),
     ("Gerenciar Escalas", "🎯", "Montar cultos, equipe e louvores"),
     ("Repertório", "🎶", "Todas as músicas do ministério"),
     ("Escalas", "🎤", "Escalas, ensaio e trocas"),
-    ("Feed", "📰", "Novidades, músicas e comunicados"),
     ("Eventos", "📅", "Próximos eventos do ministério"),
     ("Sugestão de louvor", "💡", "Sugerir música para o repertório"),
     ("Playlist", "🎧", "Sua playlist de treino"),
@@ -296,10 +307,10 @@ MENU_ACCENTS = {
 
 # Organização do menu por áreas (sidebar)
 NAV_GROUP_ORDER = (
-    ("Início", ("Dashboard",)),
+    ("Início", ("Feed", "Dashboard")),
     ("Culto & escalas", ("Escalas", "Gerenciar Escalas")),
     ("Repertório", ("Repertório", "Playlist", "Sugestão de louvor")),
-    ("Comunidade", ("Feed", "Chat", "Eventos", "Membros")),
+    ("Comunidade", ("Chat", "Eventos", "Membros")),
     ("Conta", ("Perfil",)),
 )
 
@@ -873,6 +884,36 @@ def delete_own_chat_message(timestamp: str, email: str) -> None:
     load_chat_df.clear()
 
 
+def update_own_chat_message(timestamp: str, email: str, new_text: str) -> None:
+    df = prepare_chat(load_data(CHAT_FILE, CHAT_COLUMNS))
+    email_l = email.strip().lower()
+    mask = (df["timestamp"].astype(str) == str(timestamp)) & (
+        df["email"].astype(str).str.lower() == email_l
+    )
+    if not mask.any():
+        return
+    df.loc[mask, "message"] = str(new_text).strip()
+    df.loc[mask, "message_type"] = "text"
+    df.loc[mask, "media_file"] = ""
+    save_data(df, CHAT_FILE)
+    load_chat_df.clear()
+
+
+def process_feed_queue() -> None:
+    """Publica posts agendados (orações 6h, escala da semana, etc.)."""
+    if not FEED_QUEUE_FILE.exists():
+        return
+    qdf = load_csv_preserve_rows(FEED_QUEUE_FILE, FEED_QUEUE_COLUMNS)
+    if qdf.empty:
+        return
+
+    def _append(**kwargs):
+        append_feed_post(**kwargs)
+
+    updated = process_due_posts(qdf, _append)
+    updated.to_csv(FEED_QUEUE_FILE, index=False)
+
+
 def delete_own_ensaio_message(timestamp: str, escala_id: str, email: str) -> None:
     df = prepare_chat_ensaio(load_data(CHAT_ENSAIO_FILE, CHAT_ENSAIO_COLUMNS))
     mask = ~(
@@ -881,6 +922,81 @@ def delete_own_ensaio_message(timestamp: str, escala_id: str, email: str) -> Non
         & (df["email"].astype(str).str.lower() == email.strip().lower())
     )
     save_data(df[mask], CHAT_ENSAIO_FILE)
+
+
+def update_own_ensaio_message(
+    timestamp: str, escala_id: str, email: str, new_text: str
+) -> None:
+    df = prepare_chat_ensaio(load_data(CHAT_ENSAIO_FILE, CHAT_ENSAIO_COLUMNS))
+    email_l = email.strip().lower()
+    mask = (df["timestamp"].astype(str) == str(timestamp)) & (
+        df["escala_id"].astype(str) == str(escala_id)
+    ) & (df["email"].astype(str).str.lower() == email_l)
+    if not mask.any():
+        return
+    df.loc[mask, "message"] = str(new_text).strip()
+    df.loc[mask, "message_type"] = "text"
+    df.loc[mask, "media_file"] = ""
+    save_data(df, CHAT_ENSAIO_FILE)
+
+
+def schedule_feed_posts_for_escala(
+    escala_id: str,
+    escala_row: dict,
+    equipe_df: pd.DataFrame,
+    members_df: pd.DataFrame,
+    programa_df: pd.DataFrame,
+    louvores_df: pd.DataFrame,
+) -> None:
+    """Agenda post da equipe e orações diárias no feed."""
+    dt_culto = pd.to_datetime(escala_row.get("date"), errors="coerce")
+    culto_d = dt_culto.date() if pd.notna(dt_culto) else date.today()
+    event = str(escala_row.get("event", "Culto"))
+    ensaio = format_rehearsal_date_pt(escala_row) if rehearsal_date_is_set(escala_row) else ""
+    escala_series = (
+        escala_row
+        if isinstance(escala_row, pd.Series)
+        else pd.Series(escala_row)
+    )
+    team_lines = []
+    for p in integrantes_escalados(escala_series, equipe_df, members_df):
+        team_lines.append(f"• {p.get('name', '')} — {p.get('funcao', '')}")
+    team_body = "\n".join(team_lines) if team_lines else "Equipe em formação."
+    new_rows = [
+        schedule_weekly_team_post(
+            escala_id=escala_id,
+            event=event,
+            culto_date=culto_d,
+            ensaio_txt=ensaio,
+            team_html_body=team_body,
+        )
+    ]
+    themes_all: list[str] = []
+    louvor_titles: list[str] = []
+    prog = programa_por_escala(programa_df, escala_id)
+    for _, pr in prog.iterrows():
+        t = str(pr.get("louvor_title", ""))
+        louvor_titles.append(t)
+        if not louvores_df.empty:
+            m = lookup_louvor_meta(louvores_df, t, str(pr.get("artist", "")))
+            themes_all.extend(themes_from_csv(str(m.get("temas", ""))))
+    new_rows.extend(
+        schedule_culto_prayers(
+            escala_id=escala_id,
+            event=event,
+            culto_date=culto_d,
+            themes=list(dict.fromkeys(themes_all)),
+            louvor_titles=louvor_titles,
+        )
+    )
+    if FEED_QUEUE_FILE.exists():
+        qdf = load_csv_preserve_rows(FEED_QUEUE_FILE, FEED_QUEUE_COLUMNS)
+    else:
+        qdf = pd.DataFrame(columns=list(FEED_QUEUE_COLUMNS))
+    qdf = merge_queue(qdf, new_rows)
+    FEED_QUEUE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    qdf.to_csv(FEED_QUEUE_FILE, index=False)
+    process_feed_queue()
 
 
 def feed_data_revision() -> str:
@@ -1123,17 +1239,24 @@ def post_feed_louvor_aprovado(
 ) -> None:
     nome = suggester_name.strip() or "Integrante"
     titulo_musica = title.strip()
+    img_rel = generate_novo_louvor_banner(titulo_musica, FEED_IMAGES_DIR)
+    yt = youtube_url.strip()
+    body = (
+        "**Tem louvor novo na área!!** 🎉\n\n"
+        "Clique e confira a nova música do repertório do GDL.\n\n"
+        f"🎵 **{titulo_musica}** — sugerida por {nome}.\n\n"
+    )
+    if yt.startswith("http"):
+        body += f"[▶ Ouvir no YouTube]({yt})"
     append_feed_post(
         post_type="louvor_aprovado",
-        title=f"🎵 Nova no repertório: {titulo_musica}",
-        body=(
-            f"Veja a nova música sugerida por **{nome}** para o repertório do ministério! "
-            "Ouça, curta e comente — já está disponível para escalas e playlists."
-        ),
-        youtube_url=youtube_url.strip(),
+        title="Tem louvor novo na área!!",
+        body=body,
+        youtube_url=yt,
         ref_id=str(suggestion_id),
         author_email=suggester_email.strip().lower(),
         author_name=nome,
+        image_url=img_rel,
     )
 
 
@@ -3262,6 +3385,15 @@ def apply_music_theme():
             background: rgba(74, 222, 128, 0.15); color: #86efac;
             font-size: 0.65rem; padding: 0.1rem 0.4rem; border-radius: 999px;
         }
+        .louvor-search-btn-wrap button {
+            min-width: 4.25rem !important;
+            white-space: nowrap !important;
+            padding-left: 0.65rem !important;
+            padding-right: 0.65rem !important;
+        }
+        div[data-testid="column"]:has(.louvor-search-btn-wrap) {
+            min-width: 5rem;
+        }
         .playlist-track-card {
             background: rgba(244, 114, 182, 0.08);
             border: 1px solid rgba(244, 114, 182, 0.3);
@@ -3694,7 +3826,7 @@ def render_sidebar_navigation() -> str:
     icons = {name: icon for name, icon, _ in flat}
 
     if "app_menu" not in st.session_state or st.session_state.app_menu not in names:
-        st.session_state.app_menu = names[0] if names else "Dashboard"
+        st.session_state.app_menu = "Feed" if "Feed" in names else (names[0] if names else "Dashboard")
 
     st.sidebar.markdown(
         '<p class="nav-group-label">Navegação</p>',
@@ -4311,15 +4443,24 @@ def pending_text_key(key_prefix: str) -> str:
     return f"{key_prefix}_pending_text"
 
 
-def render_chat_messages(chat_df: pd.DataFrame, members_df: pd.DataFrame):
+def render_chat_messages(
+    chat_df: pd.DataFrame,
+    members_df: pd.DataFrame,
+    *,
+    delete_fn=None,
+    update_fn=None,
+    key_prefix: str = "chat",
+):
     if chat_df.empty:
         st.caption("💬 Nenhuma mensagem ainda — use o campo abaixo.")
         return
 
     my_email = st.session_state.user_email.strip().lower()
     chat_sorted = sort_chat_messages(chat_df)
+    delete_fn = delete_fn or delete_own_chat_message
+    update_fn = update_fn or update_own_chat_message
 
-    parts = ['<div id="chat-scroll-box" class="chat-feed">']
+    st.markdown('<div id="chat-scroll-box" class="chat-feed">', unsafe_allow_html=True)
     for _, row in chat_sorted.iterrows():
         is_me = str(row.get("email", "")).strip().lower() == my_email
         display_name = "Você" if is_me else str(row.get("name", "Integrante"))
@@ -4328,33 +4469,64 @@ def render_chat_messages(chat_df: pd.DataFrame, members_df: pd.DataFrame):
         foto = member_photo_html(email, members_df, 32)
         css = "me" if is_me else "other"
         mtype = str(row.get("message_type", "text") or "text").strip().lower()
+        ts = str(row.get("timestamp", ""))
         if mtype == "audio":
             body = _chat_media_html("audio", str(row.get("media_file", "")))
         elif mtype == "image":
             body = _chat_media_html("image", str(row.get("media_file", "")))
         else:
             body = f'<p class="chat-text">{_escape_chat_html(row.get("message", ""))}</p>'
-        parts.append(
-            f'<div class="chat-bubble {css}">'
-            f'<div class="chat-row-head">{foto}'
-            f'<span class="chat-row-name">{_escape_chat_html(display_name)}</span>'
-            f'<span class="chat-row-time"> · {time_str}</span></div>'
-            f"{body}</div>"
-        )
-    parts.append('<div id="chat-scroll-end" style="height:1px;"></div>')
-    parts.append("</div>")
-    st.markdown("".join(parts), unsafe_allow_html=True)
-    for _, row in chat_sorted.iterrows():
-        if str(row.get("email", "")).strip().lower() != my_email:
-            continue
-        ts = str(row.get("timestamp", ""))
-        if st.button(
-            "🗑️ Apagar minha mensagem",
-            key=f"del_chat_{ts}",
-            use_container_width=True,
-        ):
-            delete_own_chat_message(ts, my_email)
-            st.rerun()
+
+        if is_me and mtype == "text":
+            c_msg, c_act = st.columns([11, 1])
+            with c_msg:
+                st.markdown(
+                    f'<div class="chat-bubble {css}">'
+                    f'<div class="chat-row-head">{foto}'
+                    f'<span class="chat-row-name">{_escape_chat_html(display_name)}</span>'
+                    f'<span class="chat-row-time"> · {time_str}</span></div>'
+                    f"{body}</div>",
+                    unsafe_allow_html=True,
+                )
+            with c_act:
+                with st.popover("⋮", use_container_width=True):
+                    st.caption("Sua mensagem")
+                    edit_key = f"{key_prefix}_edit_{ts}"
+                    if st.button("✏️ Editar", key=f"{key_prefix}_edbtn_{ts}", use_container_width=True):
+                        st.session_state[edit_key] = str(row.get("message", ""))
+                    if st.button("🗑️ Apagar", key=f"{key_prefix}_del_{ts}", use_container_width=True):
+                        delete_fn(ts, my_email)
+                        st.rerun()
+            if st.session_state.get(f"{key_prefix}_edit_{ts}") is not None:
+                novo = st.text_input(
+                    "Editar mensagem",
+                    value=st.session_state.get(f"{key_prefix}_edit_{ts}", ""),
+                    key=f"{key_prefix}_editinp_{ts}",
+                )
+                ec1, ec2 = st.columns(2)
+                with ec1:
+                    if st.button("Salvar", key=f"{key_prefix}_save_{ts}", type="primary"):
+                        if novo.strip():
+                            update_fn(ts, my_email, novo.strip())
+                        st.session_state.pop(f"{key_prefix}_edit_{ts}", None)
+                        st.rerun()
+                with ec2:
+                    if st.button("Cancelar", key=f"{key_prefix}_cancel_{ts}"):
+                        st.session_state.pop(f"{key_prefix}_edit_{ts}", None)
+                        st.rerun()
+        else:
+            st.markdown(
+                f'<div class="chat-bubble {css}">'
+                f'<div class="chat-row-head">{foto}'
+                f'<span class="chat-row-name">{_escape_chat_html(display_name)}</span>'
+                f'<span class="chat-row-time"> · {time_str}</span></div>'
+                f"{body}</div>",
+                unsafe_allow_html=True,
+            )
+    st.markdown(
+        '<div id="chat-scroll-end" style="height:1px;"></div></div>',
+        unsafe_allow_html=True,
+    )
     inject_chat_scroll_to_bottom()
 
 
@@ -4500,17 +4672,14 @@ def render_culto_programa(
     roles_me = str(row_me.get("roles", "")) if row_me is not None else str(
         st.session_state.get("user_roles", "")
     )
-    nipe_me = vocal_nipe_from_roles(roles_me, bio=bio_me)
-    if nipe_me:
-        st.caption(
-            f"Use **Kit Voz** em cada música — busca: "
-            f"*Kit Voz {nipe_me.lower()} - [nome do louvor]* "
-            f"(ex.: Kit Voz {nipe_me.lower()} - Santo pra Sempre)."
-        )
+    kits_me = instrument_kits_from_roles(roles_me, bio=bio_me)
+    if kits_me:
+        kit_names = ", ".join(k[0] for k in kits_me)
+        st.caption(f"Seus kits no YouTube: **{kit_names}** (conforme funções no Perfil).")
     else:
         st.caption(
-            "Para ver o kit de voz no YouTube, cadastre sua função vocal "
-            "(ex.: Vocalista - Tenor) em **Perfil**."
+            "Cadastre sua função (vocal, bateria, guitarra, etc.) em **Perfil** "
+            "para ver os botões de kit em cada louvor."
         )
 
     total_prog_min = 0.0
@@ -4537,12 +4706,12 @@ def render_culto_programa(
             btns.append(
                 f'<a class="prog-btn prog-btn-yt" href="{yt}" target="_blank" rel="noopener">▶ YouTube</a>'
             )
-        if nipe_me and louvor:
-            kit_url = voice_kit_youtube_url(nipe_me, louvor)
-            kit_label = html.escape(voice_kit_search_query(nipe_me, louvor))
+        for kit_label, _kit_key, kit_prefix in kits_me:
+            ku = kit_youtube_url(kit_prefix, louvor)
+            short = kit_label.replace("Kit ", "")
             btns.append(
-                f'<a class="prog-btn prog-btn-kit" href="{kit_url}" target="_blank" rel="noopener" '
-                f'title="{kit_label}">🎤 Kit Voz</a>'
+                f'<a class="prog-btn prog-btn-kit" href="{ku}" target="_blank" rel="noopener" '
+                f'title="{html.escape(kit_label)}">🎵 {html.escape(short)}</a>'
             )
         btns.append(
             f'<a class="prog-btn prog-btn-letra" href="{cifra}" target="_blank" rel="noopener">📜 Letra / Cifra</a>'
@@ -4586,23 +4755,22 @@ def render_culto_programa(
             and FUNCAO_MINISTRADOR in normalize_funcao_escala(str(r.get("funcao", "")))
             for _, r in eq.iterrows()
         )
-    if is_ministrador_culto or is_mgr:
-        nomes_l = [
-            format_louvor_display(
-                fix_louvor_display_title(sanitize_catalog_text(p.get("louvor_title", ""))),
-                sanitize_catalog_text(p.get("artist", "")),
-            )
-            for _, p in prog.iterrows()
-        ]
+    can_guia = is_ministrador_culto or is_scale_manager(st.session_state.get("user_roles", ""))
+    if can_guia:
+        nomes_l = []
+        refs_por: list[tuple[str, str]] = []
         themes_lines: list[str] = []
-        if louvores_df is not None:
-            for _, p in prog.iterrows():
-                m = lookup_louvor_meta(
-                    louvores_df,
-                    str(p.get("louvor_title", "")),
-                    str(p.get("artist", "")),
-                )
-                themes_lines.extend(themes_from_csv(str(m.get("temas", ""))))
+        for _, p in prog.iterrows():
+            louv_t = fix_louvor_display_title(
+                sanitize_catalog_text(p.get("louvor_title", ""))
+            )
+            art = sanitize_catalog_text(p.get("artist", ""))
+            nomes_l.append(format_louvor_display(louv_t, art))
+            if louvores_df is not None:
+                m = lookup_louvor_meta(louvores_df, louv_t, art)
+                th = themes_from_csv(str(m.get("temas", "")))
+                themes_lines.extend(th)
+                refs_por.append((louv_t, str(m.get("ref_biblica", "")) or suggest_biblical_refs(th, louv_t)))
         with st.expander("📖 Guia de ministração", expanded=False):
             st.markdown(
                 guia_ministracao_text(
@@ -4610,8 +4778,17 @@ def render_culto_programa(
                     culto_date=date_fmt,
                     louvores=nomes_l,
                     themes_lines=list(dict.fromkeys(themes_lines))[:8],
+                    refs_por_louvor=refs_por,
                 )
             )
+
+    wa_team = []
+    if team_html:
+        wa_team.append("Equipe escalada no culto.")
+    wa_link = whatsapp_share_url(
+        share_escala_text(event, date_fmt, ensaio_fmt.replace(" · Ensaio: ", ""), wa_team)
+    )
+    st.link_button("📲 Compartilhar culto no WhatsApp", wa_link, use_container_width=True)
 
 
 def _feed_post_badge(post_type: str) -> str:
@@ -4662,15 +4839,23 @@ def render_feed_post_card(
 
     yt = str(post.get("youtube_url", "")).strip()
     cifra = str(post.get("cifra_url", "")).strip()
-    link_cols = st.columns(3)
+    link_cols = st.columns(4)
     with link_cols[0]:
         if yt.startswith("http"):
-            st.link_button("▶ Ouvir no YouTube", yt, use_container_width=True)
+            st.link_button("▶ YouTube", yt, use_container_width=True)
     with link_cols[1]:
         if cifra.startswith("http"):
             st.link_button("🎸 Cifra", cifra, use_container_width=True)
     with link_cols[2]:
-        if st.button("🎶 Ver repertório", key=f"{key_prefix}_rep_{pid}", use_container_width=True):
+        share_txt = f"{str(post.get('title', ''))}\n{body_raw[:400]}"
+        st.link_button(
+            "📲 Compartilhar",
+            whatsapp_share_url(share_txt, yt if yt.startswith("http") else ""),
+            use_container_width=True,
+            key=f"{key_prefix}_wa_{pid}",
+        )
+    with link_cols[3]:
+        if st.button("🎶 Repertório", key=f"{key_prefix}_rep_{pid}", use_container_width=True):
             st.session_state.app_menu = "Repertório"
             st.rerun()
 
@@ -4817,7 +5002,6 @@ def _render_feed_posts_live():
 
 def render_playlist_track_links(row: pd.Series, members_df: pd.DataFrame):
     from catalog_sanitize import sanitize_catalog_text
-    from voice_kit_links import vocal_nipe_from_roles, voice_kit_youtube_url
 
     titulo = sanitize_catalog_text(row.get("title", ""))
     artista = sanitize_catalog_text(row.get("artist", ""))
@@ -4833,28 +5017,31 @@ def render_playlist_track_links(row: pd.Series, members_df: pd.DataFrame):
         st.session_state.get("user_roles", "")
     )
     bio_me = str(row_me.get("bio", "")) if row_me is not None else ""
-    nipe = vocal_nipe_from_roles(roles_me, bio=bio_me)
+    kits = instrument_kits_from_roles(roles_me, bio=bio_me)
 
-    cols = st.columns(4)
+    cols = st.columns(min(4 + len(kits), 6))
     with cols[0]:
         if yt.startswith("http"):
             st.link_button("▶ YouTube", yt, use_container_width=True)
         else:
             st.caption("YouTube indisponível")
-    with cols[1]:
-        if nipe and titulo:
+    for i, (kit_label, _, kit_prefix) in enumerate(kits[:3]):
+        with cols[1 + i]:
             st.link_button(
-                f"🎤 Kit Voz ({nipe})",
-                voice_kit_youtube_url(nipe, titulo),
+                kit_label,
+                kit_youtube_url(kit_prefix, titulo),
                 use_container_width=True,
             )
-        else:
-            st.caption("Kit Voz: cadastre função vocal no Perfil")
-    with cols[2]:
+    ci = min(1 + len(kits), len(cols) - 2)
+    with cols[ci]:
         if cifra.startswith("http"):
             st.link_button("🎸 Cifra", cifra, use_container_width=True)
-    with cols[3]:
-        st.link_button("🔍 YouTube", youtube_search_url(titulo, artista), use_container_width=True)
+    with cols[-1]:
+        st.link_button(
+            "📲 WhatsApp",
+            whatsapp_share_url(f"🎵 {titulo}", yt if yt.startswith("http") else cifra),
+            use_container_width=True,
+        )
 
 
 def render_playlist_add_search(louvores_df: pd.DataFrame, playlist_df: pd.DataFrame):
@@ -5678,38 +5865,60 @@ def _louvor_search_panel(
     def commit_query():
         _commit_louvor_search_query(key_prefix)
 
-    col_inp, col_btn = st.columns([5, 1])
-    with col_inp:
+    tema_key = f"{key_prefix}_tema_f"
+    tema_sel = st.multiselect(
+        "Filtrar por tema",
+        list(LOUVOR_THEMES),
+        key=tema_key,
+        placeholder="Todos os temas",
+    )
+    if _TEXT_INPUT_HAS_BIND:
         input_kwargs = {
             "label": "Buscar louvor",
             "key": qkey,
             "placeholder": "Nome do louvor ou artista...",
             "label_visibility": "collapsed",
             "on_change": commit_query,
+            "bind": "query-params",
         }
-        if _TEXT_INPUT_HAS_BIND:
-            input_kwargs["bind"] = "query-params"
         st.text_input(**input_kwargs)
-    with col_btn:
-        st.write("")
-        if st.button("Buscar", key=f"{key_prefix}_lq_go", use_container_width=True):
-            commit_query()
-
-    if _TEXT_INPUT_HAS_BIND:
         st.session_state[active_key] = str(st.session_state.get(qkey, "")).strip()
-        st.caption("A lista filtra enquanto você digita. Toque em ➕ para selecionar.")
+        st.caption("A lista filtra enquanto você digita. Toque em **➕** para selecionar.")
     else:
+        col_inp, col_btn = st.columns([6, 1])
+        with col_inp:
+            st.text_input(
+                label="Buscar louvor",
+                key=qkey,
+                placeholder="Nome do louvor ou artista...",
+                label_visibility="collapsed",
+                on_change=commit_query,
+            )
+        with col_btn:
+            st.markdown('<div class="louvor-search-btn-wrap">', unsafe_allow_html=True)
+            if st.button("Buscar", key=f"{key_prefix}_lq_go", use_container_width=True):
+                commit_query()
+            st.markdown("</div>", unsafe_allow_html=True)
         st.caption(
-            "Digite, pressione **Enter** ou **Buscar**, depois toque em **➕** "
-            "(pode adicionar vários sem buscar de novo)."
+            "Digite, pressione **Enter** ou **Buscar**, depois toque em **➕**."
         )
 
     query = str(st.session_state.get(active_key, "")).strip()
-    if len(query) < 1:
-        st.info("Digite pelo menos 1 letra e use **Buscar** ou **Enter**.")
+    if len(query) < 1 and not tema_sel:
+        st.info("Digite pelo menos 1 letra ou escolha um tema para filtrar.")
         return
 
-    filtered = filter_louvores_for_picker(louvores_df, query)
+    filtered = (
+        filter_louvores_for_picker(louvores_df, query)
+        if query
+        else louvores_df.copy()
+    )
+    if tema_sel:
+        def _row_tema(r):
+            ts = themes_from_csv(str(r.get("temas", "")))
+            return any(t in ts for t in tema_sel)
+
+        filtered = filtered[filtered.apply(_row_tema, axis=1)]
     catalog = louvores_catalog_options(filtered)
     opcoes = [k for k in catalog.keys() if k not in picked]
     total = len(opcoes)
@@ -6262,6 +6471,17 @@ def show_escala_completa_editor(
                         new_escala["date"],
                         new_escala["responsible"],
                     )
+                    try:
+                        schedule_feed_posts_for_escala(
+                            escala_id,
+                            new_escala,
+                            equipe_df,
+                            members_df,
+                            programa_df,
+                            louvores_df,
+                        )
+                    except Exception:
+                        pass
                     st.success(
                         "Escala salva! Quem estiver no Dashboard ou em Escalas vê a atualização "
                         "em poucos segundos, sem precisar sair do app."
@@ -6445,19 +6665,21 @@ def render_ensaio_chat(
     subset = prepare_chat_ensaio(load_data(CHAT_ENSAIO_FILE, CHAT_ENSAIO_COLUMNS))
     subset = subset[subset["escala_id"].astype(str) == str(escala_id)].copy()
 
-    render_chat_messages(subset, members_df)
     my_email = st.session_state.user_email.strip().lower()
-    for _, row in sort_chat_messages(subset).iterrows():
-        if str(row.get("email", "")).strip().lower() != my_email:
-            continue
-        ts = str(row.get("timestamp", ""))
-        if st.button(
-            "🗑️ Apagar minha mensagem (ensaio)",
-            key=f"del_ensaio_{escala_id}_{ts}",
-            use_container_width=True,
-        ):
-            delete_own_ensaio_message(ts, escala_id, my_email)
-            st.rerun()
+
+    def _del_ensaio(ts, em):
+        delete_own_ensaio_message(ts, escala_id, em)
+
+    def _upd_ensaio(ts, em, txt):
+        update_own_ensaio_message(ts, escala_id, em, txt)
+
+    render_chat_messages(
+        subset,
+        members_df,
+        delete_fn=_del_ensaio,
+        update_fn=_upd_ensaio,
+        key_prefix=f"ensaio_{escala_id}",
+    )
 
     ensaio_dir = ENSAIO_AUDIO_DIR / str(escala_id)
     ensaio_dir.mkdir(parents=True, exist_ok=True)
@@ -6623,13 +6845,44 @@ def render_escalas_pdf_export(
             "escala_pdf_filename",
             suggested_filename(period_label, len(selected_df)),
         )
-        st.download_button(
-            "⬇️ Baixar PDF para WhatsApp",
-            data=pdf_bytes,
-            file_name=fname,
-            mime="application/pdf",
+        b64 = base64.b64encode(pdf_bytes).decode()
+        st.markdown(
+            f'<a href="data:application/pdf;base64,{b64}" target="_blank" rel="noopener" '
+            f'style="display:inline-block;margin:0.5rem 0;padding:0.6rem 1rem;'
+            f'background:#7c3aed;color:#fff;border-radius:10px;text-decoration:none;font-weight:600;">'
+            f"📄 Abrir PDF em nova aba (não sai do app)</a>",
+            unsafe_allow_html=True,
+        )
+        with st.expander("👁️ Pré-visualizar PDF aqui", expanded=False):
+            st.markdown(
+                f'<iframe src="data:application/pdf;base64,{b64}" '
+                f'width="100%" height="480" style="border:1px solid #4c3a6a;border-radius:8px;"></iframe>',
+                unsafe_allow_html=True,
+            )
+        c_dl, c_cls = st.columns(2)
+        with c_dl:
+            st.download_button(
+                "⬇️ Baixar PDF",
+                data=pdf_bytes,
+                file_name=fname,
+                mime="application/pdf",
+                use_container_width=True,
+                key="pdf_escala_download",
+            )
+        with c_cls:
+            if st.button("← Voltar ao painel (fechar PDF)", use_container_width=True, key="pdf_close"):
+                st.session_state.pop("escala_pdf_bytes", None)
+                st.session_state.pop("escala_pdf_filename", None)
+                st.rerun()
+        wa_txt = share_escala_text(
+            event_filter or "Escalas GDL",
+            period_label,
+            team_lines=[escala_label(r) for _, r in selected_df.head(6).iterrows()],
+        )
+        st.link_button(
+            "📲 Compartilhar resumo no WhatsApp",
+            whatsapp_share_url(wa_txt),
             use_container_width=True,
-            key="pdf_escala_download",
         )
 
 
@@ -6725,11 +6978,28 @@ def show_escalas_page(
     my_email = st.session_state.user_email.strip().lower()
     start, end = week_bounds(st.session_state.get("week_offset", 0))
 
+    focus_id = st.session_state.pop("focus_escala_id", None)
+
     with tab_equipe:
         minhas = user_on_escala_semana(escalas_df, equipe_df, my_email, start, end)
-        if not minhas:
+        if focus_id:
+            row_f = escalas_df[escalas_df["id"].astype(str) == str(focus_id)]
+            if not row_f.empty:
+                st.success("Programação do culto selecionado no painel:")
+                render_culto_programa(
+                    row_f.iloc[0],
+                    programa_df,
+                    equipe_df,
+                    members_df,
+                    louvores_df,
+                    ensaio_notice=True,
+                )
+                st.markdown("---")
+        if not minhas and not focus_id:
             st.info("Você não está escalado(a) nesta semana ou a escala ainda não foi publicada.")
         for item in minhas:
+            if focus_id and str(item["escala"].get("id", "")) == str(focus_id):
+                continue
             render_culto_programa(
                 item["escala"],
                 programa_df,
@@ -6915,6 +7185,171 @@ def show_escalas_page(
             render_ensaio_chat(labels[escolha], chat_ensaio_df, members_df)
 
 
+def _render_louvor_validation_search(louvores_df: pd.DataFrame):
+    """Busca ao digitar (mesmo padrão do culto) + analisar ao tocar no louvor."""
+    key_prefix = "val_rep"
+    qkey = f"{key_prefix}_lq"
+    active_key = f"{key_prefix}_lq_active"
+    if active_key not in st.session_state:
+        st.session_state[active_key] = ""
+
+    def commit_query():
+        st.session_state[active_key] = str(st.session_state.get(qkey, "")).strip()
+
+    if _TEXT_INPUT_HAS_BIND:
+        st.text_input(
+            label="Buscar",
+            key=qkey,
+            placeholder="Nome do louvor ou artista...",
+            label_visibility="collapsed",
+            on_change=commit_query,
+            bind="query-params",
+        )
+        st.session_state[active_key] = str(st.session_state.get(qkey, "")).strip()
+        st.caption("A lista filtra enquanto você digita.")
+    else:
+        col_inp, col_btn = st.columns([6, 1])
+        with col_inp:
+            st.text_input(
+                label="Buscar",
+                key=qkey,
+                placeholder="Nome do louvor ou artista...",
+                label_visibility="collapsed",
+                on_change=commit_query,
+            )
+        with col_btn:
+            st.markdown('<div class="louvor-search-btn-wrap">', unsafe_allow_html=True)
+            if st.button("Buscar", key=f"{key_prefix}_go", use_container_width=True):
+                commit_query()
+            st.markdown("</div>", unsafe_allow_html=True)
+
+    query = str(st.session_state.get(active_key, "")).strip()
+    if len(query) < 1:
+        st.info("Digite para buscar um louvor a validar.")
+        return
+
+    filtered = filter_louvores_for_picker(louvores_df, query)
+    catalog = louvores_catalog_options(filtered)
+    opcoes = list(catalog.keys())[:12]
+    if not opcoes:
+        st.warning("Nenhum louvor encontrado.")
+        return
+
+    st.caption(f"**{len(catalog)}** encontrado(s) — toque para analisar")
+    for label in opcoes:
+        data = catalog.get(label, {})
+        from catalog_sanitize import sanitize_catalog_text
+
+        titulo = sanitize_catalog_text(data.get("title", label.split(" — ")[0]))
+        artista = sanitize_catalog_text(data.get("artist", ""))
+        btn = f"🔍 Analisar — {titulo}"
+        if artista:
+            btn += f" ({artista})"
+        if st.button(btn, key=f"{key_prefix}_v_{_picker_key_slug(label)}", use_container_width=True):
+            themes_v = themes_from_csv(str(data.get("temas", "")))
+            if not themes_v:
+                themes_v = classify_themes(titulo, artista)
+            res = validate_louvor(titulo, artista, themes_v)
+            st.session_state[f"{key_prefix}_last"] = res
+            st.rerun()
+
+    res = st.session_state.get(f"{key_prefix}_last")
+    if res:
+        st.markdown("---")
+        st.markdown(f"**{res['summary']}**")
+        for p in res["positives"]:
+            st.success(p)
+        for i in res["issues"]:
+            st.warning(i)
+        st.caption(f"Temas: {', '.join(res['themes'])}")
+        st.caption(f"Referências: {res['refs']}")
+        st.info(res["guidance"])
+
+
+def _render_louvores_edit_manager(louvores_df: pd.DataFrame):
+    key_prefix = "edit_rep"
+    qkey = f"{key_prefix}_lq"
+    active_key = f"{key_prefix}_lq_active"
+    if active_key not in st.session_state:
+        st.session_state[active_key] = ""
+    sel_key = f"{key_prefix}_selected"
+
+    def commit_query():
+        st.session_state[active_key] = str(st.session_state.get(qkey, "")).strip()
+
+    if _TEXT_INPUT_HAS_BIND:
+        st.text_input(
+            "Buscar louvor para editar",
+            key=qkey,
+            placeholder="Nome ou artista...",
+            on_change=commit_query,
+            bind="query-params",
+        )
+        st.session_state[active_key] = str(st.session_state.get(qkey, "")).strip()
+    else:
+        st.text_input(
+            "Buscar louvor para editar",
+            key=qkey,
+            placeholder="Nome ou artista...",
+            on_change=commit_query,
+        )
+
+    query = str(st.session_state.get(active_key, "")).strip()
+    if len(query) < 1:
+        st.caption("Busque o louvor que deseja editar ou excluir.")
+        return
+
+    filtered = filter_louvores_for_picker(louvores_df, query)
+    catalog = louvores_catalog_options(filtered)
+    labels = list(catalog.keys())[:15]
+    pick = st.selectbox("Selecione o louvor", labels, key=sel_key) if labels else None
+    if not pick:
+        return
+    data = catalog[pick]
+    titulo_orig = str(data.get("title", ""))
+    idx_mask = louvores_df["title"].astype(str).str.strip() == titulo_orig.strip()
+    if not idx_mask.any():
+        st.warning("Louvor não encontrado no arquivo.")
+        return
+    idx = louvores_df[idx_mask].index[0]
+    with st.form(key=f"{key_prefix}_form"):
+        nt = st.text_input("Título", value=str(louvores_df.at[idx, "title"]))
+        na = st.text_input("Artista", value=str(louvores_df.at[idx, "artist"]))
+        nk = st.text_input("Tom", value=str(louvores_df.at[idx, "key"]))
+        nr = st.text_input("Ritmo", value=str(louvores_df.at[idx, "ritmo"]))
+        nyt = st.text_input("YouTube", value=str(louvores_df.at[idx, "youtube_url"]))
+        ncif = st.text_input("Cifra", value=str(louvores_df.at[idx, "cifra_url"]))
+        ntemas = st.text_input(
+            "Temas (separados por ;)",
+            value=str(louvores_df.at[idx, "temas"]),
+        )
+        c1, c2 = st.columns(2)
+        with c1:
+            salvar = st.form_submit_button("💾 Salvar", type="primary", use_container_width=True)
+        with c2:
+            excluir = st.form_submit_button("🗑️ Excluir", use_container_width=True)
+    if salvar:
+        meta = ensure_louvor_row_metadata(nt, na, ntemas, "", "")
+        louvores_df.at[idx, "title"] = nt.strip()
+        louvores_df.at[idx, "artist"] = na.strip()
+        louvores_df.at[idx, "key"] = nk.strip()
+        louvores_df.at[idx, "ritmo"] = nr.strip()
+        louvores_df.at[idx, "youtube_url"] = nyt.strip()
+        louvores_df.at[idx, "cifra_url"] = ncif.strip()
+        louvores_df.at[idx, "temas"] = ntemas.strip() or meta["temas"]
+        louvores_df.at[idx, "ref_biblica"] = meta["ref_biblica"]
+        louvores_df.at[idx, "duracao_min"] = meta["duracao_min"]
+        louvores_df.at[idx, "letter"] = nt.strip()[0].upper() if nt.strip() else "A"
+        save_data(louvores_df, LOUVORES_FILE)
+        st.success("Louvor atualizado.")
+        st.rerun()
+    if excluir:
+        louvores_df = louvores_df.drop(index=idx)
+        save_data(louvores_df, LOUVORES_FILE)
+        st.success("Louvor removido do repertório.")
+        st.rerun()
+
+
 def show_louvores_catalog(louvores_df: pd.DataFrame):
     st.write(
         "Navegue pelo repertório com busca, filtros por tema e validação bíblica para a liderança."
@@ -6977,31 +7412,9 @@ def show_louvores_catalog(louvores_df: pd.DataFrame):
 
     if is_scale_manager(st.session_state.user_roles):
         with st.expander("✅ Validação bíblica de louvor", expanded=False):
-            opts = [
-                f"{r['title']} — {r.get('artist', '')}".strip(" —")
-                for _, r in louvores_df.iterrows()
-            ]
-            escolha_val = st.selectbox("Música", opts, key="val_louvor_sel")
-            if st.button("Analisar louvor", key="val_louvor_btn", type="primary"):
-                tit = escolha_val.split(" — ")[0].strip()
-                row_v = louvores_df[
-                    louvores_df["title"].astype(str).str.strip() == tit
-                ]
-                artist_v = str(row_v.iloc[0].get("artist", "")) if not row_v.empty else ""
-                themes_v = themes_from_csv(
-                    str(row_v.iloc[0].get("temas", "")) if not row_v.empty else ""
-                )
-                if not themes_v:
-                    themes_v = classify_themes(tit, artist_v)
-                res = validate_louvor(tit, artist_v, themes_v)
-                st.markdown(f"**{res['summary']}**")
-                for p in res["positives"]:
-                    st.success(p)
-                for i in res["issues"]:
-                    st.warning(i)
-                st.caption(f"Temas: {', '.join(res['themes'])}")
-                st.caption(f"Referências: {res['refs']}")
-                st.info(res["guidance"])
+            _render_louvor_validation_search(louvores_df)
+        with st.expander("✏️ Editar / excluir louvor do repertório", expanded=False):
+            _render_louvores_edit_manager(louvores_df)
 
     search = st.text_input("🔍 Buscar música ou artista", "")
     letters = sorted(
@@ -7201,7 +7614,7 @@ def show_sugestao_louvor(sugestoes_df: pd.DataFrame, louvores_df: pd.DataFrame):
             c1, c2 = st.columns(2)
             with c1:
                 if st.button("✅ Aprovar", key=f"ap_{s['id']}", use_container_width=True):
-                    meta = ensure_louvor_row_metadata(str(s["title"]), "")
+                    meta = ensure_louvor_row_metadata(str(s["title"]), "", "", "", "")
                     row = {
                         "title": s["title"],
                         "artist": "",
@@ -7290,6 +7703,11 @@ def _run_app() -> None:
         show_login_page(members_df)
         return
 
+    try:
+        process_feed_queue()
+    except Exception:
+        pass
+
     if not session_is_valid(st.session_state):
         session_logout(st.session_state)
         st.warning(
@@ -7313,7 +7731,7 @@ def _run_app() -> None:
         if is_scale_manager(st.session_state.user_roles)
         else 0
     )
-    inject_app_notification_badges(chat_unread, sug_badge)
+    inject_app_notification_badges(chat_unread, sug_badge, swap_alert_count)
     try:
         _, _, _, trocas_alert_df = get_escalas_bundle()
         swap_alert_count = count_swap_alerts_for_user(

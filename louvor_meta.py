@@ -75,6 +75,14 @@ LOUVOR_THEMES = (
     "Unidade",
     "Vida Cristã",
     "Vida eterna",
+    "Poderoso",
+    "Céu",
+    "Família",
+    "Sacrifício",
+    "Milagre",
+    "Missões",
+    "Consolo",
+    "Vitória",
 )
 
 # Palavras-chave por tema (título + artista, sem acento)
@@ -146,6 +154,15 @@ _THEME_KEYWORDS: dict[str, tuple[str, ...]] = {
     "Eterno": ("etern", "sempre"),
     "Salvador": ("salvador", "redentor"),
     "Santificação": ("santific", "santidade"),
+    "Poderoso": ("poderoso", "poder", "forte", "grande e"),
+    "Céu": ("ceu", "céu", "gloria no alto", "nas alturas"),
+    "Família": ("familia", "família", "lar", "filhos", "pais"),
+    "Sacrifício": ("sacrific", "oferta", "cordeiro", "altar", "preço"),
+    "Milagre": ("milagre", "maravilh", "sinal"),
+    "Missões": ("missoes", "missões", "nacao", "nações"),
+    "Consolo": ("consol", "confort", "refugio"),
+    "Vitória": ("vitoria", "vitória", "triunf", "venceu"),
+    "Unidade": ("unidade", "unidos", "juntos"),
 }
 
 _BIBLICAL_REFS: dict[str, str] = {
@@ -310,34 +327,57 @@ def guia_ministracao_text(
     culto_date: str,
     louvores: list[str],
     themes_lines: list[str],
+    refs_por_louvor: list[tuple[str, str]] | None = None,
 ) -> str:
-    """Texto simples para o ministrador falar com a igreja."""
+    """Guia narrativo: versículos, conexão entre louvores e fala saudável."""
+    tema_central = themes_lines[0] if themes_lines else "Adoração a Deus"
     lista = "\n".join(f"- {l}" for l in louvores[:12]) or "- (programação em formação)"
     temas_txt = "\n".join(f"- {t}" for t in themes_lines[:8]) or "- Adoração e gratidão"
+
+    transicoes = []
+    for i, louvor in enumerate(louvores[:8]):
+        ref = ""
+        if refs_por_louvor and i < len(refs_por_louvor):
+            ref = refs_por_louvor[i][1]
+        transicoes.append(
+            f"**{i + 1}. {louvor}** — "
+            + (f"Mencione brevemente: *{ref}*. " if ref else "")
+            + "Convide a igreja a cantar entendendo o sentido, não só a melodia."
+        )
+    bloco_trans = "\n".join(transicoes) if transicoes else "- Monte a sequência quando os louvores estiverem definidos."
+
     return f"""## Guia de ministração — {evento} ({culto_date})
 
-**Abertura (30–60 s)**  
-Irmãos, o louvor não é espetáculo: é resposta de um povo que reconhece quem Deus é. Vamos cantar com entendimento e coração rendido.
+*Visível para ministrador, líderes e organizadores.*
 
-**Antes do primeiro louvor**  
-Conecte o tema do culto com a Palavra. Ex.: "Hoje cantamos sobre {themes_lines[0] if themes_lines else 'a fidelidade de Deus'}."
+### História do culto (fio condutor)
+Hoje o culto gira em torno de **{tema_central}**. Comece lembrando que adoração é resposta — não show. 
+Conte em 2–3 frases por que esse tema importa para a igreja **agora** (sem exageros nem histórias longas).
 
-**Louvores deste culto**  
+### Abertura sugerida (versículo + frase)
+- **Salmo 95:1-2** — “Vinde, cantemos ao Senhor; celebremos com júbilo a rocha da nossa salvação.”
+- Frase: “Vamos cantar como quem crê no que canta, não como quem só acompanha.”
+
+### Louvores e como conectar
+{bloco_trans}
+
+### Lista completa
 {lista}
 
-**Temas do culto**  
+### Temas bíblicos do culto
 {temas_txt}
 
-**Referências para mencionar**  
-- Salmo 150:1-6 — tudo que tem fôlego louve ao Senhor.  
-- Colossenses 3:16 — a palavra de Cristo habite entre nós com louvor.  
-- João 4:23-24 — adoradores em espírito e em verdade.
+### Entre um louvor e outro
+Use frases curtas: “O que acabamos de cantar nos lembra que…” / “O próximo louvor nos convida a…”.
+Evite monólogo; 15–30 segundos entre músicas costumam bastar.
 
-**Convite à igreja**  
-Peça que cantem como quem ora, não apenas repete frases. Silêncio breve antes de um louvor mais íntimo pode ajudar.
+### Antes do louvor mais íntimo
+- **Salmo 46:10** — “Aquietai-vos e sabei que eu sou Deus.”
+Peça silêncio breve para a igreja refletir.
 
-**Encerramento**  
-Agradeça a equipe (músicos e técnico de som). Ore brevemente entregando o culto ao Senhor.
+### Encerramento
+- **1 Coríntios 10:31** — “Tudo para a glória de Deus.”
+Agradeça músicos e técnico de som. Ore entregando o culto ao Senhor.
 """
 
 
