@@ -4875,8 +4875,10 @@ def render_culto_programa(
     louvores_df: pd.DataFrame | None = None,
     *,
     ensaio_notice: bool = False,
+    widget_key_prefix: str = "",
 ):
     escala_id = str(escala_row.get("id", ""))
+    wkey = widget_key_prefix.strip() or f"culto_{escala_id}"
     event = str(escala_row.get("event", "Culto"))
     culto_date = str(escala_row.get("date", ""))
     is_mgr = is_scale_manager(st.session_state.get("user_roles", []))
@@ -5004,7 +5006,7 @@ def render_culto_programa(
 
     if st.button(
         "🎼 Abrir Sequência do Culto (letras e cifras no app)",
-        key=f"open_seq_culto_{escala_id}",
+        key=f"{wkey}_open_seq_culto",
         use_container_width=True,
     ):
         st.session_state["focus_sequencia_escala_id"] = escala_id
@@ -5038,7 +5040,7 @@ def render_culto_programa(
                 th = themes_from_csv(str(m.get("temas", "")))
                 themes_lines.extend(th)
                 refs_por.append((louv_t, str(m.get("ref_biblica", "")) or suggest_biblical_refs(th, louv_t)))
-        with st.expander("📖 Guia de ministração", expanded=False):
+        with st.expander("📖 Guia de ministração", expanded=False, key=f"{wkey}_guia_min"):
             st.markdown(
                 guia_ministracao_text(
                     evento=event,
@@ -5060,7 +5062,7 @@ def render_culto_programa(
     except Exception:
         pass
     render_escala_whatsapp_actions(
-        wa_msg, pdf_bytes=pdf_b, pdf_filename=pdf_n, key_prefix=f"wa_culto_{escala_id}"
+        wa_msg, pdf_bytes=pdf_b, pdf_filename=pdf_n, key_prefix=f"{wkey}_wa_culto"
     )
 
 
@@ -5571,13 +5573,15 @@ def show_dashboard(
         for item in user_on_escala_semana(escalas_df, equipe_df, my_email, start, end)
     }
     for _, escala in semana.iterrows():
+        eid = str(escala.get("id", ""))
         render_culto_programa(
             escala,
             programa_df,
             equipe_df,
             members_df,
             louvores_df,
-            ensaio_notice=str(escala.get("id", "")) in minhas_ids,
+            ensaio_notice=eid in minhas_ids,
+            widget_key_prefix=f"dash_{eid}",
         )
 
 
@@ -7551,6 +7555,7 @@ def show_escalas_page(
                     members_df,
                     louvores_df,
                     ensaio_notice=True,
+                    widget_key_prefix=f"eq_focus_{focus_id}",
                 )
                 st.markdown("---")
         if not minhas and not focus_id:
@@ -7558,6 +7563,7 @@ def show_escalas_page(
         for item in minhas:
             if focus_id and str(item["escala"].get("id", "")) == str(focus_id):
                 continue
+            eid_item = str(item["escala"].get("id", ""))
             render_culto_programa(
                 item["escala"],
                 programa_df,
@@ -7565,6 +7571,7 @@ def show_escalas_page(
                 members_df,
                 louvores_df,
                 ensaio_notice=True,
+                widget_key_prefix=f"eq_{eid_item}",
             )
 
     with tab_todas:
@@ -7573,7 +7580,7 @@ def show_escalas_page(
             st.info("Você ainda não aparece em nenhuma escala registrada.")
         else:
             st.caption(f"{len(occ)} culto(s) no seu histórico de escalas.")
-            for culto_d, eid, ev in occ:
+            for i, (culto_d, eid, ev) in enumerate(occ):
                 row_match = escalas_df[escalas_df["id"].astype(str) == str(eid)]
                 if row_match.empty:
                     continue
@@ -7584,6 +7591,7 @@ def show_escalas_page(
                     members_df,
                     louvores_df,
                     ensaio_notice=True,
+                    widget_key_prefix=f"todas_{i}_{eid}",
                 )
 
     with tab_sequencia:
