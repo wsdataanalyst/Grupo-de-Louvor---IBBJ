@@ -177,3 +177,202 @@ def hydrate_escala_sequencia(
     if n:
         save_seq(seq_df)
     return n
+
+
+def fetch_louvor_content_web(
+    title: str,
+    artist: str = "",
+    *,
+    cifra_club_url: str = "",
+) -> tuple[str, str]:
+    """Busca letra e cifra completas na web (Vagalume)."""
+    from cifra_fetch import fetch_louvor_lyrics_and_cifra
+    from link_finder import find_cifra_url
+
+    try:
+        result = fetch_louvor_lyrics_and_cifra(
+            title,
+            artist,
+            cifra_club_url=cifra_club_url,
+            resolve_cifra_url=find_cifra_url,
+        )
+        return result.lyrics_text.strip(), result.cifra_text.strip()
+    except Exception:
+        return "", ""
+
+
+def _find_louvor_catalog_index(
+    louvores_df: pd.DataFrame, title: str, artist: str
+) -> int | None:
+    from catalog_sanitize import sanitize_catalog_text
+
+    t = sanitize_catalog_text(title).lower()
+    a = sanitize_catalog_text(artist).lower()
+    if not t or louvores_df.empty:
+        return None
+    for idx, row in louvores_df.iterrows():
+        rt = sanitize_catalog_text(row.get("title", "")).lower()
+        ra = sanitize_catalog_text(row.get("artist", "")).lower()
+        if rt == t and (not a or ra == a or not ra):
+            return int(idx)
+    return None
+
+
+def apply_content_to_louvores_df(
+    louvores_df: pd.DataFrame,
+    title: str,
+    artist: str,
+    lyrics: str,
+    cifra: str,
+) -> pd.DataFrame:
+    """Grava letra/cifra no repertório para não precisar buscar de novo."""
+    df = ensure_louvor_content_columns(louvores_df.copy())
+    idx = _find_louvor_catalog_index(df, title, artist)
+    if idx is None:
+        return df
+    if lyrics.strip():
+        df.at[idx, "lyrics_text"] = lyrics.strip()
+    if cifra.strip():
+        df.at[idx, "cifra_text"] = cifra.strip()
+    src = str(df.at[idx, "source"]).strip()
+    tag = "letras_web"
+    if tag not in src:
+        df.at[idx, "source"] = f"{src}, {tag}".strip(", ") if src else tag
+    return df
+
+
+def ensure_sequencia_louvor_content(
+    seq_df: pd.DataFrame,
+    programa_id: str,
+    louvor_title: str,
+    artist: str,
+    cifra_url: str,
+    tom_base: str,
+    louvores_df: pd.DataFrame,
+    *,
+    lyrics_hint: str = "",
+    cifra_hint: str = "",
+    use_web: bool = True,
+    save_to_catalog: bool = True,
+    force_web_refresh: bool = False,
+) -> tuple[pd.DataFrame, pd.DataFrame, str, bool]:
+    """
+    Garante letra e cifra: repertório → sequência salva → internet.
+    Retorna (seq_df, louvores_df, mensagem, buscou_web).
+    """
+    from catalog_sanitize import sanitize_catalog_text
+
+    louvor_t = sanitize_catalog_text(louvor_title)
+    artist_t = sanitize_catalog_text(artist)
+    cifra_url = sanitize_catalog_text(cifra_url)
+
+    row = get_sequencia_row(seq_df, programa_id)
+    if force_web_refresh:
+        lyrics = ""
+        cifra = ""
+    else:
+        lyrics = (lyrics_hint or str(row.get("lyrics_text", ""))).strip()
+        cifra = (cifra_hint or str(row.get("cifra_text", ""))).strip()
+
+    if not lyrics:
+        lyrics = default_lyrics_from_louvor(louvores_df, louvor_t, artist_t)
+    if not cifra:
+        cifra = default_cifra_from_louvor(louvores_df, louvor_t, artist_t)
+
+    fetched_web = False
+    if use_web and (force_web_refresh or not lyrics or not cifra):
+        web_ly, web_cf = fetch_louvor_content_web(
+            louvor_t, artist_t, cifra_club_url=cifra_url
+        )
+        if web_ly and (force_web_refresh or not lyrics):
+            lyrics = web_ly
+            fetched_web = True
+        if web_cf and (force_web_refresh or not cifra):
+            cifra = web_cf
+            fetched_web = True
+
+    msg = ""
+    if lyrics or cifra:
+        tom = str(row.get("tom_programa", "")).strip() or tom_base
+        seq_df = upsert_sequencia_row(
+            seq_df,
+            programa_id,
+            lyrics_text=lyrics,
+            cifra_text=cifra,
+            tom_programa=tom,
+        )
+        if fetched_web:
+            msg = "Letra e cifra importadas da internet e salvas neste culto."
+            if save_to_catalog and (lyrics or cifra):
+                louvores_df = apply_content_to_louvores_df(
+                    louvores_df, louvor_t, artist_t, lyrics, cifra
+                )
+                msg += " Também gravadas no repertório."
+        elif not lyrics_hint and not cifra_hint:
+            msg = "Carregado do repertório."
+    elif use_web:
+        msg = (
+            "Não encontramos letra/cifra na web para esta música. "
+            "Cole manualmente em **Editar** ou ajuste o link de cifra no repertório."
+        )
+
+    return seq_df, louvores_df, msg, fetched_web
+
+
+def hydrate_escala_sequencia_with_web(
+    escala_id: str,
+    programa_df: pd.DataFrame,
+    louvores_df: pd.DataFrame,
+    *,
+    load_seq: Callable[[], pd.DataFrame],
+    save_seq: Callable[[pd.DataFrame], None],
+    save_louvores: Callable[[pd.DataFrame], None] | None = None,
+    use_web: bool = True,
+) -> tuple[int, int]:
+    """
+    Sincroniza do catálogo e busca na web o que faltar.
+    Retorna (itens_atualizados_sequencia, itens_buscados_web).
+    """
+    from catalog_sanitize import sanitize_catalog_text
+
+    seq_df = load_seq()
+    seq_df, n_cat = sync_programa_sequencia_from_louvores(
+        seq_df, programa_df, louvores_df, escala_id
+    )
+    web_count = 0
+    prog = programa_df[programa_df["escala_id"].astype(str) == str(escala_id)]
+    louvores_work = ensure_louvor_content_columns(louvores_df.copy())
+
+    for _, item in prog.iterrows():
+        pid = str(item.get("id", ""))
+        if not pid:
+            continue
+        row = get_sequencia_row(seq_df, pid)
+        ly = str(row.get("lyrics_text", "")).strip()
+        cf = str(row.get("cifra_text", "")).strip()
+        if ly and cf:
+            continue
+        louvor_t = sanitize_catalog_text(item.get("louvor_title", ""))
+        artist_t = sanitize_catalog_text(item.get("artist", ""))
+        cifra_u = sanitize_catalog_text(item.get("cifra_url", ""))
+        tom = sanitize_catalog_text(item.get("key", ""))
+        seq_df, louvores_work, _, got_web = ensure_sequencia_louvor_content(
+            seq_df,
+            pid,
+            louvor_t,
+            artist_t,
+            cifra_u,
+            tom,
+            louvores_work,
+            use_web=use_web,
+            save_to_catalog=save_louvores is not None,
+        )
+        if got_web:
+            web_count += 1
+
+    if n_cat or web_count:
+        save_seq(seq_df)
+    if save_louvores and web_count:
+        save_louvores(louvores_work)
+
+    return n_cat + web_count, web_count

@@ -1800,16 +1800,25 @@ def hydrate_escala_sequencia_content(
     escala_id: str,
     programa_df: pd.DataFrame,
     louvores_df: pd.DataFrame,
-) -> int:
-    """Copia letras/cifras do repertório para a sequência deste culto (sem internet)."""
-    from louvor_content import hydrate_escala_sequencia
+    *,
+    use_web: bool = True,
+    save_catalog: bool = True,
+) -> tuple[int, int]:
+    """Repertório local e, se faltar, busca letra/cifra na web. Retorna (total, da_web)."""
+    from louvor_content import hydrate_escala_sequencia_with_web
 
-    return hydrate_escala_sequencia(
+    save_louv = None
+    if save_catalog and is_scale_manager(st.session_state.get("user_roles", [])):
+        save_louv = lambda df: save_data(df, LOUVORES_FILE)
+
+    return hydrate_escala_sequencia_with_web(
         escala_id,
         programa_df,
         louvores_df,
         load_seq=load_programa_sequencia_df,
         save_seq=save_programa_sequencia_df,
+        save_louvores=save_louv,
+        use_web=use_web,
     )
 
 
@@ -7287,8 +7296,8 @@ def show_sequencia_culto_page(
         unsafe_allow_html=True,
     )
     st.caption(
-        "Letras e cifras vêm do **repertório** (já salvas no app). "
-        "Marcações de solo, harmonia, tom e capotraste por trecho."
+        "Primeiro usa o **repertório**; se ainda não houver letra/cifra, o app **busca na internet** "
+        "e traz o texto completo, pronto para ensaio (marcações, tom e capotraste)."
     )
 
     todas = escalas_ordenadas(escalas_df)
@@ -7319,9 +7328,34 @@ def show_sequencia_culto_page(
         )
         return
 
-    n_sync = hydrate_escala_sequencia_content(escala_id, programa_df, louvores_df)
-    if n_sync:
-        seq_df = load_programa_sequencia_df()
+    with st.spinner("Preparando letras e cifras do culto…"):
+        n_sync, n_web = hydrate_escala_sequencia_content(
+            escala_id, programa_df, louvores_df
+        )
+    seq_df = load_programa_sequencia_df()
+    if n_web:
+        st.success(
+            f"{n_web} música(s) com letra/cifra importadas da internet e salvas no culto."
+        )
+        louvores_df = prepare_louvores_with_meta(
+            load_data(
+                LOUVORES_FILE,
+                (
+                    "title",
+                    "artist",
+                    "key",
+                    "youtube_url",
+                    "cifra_url",
+                    "ritmo",
+                    "letter",
+                    "source",
+                    *LOUVOR_EXTRA_COLUMNS,
+                    *LOUVOR_SEQUENCIA_COLUMNS,
+                ),
+            )
+        )
+    elif n_sync and not n_web:
+        st.caption(f"{n_sync} música(s) carregada(s) do repertório.")
 
     team = integrantes_escalados(row_esc, equipe_df, members_df)
     vocal_opts = vocalistas_escala(team)
@@ -7362,16 +7396,63 @@ def show_sequencia_culto_page(
     cifra_stored = str(seq_row.get("cifra_text", "")).strip()
     lyrics_default = lyrics_stored or default_lyrics_from_louvor(louvores_df, louvor_t, artist_t)
     cifra_default = cifra_stored or default_cifra_from_louvor(louvores_df, louvor_t, artist_t)
+    cifra_url_item = sanitize_catalog_text(item.get("cifra_url", ""))
 
     if not lyrics_default.strip() or not cifra_default.strip():
-        from louvor_content import count_louvores_missing_content
+        from louvor_content import ensure_sequencia_louvor_content
 
-        faltam_rep = count_louvores_missing_content(louvores_df)
-        st.warning(
-            "Letra ou cifra ainda não estão no repertório desta música. "
-            f"({faltam_rep} louvor(es) sem texto completo no catálogo.) "
-            "Em **Repertório**, use **Importar letras e cifras** (líderes) ou cole em **Editar**."
-        )
+        with st.spinner("Buscando letra e cifra na internet para esta música…"):
+            seq_df, louvores_df, msg, _web = ensure_sequencia_louvor_content(
+                seq_df,
+                programa_id,
+                louvor_t,
+                artist_t,
+                cifra_url_item,
+                tom_base,
+                louvores_df,
+                use_web=True,
+                save_to_catalog=can_edit,
+            )
+        if _web and can_edit:
+            save_data(louvores_df, LOUVORES_FILE)
+            save_programa_sequencia_df(seq_df)
+        elif _web:
+            save_programa_sequencia_df(seq_df)
+        if msg:
+            if _web:
+                st.success(msg)
+            else:
+                st.warning(msg)
+        seq_row = get_sequencia_row(seq_df, programa_id)
+        lyrics_default = str(seq_row.get("lyrics_text", "")).strip() or lyrics_default
+        cifra_default = str(seq_row.get("cifra_text", "")).strip() or cifra_default
+
+    if can_edit and st.button(
+        "🔄 Atualizar letra/cifra da internet",
+        key=f"seq_refetch_{programa_id}",
+    ):
+        from louvor_content import ensure_sequencia_louvor_content
+
+        with st.spinner("Atualizando da internet…"):
+            seq_df, louvores_df, msg, _web = ensure_sequencia_louvor_content(
+                seq_df,
+                programa_id,
+                louvor_t,
+                artist_t,
+                cifra_url_item,
+                tom_base,
+                louvores_df,
+                use_web=True,
+                save_to_catalog=True,
+                force_web_refresh=True,
+            )
+        if _web:
+            save_programa_sequencia_df(seq_df)
+            save_data(louvores_df, LOUVORES_FILE)
+            st.success(msg or "Atualizado.")
+            st.rerun()
+        else:
+            st.warning(msg or "Não foi possível buscar.")
 
     tom_prog = str(seq_row.get("tom_programa", "")).strip() or tom_base
     capo_val = int(pd.to_numeric(seq_row.get("capo", 0), errors="coerce") or 0)
@@ -7399,7 +7480,8 @@ def show_sequencia_culto_page(
             )
         else:
             st.info(
-                "Letra ainda não disponível no repertório. Importe em **Repertório** ou use **Editar**."
+                "Letra indisponível. O app tentará buscar na internet ao abrir a música, "
+                "ou cole em **Editar**."
             )
 
         st.subheader("Cifra")
@@ -7415,7 +7497,7 @@ def show_sequencia_culto_page(
             )
         else:
             st.caption(
-                "Importe no **Repertório** ou cole a cifra na aba **Editar**."
+                "Será buscada na internet automaticamente quando possível, ou cole em **Editar**."
             )
 
     with tab_edit:
