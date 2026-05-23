@@ -43,3 +43,24 @@ def format_louvor_display(title: str, artist: str = "") -> str:
     t = sanitize_catalog_text(title)
     a = sanitize_catalog_text(artist)
     return f"{t} — {a}" if a else t
+
+
+def fix_louvor_display_title(title: str) -> str:
+    """Correções ortográficas leves para exibição de títulos de louvor."""
+    t = sanitize_catalog_text(title)
+    fixes = {
+        "Aclame ao senhor": "Aclame ao Senhor",
+        "a alegria esta no coracao": "A alegria está no coração",
+        "A alegria esta no coracao": "A alegria está no coração",
+        "Autor da,nha fé": "Autor da minha fé",
+        "Autor da minha fé": "Autor da minha fé",
+        "a começar em": "A começar em mim",
+        "A começar em": "A começar em mim",
+    }
+    tl = t.lower()
+    for wrong, right in fixes.items():
+        if tl == wrong.lower():
+            return right
+    if t and t[0].islower():
+        t = t[0].upper() + t[1:]
+    return t

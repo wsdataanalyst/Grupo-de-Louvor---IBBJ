@@ -43,6 +43,7 @@ from password_reset import (
     email_is_configured,
     validate_reset_token,
 )
+from catalog_sanitize import fix_louvor_display_title
 from escala_member_stats import (
     format_date_br,
     member_escala_occurrences,
@@ -1717,29 +1718,6 @@ def render_voice_kit_link(
         f"</div>",
         unsafe_allow_html=True,
     )
-
-
-def fix_louvor_display_title(title: str) -> str:
-    """Correções ortográficas leves para exibição."""
-    from catalog_sanitize import sanitize_catalog_text
-
-    t = sanitize_catalog_text(title)
-    fixes = {
-        "Aclame ao senhor": "Aclame ao Senhor",
-        "a alegria esta no coracao": "A alegria está no coração",
-        "A alegria esta no coracao": "A alegria está no coração",
-        "Autor da,nha fé": "Autor da minha fé",
-        "Autor da minha fé": "Autor da minha fé",
-        "a começar em": "A começar em mim",
-        "A começar em": "A começar em mim",
-    }
-    tl = t.lower()
-    for wrong, right in fixes.items():
-        if tl == wrong.lower():
-            return right
-    if t and t[0].islower():
-        t = t[0].upper() + t[1:]
-    return t
 
 
 def cifra_search_url(title: str, artist: str = "") -> str:
@@ -4626,7 +4604,11 @@ def collect_escala_whatsapp_message(
     louvores_df: pd.DataFrame | None = None,
 ) -> str:
     """Monta texto completo da escala para WhatsApp."""
-    from catalog_sanitize import format_louvor_display, sanitize_catalog_text
+    from catalog_sanitize import (
+        fix_louvor_display_title,
+        format_louvor_display,
+        sanitize_catalog_text,
+    )
 
     row = escala_row if isinstance(escala_row, pd.Series) else pd.Series(escala_row)
     escala_id = str(row.get("id", ""))
