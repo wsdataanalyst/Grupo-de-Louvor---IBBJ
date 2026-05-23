@@ -4626,11 +4626,7 @@ def collect_escala_whatsapp_message(
     louvores_df: pd.DataFrame | None = None,
 ) -> str:
     """Monta texto completo da escala para WhatsApp."""
-    from catalog_sanitize import (
-        fix_louvor_display_title,
-        format_louvor_display,
-        sanitize_catalog_text,
-    )
+    from catalog_sanitize import format_louvor_display, sanitize_catalog_text
 
     row = escala_row if isinstance(escala_row, pd.Series) else pd.Series(escala_row)
     escala_id = str(row.get("id", ""))
