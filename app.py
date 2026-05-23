@@ -3579,13 +3579,47 @@ def apply_music_theme():
         }
         table.catalog-table td:first-child { text-align: left; font-weight: 500; }
         .seq-lyrics-view { margin: 1rem 0; }
+        .seq-legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.45rem;
+            margin-bottom: 0.85rem;
+        }
+        .seq-legend-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            font-size: 0.68rem;
+            padding: 0.15rem 0.55rem;
+            border: 1px solid;
+            border-radius: 999px;
+            color: #c4b5fd;
+        }
+        .seq-legend-chip i {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+        }
         .seq-lyric-block {
             display: flex;
             gap: 0.75rem;
+            align-items: flex-start;
             margin: 0.85rem 0;
             padding: 0.65rem 0.85rem;
             background: rgba(18, 16, 28, 0.85);
             border-radius: 10px;
+        }
+        .seq-trecho-num {
+            flex: 0 0 1.55rem;
+            width: 1.55rem;
+            height: 1.55rem;
+            line-height: 1.55rem;
+            text-align: center;
+            border-radius: 50%;
+            font-size: 0.72rem;
+            font-weight: 700;
+            color: #0f0a1a;
         }
         .seq-lyric-badge {
             flex: 0 0 11rem;
@@ -3595,6 +3629,12 @@ def apply_music_theme():
             border-left: 3px solid #8b5cf6;
             padding-left: 0.5rem;
             line-height: 1.35;
+        }
+        .seq-lyric-badge-empty {
+            color: #6b7280 !important;
+            border-left-color: #4b5563 !important;
+            font-weight: 400;
+            font-style: italic;
         }
         .seq-lyric-lines {
             flex: 1;
@@ -7518,25 +7558,16 @@ def show_sequencia_culto_page(
                     paragraphs_edit = [lyrics_edit.strip()]
                 st.markdown("**Marcações por trecho**")
                 st.caption(
-                    "Escolha Solo (lista dos vocais escalados), Harmonia de voz ou Uníssono. "
-                    "A pré-visualização à direita mostra as anotações na margem da letra."
+                    "Use os **atalhos** para marcar vários trechos de uma vez, ou a tabela abaixo. "
+                    "Vocais escalados aparecem automaticamente em Solo e Harmonia."
                 )
-                col_ed, col_prev = st.columns([1, 1])
-                with col_ed:
-                    trechos_v_new = build_trechos_vocal_ui(
-                        st,
-                        paragraphs_edit or ["(cole a letra acima)"],
-                        vocal_opts,
-                        trechos_v,
-                        f"seqv_{programa_id}",
-                    )
-                with col_prev:
-                    if paragraphs_edit:
-                        st.markdown("**Prévia**")
-                        st.markdown(
-                            render_lyrics_annotated_html(paragraphs_edit, trechos_v_new),
-                            unsafe_allow_html=True,
-                        )
+                trechos_v_new = build_trechos_vocal_ui(
+                    st,
+                    paragraphs_edit or ["(cole a letra acima)"],
+                    vocal_opts,
+                    trechos_v,
+                    f"seqv_{programa_id}",
+                )
 
             with tab_cifra:
                 cifra_edit = st.text_area(
@@ -7576,6 +7607,7 @@ def show_sequencia_culto_page(
                         unsafe_allow_html=True,
                     )
                 st.markdown("**Anotações da banda por trecho**")
+                st.caption("Numeração igual à da letra — solo, entrada, tom local, dinâmica.")
                 para_cifra = split_lyrics_paragraphs(lyrics_edit)
                 if not para_cifra:
                     para_cifra = ["Trecho 1"]

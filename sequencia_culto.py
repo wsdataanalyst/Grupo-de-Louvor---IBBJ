@@ -23,6 +23,18 @@ TIPOS_VOCAL = (
     "Instrumental / sem vocal",
 )
 
+TIPO_VOCAL_CORE = ("—", "Solo", "Harmonia de voz", "Uníssono", "Todos juntos")
+
+TIPO_CORE_COLORS = {
+    "Solo": "#f472b6",
+    "Harmonia de voz": "#a78bfa",
+    "Uníssono": "#4ade80",
+    "Todos juntos": "#34d399",
+    "Entrada gradual": "#38bdf8",
+    "Ministrador fala": "#fb923c",
+    "Instrumental / sem vocal": "#94a3b8",
+}
+
 # Tipos de marcação banda
 TIPOS_BANDA = (
     "—",
@@ -111,15 +123,8 @@ def render_lyrics_annotated_html(
     if not paragraphs:
         return '<p class="seq-empty">Cole a letra completa acima e salve.</p>'
 
-    colors = {
-        "Solo": "#f472b6",
-        "Harmonia de voz": "#a78bfa",
-        "Uníssono": "#4ade80",
-        "Todos juntos": "#34d399",
-        "Solo instrumento": "#fbbf24",
-        "Entrada banda": "#60a5fa",
-    }
     blocks = ['<div class="seq-lyrics-view">']
+    blocks.append(render_legend_vocal_html())
     for i, para in enumerate(paragraphs):
         t = next((x for x in trechos if int(x.get("paragrafo", -1)) == i), {})
         tipo = str(t.get("tipo", ""))
@@ -128,20 +133,117 @@ def render_lyrics_annotated_html(
             integrantes = [integrantes] if integrantes else []
         nota = str(t.get("nota", ""))
         label = _tipo_label(tipo, integrantes, nota)
-        border = colors.get(tipo, "#6b7280")
+        border = TIPO_CORE_COLORS.get(tipo, "#6b7280")
         label_html = (
             f'<span class="seq-lyric-badge" style="border-left-color:{border}">'
             f"{html.escape(label)}</span>"
             if label
-            else ""
+            else '<span class="seq-lyric-badge seq-lyric-badge-empty">sem marcação</span>'
         )
         safe_para = html.escape(para).replace("\n", "<br>")
+        num = i + 1
         blocks.append(
-            f'<div class="seq-lyric-block" style="border-left:4px solid {border}">'
-            f'{label_html}<div class="seq-lyric-lines">{safe_para}</div></div>'
+            f'<div class="seq-lyric-block" style="border-left:4px solid {border}" id="trecho-{num}">'
+            f'<span class="seq-trecho-num" style="background:{border}">{num}</span>'
+            f"{label_html}<div class=\"seq-lyric-lines\">{safe_para}</div></div>"
         )
     blocks.append("</div>")
     return "".join(blocks)
+
+
+def render_legend_vocal_html() -> str:
+    chips = [
+        ("Solo", "#f472b6"),
+        ("Harmonia", "#a78bfa"),
+        ("Uníssono", "#4ade80"),
+        ("Todos", "#34d399"),
+    ]
+    parts = ['<div class="seq-legend">']
+    for name, color in chips:
+        parts.append(
+            f'<span class="seq-legend-chip" style="border-color:{color}">'
+            f'<i style="background:{color}"></i>{html.escape(name)}</span>'
+        )
+    parts.append("</div>")
+    return "".join(parts)
+
+
+def _empty_trecho(i: int) -> dict:
+    return {"paragrafo": i, "tipo": "—", "integrantes": [], "nota": ""}
+
+
+def _normalize_trechos_state(state: list[dict], n: int) -> list[dict]:
+    by_i = {int(x.get("paragrafo", -1)): x for x in state}
+    out = []
+    for i in range(n):
+        t = by_i.get(i, _empty_trecho(i))
+        integrantes = t.get("integrantes") or []
+        if isinstance(integrantes, str):
+            integrantes = [integrantes] if integrantes else []
+        out.append(
+            {
+                "paragrafo": i,
+                "tipo": str(t.get("tipo", "—")),
+                "integrantes": list(integrantes),
+                "nota": str(t.get("nota", "")),
+            }
+        )
+    return out
+
+
+def _apply_vocal_preset(
+    state: list[dict],
+    preset: str,
+    vocal_labels: list[str],
+) -> list[dict]:
+    n = len(state)
+    if preset == "todos_unissono":
+        for i in range(n):
+            state[i] = {**state[i], "tipo": "Uníssono", "integrantes": vocal_labels[:]}
+    elif preset == "todos_juntos":
+        for i in range(n):
+            state[i] = {**state[i], "tipo": "Todos juntos", "integrantes": vocal_labels[:]}
+    elif preset == "primeiro_solo":
+        for i in range(n):
+            if i == 0:
+                state[i] = {
+                    **state[i],
+                    "tipo": "Solo",
+                    "integrantes": vocal_labels[:1] if vocal_labels else [],
+                }
+            else:
+                state[i] = {**state[i], "tipo": "Uníssono", "integrantes": vocal_labels[:]}
+    elif preset == "limpar":
+        for i in range(n):
+            state[i] = _empty_trecho(i)
+    return state
+
+
+def _apply_vocal_bulk(
+    state: list[dict],
+    de: int,
+    ate: int,
+    tipo: str,
+    integrantes: list[str],
+    nota: str,
+) -> list[dict]:
+    de = max(1, min(de, len(state)))
+    ate = max(de, min(ate, len(state)))
+    for i in range(de - 1, ate):
+        state[i] = {
+            "paragrafo": i,
+            "tipo": tipo,
+            "integrantes": list(integrantes),
+            "nota": nota.strip(),
+        }
+    return state
+
+
+def _trecho_preview_line(para: str, max_len: int = 72) -> str:
+    line = para.replace("\n", " / ").strip()
+    if len(line) > max_len:
+        return line[: max_len - 1] + "…"
+    return line or "(vazio)"
 
 
 def render_cifra_html(cifra: str, tom: str, capo: int) -> str:
@@ -325,56 +427,160 @@ def build_trechos_vocal_ui(
     existing: list[dict],
     key_prefix: str,
 ) -> list[dict]:
-    trechos = []
+    """Editor rápido: prévia numerada, atalhos e tabela (sem expanders)."""
+    n = len(paragraphs)
+    if n == 0:
+        st.caption("Separe estrofes com uma linha em branco na letra acima.")
+        return []
+
+    labels = [x[0] for x in vocal_opts]
+    state_key = f"{key_prefix}_vstate"
+
+    if state_key not in st.session_state or len(st.session_state[state_key]) != n:
+        st.session_state[state_key] = _normalize_trechos_state(existing, n)
+
+    state: list[dict] = st.session_state[state_key]
+
+    with st.expander("📖 Como marcar em 3 passos", expanded=False):
+        st.markdown(
+            """
+            1. **Letra** — cada bloco separado por linha em branco = um **trecho numerado** (1, 2, 3…).  
+            2. **Atalhos** — use os botões ou o intervalo para marcar vários trechos de uma vez.  
+            3. **Tabela** — ajuste trecho a trecho; a **prévia** no final mostra o resultado.
+            """
+        )
+
+    st.markdown("**Marcação rápida**")
+    p1, p2, p3, p4 = st.columns(4)
+    with p1:
+        if st.button("👥 Tudo uníssono", key=f"{key_prefix}_pre_uni", use_container_width=True):
+            state = _apply_vocal_preset(state, "todos_unissono", labels)
+            st.session_state[state_key] = state
+            st.rerun()
+    with p2:
+        if st.button("🎤 1º solo · resto uníssono", key=f"{key_prefix}_pre_s1", use_container_width=True):
+            state = _apply_vocal_preset(state, "primeiro_solo", labels)
+            st.session_state[state_key] = state
+            st.rerun()
+    with p3:
+        if st.button("👥 Todos juntos", key=f"{key_prefix}_pre_todos", use_container_width=True):
+            state = _apply_vocal_preset(state, "todos_juntos", labels)
+            st.session_state[state_key] = state
+            st.rerun()
+    with p4:
+        if st.button("↺ Limpar", key=f"{key_prefix}_pre_clr", use_container_width=True):
+            state = _apply_vocal_preset(state, "limpar", labels)
+            st.session_state[state_key] = state
+            st.rerun()
+
+    st.caption("Ou marque um intervalo de trechos:")
+    b1, b2, b3, b4, b5 = st.columns([0.7, 0.7, 1.4, 2, 2])
+    with b1:
+        de = st.number_input("De", min_value=1, max_value=n, value=1, key=f"{key_prefix}_bulk_de")
+    with b2:
+        ate = st.number_input("Até", min_value=1, max_value=n, value=n, key=f"{key_prefix}_bulk_ate")
+    with b3:
+        bulk_tipo = st.selectbox(
+            "Tipo",
+            TIPO_VOCAL_CORE,
+            key=f"{key_prefix}_bulk_tipo",
+            label_visibility="collapsed",
+        )
+    bulk_names: list[str] = []
+    with b4:
+        if bulk_tipo == "Solo" and labels:
+            sel = st.selectbox("Cantor", labels, key=f"{key_prefix}_bulk_solo")
+            bulk_names = [sel]
+        elif bulk_tipo == "Harmonia de voz" and labels:
+            bulk_names = st.multiselect(
+                "Vozes",
+                labels,
+                key=f"{key_prefix}_bulk_harm",
+                label_visibility="collapsed",
+            )
+        elif bulk_tipo in ("Uníssono", "Todos juntos"):
+            bulk_names = labels[:]
+    with b5:
+        if st.button("✓ Aplicar no intervalo", key=f"{key_prefix}_bulk_go", use_container_width=True):
+            state = _apply_vocal_bulk(
+                state, int(de), int(ate), bulk_tipo, bulk_names, ""
+            )
+            st.session_state[state_key] = state
+            st.rerun()
+
+    st.markdown("**Trecho a trecho**")
+    h1, h2, h3, h4, h5 = st.columns([0.35, 3.2, 1.5, 2, 1.3])
+    h1.markdown("**#**")
+    h2.markdown("**Linha da letra**")
+    h3.markdown("**Tipo**")
+    h4.markdown("**Cantor(es)**")
+    h5.markdown("**Obs.**")
+
     for i, para in enumerate(paragraphs):
-        prev = existing[i] if i < len(existing) else {}
+        prev = state[i]
         tipo_prev = str(prev.get("tipo", "—"))
-        with st.expander(f"Trecho {i + 1}: {para[:55]}{'…' if len(para) > 55 else ''}", expanded=(tipo_prev not in ("—", ""))):
+        c1, c2, c3, c4, c5 = st.columns([0.35, 3.2, 1.5, 2, 1.3])
+        with c1:
+            st.markdown(f"**{i + 1}**")
+        with c2:
+            st.caption(_trecho_preview_line(para))
+        with c3:
             tipo = st.selectbox(
-                "Marcação vocal",
+                "tipo",
                 TIPOS_VOCAL,
                 index=TIPOS_VOCAL.index(tipo_prev) if tipo_prev in TIPOS_VOCAL else 0,
                 key=f"{key_prefix}_vtipo_{i}",
+                label_visibility="collapsed",
             )
-            labels = [x[0] for x in vocal_opts]
-            emails = [x[1] for x in vocal_opts]
-            integrantes: list[str] = []
-            if tipo == "Solo":
-                if labels:
-                    sel = st.selectbox(
-                        "Solo — integrante",
-                        ["—"] + labels,
-                        key=f"{key_prefix}_vsolo_{i}",
-                    )
-                    if sel != "—":
-                        integrantes = [sel]
-            elif tipo == "Harmonia de voz":
-                if labels:
-                    integrantes = st.multiselect(
-                        "Harmonia — vozes",
-                        labels,
-                        default=[x for x in (prev.get("integrantes") or []) if x in labels],
-                        key=f"{key_prefix}_vharm_{i}",
-                    )
+        integrantes: list[str] = []
+        with c4:
+            if tipo == "Solo" and labels:
+                prev_names = [x for x in (prev.get("integrantes") or []) if x in labels]
+                default_solo = prev_names[0] if prev_names else labels[0]
+                sel = st.selectbox(
+                    "solo",
+                    labels,
+                    index=labels.index(default_solo) if default_solo in labels else 0,
+                    key=f"{key_prefix}_vsolo_{i}",
+                    label_visibility="collapsed",
+                )
+                integrantes = [sel]
+            elif tipo == "Harmonia de voz" and labels:
+                integrantes = st.multiselect(
+                    "harm",
+                    labels,
+                    default=[x for x in (prev.get("integrantes") or []) if x in labels],
+                    key=f"{key_prefix}_vharm_{i}",
+                    label_visibility="collapsed",
+                )
             elif tipo in ("Uníssono", "Todos juntos"):
+                st.caption("Todos escalados")
                 integrantes = labels[:]
+            else:
+                st.caption("—")
+        with c5:
             nota = st.text_input(
-                "Anotação (opcional)",
+                "obs",
                 value=str(prev.get("nota", "")),
                 key=f"{key_prefix}_vnota_{i}",
+                label_visibility="collapsed",
+                placeholder="opcional",
             )
-            trechos.append(
-                {
-                    "paragrafo": i,
-                    "tipo": tipo,
-                    "integrantes": integrantes,
-                    "integrantes_email": [
-                        emails[labels.index(n)] for n in integrantes if n in labels
-                    ],
-                    "nota": nota.strip(),
-                }
-            )
-    return trechos
+        state[i] = {
+            "paragrafo": i,
+            "tipo": tipo,
+            "integrantes": integrantes,
+            "nota": nota.strip(),
+        }
+
+    st.session_state[state_key] = state
+
+    st.markdown("**Prévia da letra (como no culto)**")
+    st.markdown(
+        render_lyrics_annotated_html(paragraphs, state),
+        unsafe_allow_html=True,
+    )
+    return state
 
 
 def build_trechos_banda_ui(
@@ -384,55 +590,102 @@ def build_trechos_banda_ui(
     existing: list[dict],
     key_prefix: str,
 ) -> list[dict]:
-    trechos = []
+    """Tabela compacta de anotações da banda (sem expanders)."""
+    n = len(paragraphs)
+    if n == 0:
+        return []
+
+    labels = [x[0] for x in banda_opts]
+    state_key = f"{key_prefix}_bstate"
+    if state_key not in st.session_state or len(st.session_state[state_key]) != n:
+        by_i = {int(x.get("paragrafo", -1)): x for x in existing}
+        st.session_state[state_key] = [
+            {
+                "paragrafo": i,
+                "tipo": str(by_i.get(i, {}).get("tipo", "—")),
+                "integrantes": list(by_i.get(i, {}).get("integrantes") or []),
+                "tom_trecho": str(by_i.get(i, {}).get("tom_trecho", "")),
+                "nota": str(by_i.get(i, {}).get("nota", "")),
+            }
+            for i in range(n)
+        ]
+
+    state: list[dict] = st.session_state[state_key]
+    st.caption("Mesmos números de trecho da letra. Deixe em «—» se não houver anotação.")
+
+    h1, h2, h3, h4, h5, h6 = st.columns([0.35, 2.5, 1.4, 1.6, 1.1, 1.3])
+    h1.markdown("**#**")
+    h2.markdown("**Trecho**")
+    h3.markdown("**Tipo**")
+    h4.markdown("**Quem**")
+    h5.markdown("**Tom**")
+    h6.markdown("**Obs.**")
+
     for i, para in enumerate(paragraphs):
-        prev = existing[i] if i < len(existing) else {}
+        prev = state[i]
         tipo_prev = str(prev.get("tipo", "—"))
-        with st.expander(
-            f"Cifra — trecho {i + 1}: {para[:40]}{'…' if len(para) > 40 else ''}",
-            expanded=(tipo_prev not in ("—", "")),
-        ):
+        tom_prev = str(prev.get("tom_trecho", ""))
+        c1, c2, c3, c4, c5, c6 = st.columns([0.35, 2.5, 1.4, 1.6, 1.1, 1.3])
+        with c1:
+            st.markdown(f"**{i + 1}**")
+        with c2:
+            st.caption(_trecho_preview_line(para, 50))
+        with c3:
             tipo = st.selectbox(
-                "Marcação banda",
+                "btipo",
                 TIPOS_BANDA,
                 index=TIPOS_BANDA.index(tipo_prev) if tipo_prev in TIPOS_BANDA else 0,
                 key=f"{key_prefix}_btipo_{i}",
+                label_visibility="collapsed",
             )
-            labels = [x[0] for x in banda_opts]
-            integrantes: list[str] = []
+        integrantes: list[str] = []
+        with c4:
             if tipo == "Solo instrumento" and labels:
+                prev_names = [x for x in (prev.get("integrantes") or []) if x in labels]
+                default_solo = prev_names[0] if prev_names else labels[0]
                 sel = st.selectbox(
-                    "Instrumentista",
-                    ["—"] + labels,
+                    "bsolo",
+                    labels,
+                    index=labels.index(default_solo) if default_solo in labels else 0,
                     key=f"{key_prefix}_bsolo_{i}",
+                    label_visibility="collapsed",
                 )
-                if sel != "—":
-                    integrantes = [sel]
+                integrantes = [sel]
             elif tipo in ("Entrada banda", "Harmonia instrumental") and labels:
                 integrantes = st.multiselect(
-                    "Integrantes",
+                    "bband",
                     labels,
                     default=[x for x in (prev.get("integrantes") or []) if x in labels],
                     key=f"{key_prefix}_bband_{i}",
+                    label_visibility="collapsed",
                 )
+            else:
+                st.caption("—")
+        with c5:
+            tom_opts = [""] + list(TOM_OPCOES)
+            tom_idx = tom_opts.index(tom_prev) if tom_prev in tom_opts else 0
             tom_trecho = st.selectbox(
-                "Tom deste trecho (vazio = tom geral)",
-                [""] + list(TOM_OPCOES),
-                index=0,
+                "btom",
+                tom_opts,
+                index=tom_idx,
                 key=f"{key_prefix}_btom_{i}",
+                label_visibility="collapsed",
             )
+        with c6:
             nota = st.text_input(
-                "Ajuste / dinâmica",
+                "bnota",
                 value=str(prev.get("nota", "")),
                 key=f"{key_prefix}_bnota_{i}",
+                label_visibility="collapsed",
+                placeholder="opcional",
             )
-            trechos.append(
-                {
-                    "paragrafo": i,
-                    "tipo": tipo,
-                    "integrantes": integrantes,
-                    "tom_trecho": tom_trecho,
-                    "nota": nota.strip(),
-                }
-            )
-    return trechos
+        state[i] = {
+            "paragrafo": i,
+            "tipo": tipo,
+            "integrantes": integrantes,
+            "tom_trecho": tom_trecho,
+            "nota": nota.strip(),
+        }
+
+    st.session_state[state_key] = state
+    return state
