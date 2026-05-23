@@ -165,6 +165,20 @@ def get_sequencia_row(seq_df: pd.DataFrame, programa_id: str) -> dict:
     return m.iloc[0].to_dict()
 
 
+def _sequencia_cell_value(column: str, value) -> str:
+    if value is None or (isinstance(value, float) and pd.isna(value)):
+        return ""
+    if column == "capo":
+        n = pd.to_numeric(value, errors="coerce")
+        if pd.isna(n):
+            n = 0
+        return str(int(n))
+    text = str(value).strip()
+    if text.lower() in ("nan", "none", "<na>", "nat"):
+        return ""
+    return text
+
+
 def upsert_sequencia_row(
     seq_df: pd.DataFrame,
     programa_id: str,
@@ -174,20 +188,26 @@ def upsert_sequencia_row(
     for col in PROGRAMA_SEQUENCIA_COLUMNS:
         if col not in seq_df.columns:
             seq_df[col] = ""
+        seq_df[col] = seq_df[col].fillna("").astype(str)
     pid = str(programa_id)
     mask = seq_df["programa_id"].astype(str) == pid
     row = {c: "" for c in PROGRAMA_SEQUENCIA_COLUMNS}
     row["programa_id"] = pid
     row["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     if mask.any():
-        row.update(seq_df[mask].iloc[0].to_dict())
-    row.update(fields)
+        existing = seq_df[mask].iloc[0].to_dict()
+        row.update({k: _sequencia_cell_value(k, v) for k, v in existing.items()})
+    row.update(
+        {k: _sequencia_cell_value(k, v) for k, v in fields.items() if k in PROGRAMA_SEQUENCIA_COLUMNS}
+    )
     if mask.any():
         idx = seq_df[mask].index[0]
         for k, v in row.items():
-            seq_df.at[idx, k] = v
+            if k in seq_df.columns:
+                seq_df.at[idx, k] = _sequencia_cell_value(k, v)
     else:
-        seq_df = pd.concat([seq_df, pd.DataFrame([row])], ignore_index=True)
+        clean_row = {k: _sequencia_cell_value(k, v) for k, v in row.items()}
+        seq_df = pd.concat([seq_df, pd.DataFrame([clean_row])], ignore_index=True)
     return seq_df
 
 

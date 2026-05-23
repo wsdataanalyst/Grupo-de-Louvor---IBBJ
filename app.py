@@ -1778,9 +1778,11 @@ def prepare_programa_sequencia(df: pd.DataFrame) -> pd.DataFrame:
         if column not in df.columns:
             df[column] = ""
     df = df[list(PROGRAMA_SEQUENCIA_COLUMNS)].copy()
-    empty = df["programa_id"].astype(str).str.strip() == ""
-    if not empty.empty and empty.any():
-        pass
+    # Células vazias no CSV viram float64 (NaN) — impedem gravar texto na sequência
+    for column in PROGRAMA_SEQUENCIA_COLUMNS:
+        df[column] = df[column].fillna("").astype(str)
+    capo_num = pd.to_numeric(df["capo"], errors="coerce").fillna(0).astype(int)
+    df["capo"] = capo_num.astype(str)
     return df
 
 
