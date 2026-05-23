@@ -7731,7 +7731,6 @@ def _run_app() -> None:
         if is_scale_manager(st.session_state.user_roles)
         else 0
     )
-    inject_app_notification_badges(chat_unread, sug_badge, swap_alert_count)
     try:
         _, _, _, trocas_alert_df = get_escalas_bundle()
         swap_alert_count = count_swap_alerts_for_user(
@@ -7739,6 +7738,7 @@ def _run_app() -> None:
         )
     except Exception:
         swap_alert_count = 0
+    inject_app_notification_badges(chat_unread, sug_badge, swap_alert_count)
     inject_swap_alerts_badges(swap_alert_count)
     render_sidebar_footer()
     render_push_admin_sidebar(members_df)
