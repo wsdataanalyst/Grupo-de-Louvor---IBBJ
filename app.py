@@ -68,7 +68,16 @@ from feed_scheduler import (
     schedule_weekly_team_post,
 )
 from instrument_kit_links import instrument_kits_from_roles, kit_youtube_url
-from whatsapp_share import share_escala_text, whatsapp_share_url
+from whatsapp_share import (
+    build_escala_share_message,
+    inject_copy_whatsapp_message,
+    inject_share_pdf_whatsapp,
+    share_escala_text,
+    whatsapp_auto_prompt_enabled,
+    whatsapp_automation_status,
+    whatsapp_group_phone,
+    whatsapp_share_url,
+)
 from louvor_meta import (
     LOUVOR_THEMES,
     classify_themes,
@@ -4609,6 +4618,189 @@ def render_team_grid_html(
     ) + "</div>"
 
 
+def collect_escala_whatsapp_message(
+    escala_row,
+    programa_df: pd.DataFrame,
+    equipe_df: pd.DataFrame,
+    members_df: pd.DataFrame,
+    louvores_df: pd.DataFrame | None = None,
+) -> str:
+    """Monta texto completo da escala para WhatsApp."""
+    from catalog_sanitize import (
+        fix_louvor_display_title,
+        format_louvor_display,
+        sanitize_catalog_text,
+    )
+
+    row = escala_row if isinstance(escala_row, pd.Series) else pd.Series(escala_row)
+    escala_id = str(row.get("id", ""))
+    event = str(row.get("event", "Culto"))
+    dt = pd.to_datetime(row.get("date"), errors="coerce")
+    culto_date = dt.strftime("%d/%m/%Y") if pd.notna(dt) else str(row.get("date", ""))
+    ensaio_date = (
+        format_rehearsal_date_pt(row) if rehearsal_date_is_set(row) else ""
+    )
+    ministrador = str(row.get("member_name") or row.get("responsible", ""))
+    equipe = [
+        (str(p.get("nome", "")), str(p.get("funcao", "")))
+        for p in integrantes_escalados(row, equipe_df, members_df)
+        if str(p.get("nome", "")).strip()
+    ]
+    programa: list[tuple[str, str, str, str]] = []
+    prog = programa_por_escala(programa_df, escala_id)
+    if louvores_df is not None and not louvores_df.empty:
+        prog = enrich_programa_from_catalog(prog, louvores_df)
+    for _, item in prog.iterrows():
+        louvor = fix_louvor_display_title(
+            sanitize_catalog_text(item.get("louvor_title", ""))
+        )
+        artist = sanitize_catalog_text(item.get("artist", ""))
+        titulo = format_louvor_display(louvor, artist)
+        programa.append(
+            (
+                str(item.get("ordem", "")),
+                str(item.get("parte", "")),
+                titulo,
+                sanitize_catalog_text(item.get("key", "")),
+            )
+        )
+    return build_escala_share_message(
+        event=event,
+        culto_date=culto_date,
+        ensaio_date=ensaio_date,
+        ministrador=ministrador,
+        equipe=equipe,
+        programa=programa,
+        notas=str(row.get("notes", "")),
+    )
+
+
+def generate_single_escala_pdf(
+    escala_row,
+    programa_df: pd.DataFrame,
+    equipe_df: pd.DataFrame,
+    members_df: pd.DataFrame,
+) -> tuple[bytes, str]:
+    row = escala_row if isinstance(escala_row, pd.Series) else pd.Series(escala_row)
+    one = pd.DataFrame([row.to_dict()])
+    culto_d = pd.to_datetime(row.get("date"), errors="coerce")
+    label = (
+        culto_d.strftime("%d-%m-%Y") if pd.notna(culto_d) else "escala"
+    )
+    pdf_bytes = build_escalas_pdf(
+        one,
+        programa_df,
+        equipe_df,
+        period_label=str(row.get("event", "Culto")),
+        integrantes_escalados=integrantes_escalados,
+        normalize_funcao_escala=normalize_funcao_escala,
+        programa_por_escala=programa_por_escala,
+        fix_louvor_display_title=fix_louvor_display_title,
+        funcao_ministrador=FUNCAO_MINISTRADOR,
+        rehearsal_date_is_set=rehearsal_date_is_set,
+        format_rehearsal_date_pt=format_rehearsal_date_pt,
+    )
+    fname = suggested_filename(str(row.get("event", "escala")), 1).replace(" ", "_")
+    return pdf_bytes, fname or f"escala_{label}.pdf"
+
+
+def render_escala_whatsapp_actions(
+    message: str,
+    *,
+    pdf_bytes: bytes | None = None,
+    pdf_filename: str = "escala_gdl.pdf",
+    key_prefix: str = "wa_esc",
+) -> None:
+    """Botões: WhatsApp texto, copiar, PDF (celular)."""
+    phone = whatsapp_group_phone()
+    st.markdown("**📲 Compartilhar escala no WhatsApp**")
+    c1, c2 = st.columns(2)
+    with c1:
+        st.link_button(
+            "💬 Abrir WhatsApp com escala completa",
+            whatsapp_share_url(message, phone=phone),
+            use_container_width=True,
+            key=f"{key_prefix}_link",
+        )
+    with c2:
+        inject_copy_whatsapp_message(message, element_id=f"{key_prefix}_copy")
+    if pdf_bytes:
+        if len(pdf_bytes) <= 2_500_000:
+            inject_share_pdf_whatsapp(
+                pdf_bytes,
+                pdf_filename,
+                message[:300],
+                element_id=f"{key_prefix}_pdf",
+            )
+        else:
+            st.caption(
+                "PDF grande demais para envio direto pelo navegador — use **Baixar PDF** e anexe no grupo."
+            )
+    st.caption(whatsapp_automation_status())
+
+
+def render_pending_whatsapp_share_banner() -> None:
+    """Após salvar escala, oferece envio ao grupo."""
+    pending = st.session_state.get("pending_wa_escala")
+    if not pending:
+        return
+    st.markdown("---")
+    st.markdown(
+        '<div style="background:rgba(37,211,102,0.12);border:1px solid rgba(37,211,102,0.45);'
+        'border-radius:14px;padding:1rem 1.15rem;margin:0.5rem 0;">',
+        unsafe_allow_html=True,
+    )
+    st.markdown("#### ✅ Escala publicada — envie ao grupo")
+    render_escala_whatsapp_actions(
+        pending.get("message", ""),
+        pdf_bytes=pending.get("pdf_bytes"),
+        pdf_filename=pending.get("pdf_filename", "escala_gdl.pdf"),
+        key_prefix="pending_wa",
+    )
+    if st.button("Dispensar este aviso", key="pending_wa_dismiss", use_container_width=True):
+        st.session_state.pop("pending_wa_escala", None)
+        st.session_state.pop("wa_auto_open_url", None)
+        st.rerun()
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
+def queue_whatsapp_after_escala_save(
+    escala_row: dict,
+    programa_df: pd.DataFrame,
+    equipe_df: pd.DataFrame,
+    members_df: pd.DataFrame,
+    louvores_df: pd.DataFrame,
+) -> None:
+    """Prepara mensagem/PDF e notifica; opcionalmente abre WhatsApp."""
+    msg = collect_escala_whatsapp_message(
+        escala_row, programa_df, equipe_df, members_df, louvores_df
+    )
+    pdf_bytes = None
+    pdf_name = "escala_gdl.pdf"
+    try:
+        pdf_bytes, pdf_name = generate_single_escala_pdf(
+            escala_row, programa_df, equipe_df, members_df
+        )
+    except Exception:
+        pass
+    st.session_state.pending_wa_escala = {
+        "message": msg,
+        "pdf_bytes": pdf_bytes,
+        "pdf_filename": pdf_name,
+        "escala_id": str(escala_row.get("id", "")),
+    }
+    notify_new_escala(
+        str(escala_row.get("event", "Culto")),
+        str(escala_row.get("date", "")),
+        str(escala_row.get("responsible", "")),
+        detail=msg,
+    )
+    if whatsapp_auto_prompt_enabled() and whatsapp_group_phone():
+        st.session_state.wa_auto_open_url = whatsapp_share_url(
+            msg, phone=whatsapp_group_phone()
+        )
+
+
 def render_culto_programa(
     escala_row,
     programa_df: pd.DataFrame,
@@ -4782,13 +4974,19 @@ def render_culto_programa(
                 )
             )
 
-    wa_team = []
-    if team_html:
-        wa_team.append("Equipe escalada no culto.")
-    wa_link = whatsapp_share_url(
-        share_escala_text(event, date_fmt, ensaio_fmt.replace(" · Ensaio: ", ""), wa_team)
+    wa_msg = collect_escala_whatsapp_message(
+        escala_row, programa_df, equipe_df, members_df, louvores_df
     )
-    st.link_button("📲 Compartilhar culto no WhatsApp", wa_link, use_container_width=True)
+    pdf_b, pdf_n = None, "escala.pdf"
+    try:
+        pdf_b, pdf_n = generate_single_escala_pdf(
+            escala_row, programa_df, equipe_df, members_df
+        )
+    except Exception:
+        pass
+    render_escala_whatsapp_actions(
+        wa_msg, pdf_bytes=pdf_b, pdf_filename=pdf_n, key_prefix=f"wa_culto_{escala_id}"
+    )
 
 
 def _feed_post_badge(post_type: str) -> str:
@@ -6466,11 +6664,16 @@ def show_escala_completa_editor(
                             PROGRAMA_FILE,
                         )
 
-                    notify_new_escala(
-                        new_escala["event"],
-                        new_escala["date"],
-                        new_escala["responsible"],
-                    )
+                    try:
+                        queue_whatsapp_after_escala_save(
+                            new_escala,
+                            programa_df,
+                            equipe_df,
+                            members_df,
+                            louvores_df,
+                        )
+                    except Exception:
+                        pass
                     try:
                         schedule_feed_posts_for_escala(
                             escala_id,
@@ -6874,15 +7077,20 @@ def render_escalas_pdf_export(
                 st.session_state.pop("escala_pdf_bytes", None)
                 st.session_state.pop("escala_pdf_filename", None)
                 st.rerun()
-        wa_txt = share_escala_text(
-            event_filter or "Escalas GDL",
-            period_label,
-            team_lines=[escala_label(r) for _, r in selected_df.head(6).iterrows()],
-        )
-        st.link_button(
-            "📲 Compartilhar resumo no WhatsApp",
-            whatsapp_share_url(wa_txt),
-            use_container_width=True,
+        wa_parts = []
+        for _, er in selected_df.iterrows():
+            wa_parts.append(
+                collect_escala_whatsapp_message(
+                    er, programa_df, equipe_df, members_df
+                )
+            )
+            wa_parts.append("—" * 12)
+        wa_txt = "\n".join(wa_parts)
+        render_escala_whatsapp_actions(
+            wa_txt,
+            pdf_bytes=pdf_bytes,
+            pdf_filename=fname,
+            key_prefix="wa_pdf_export",
         )
 
 
@@ -6895,6 +7103,7 @@ def show_gerenciar_escalas(
     chat_ensaio_df: pd.DataFrame,
 ):
     escalas_df, programa_df, equipe_df, _ = get_escalas_bundle()
+    render_pending_whatsapp_share_banner()
     primary = st.session_state.get("user_primary_role", "membro")
     if is_leader(st.session_state.user_roles):
         st.success(
@@ -7745,6 +7954,19 @@ def _run_app() -> None:
     render_data_loss_warning(members_df)
 
     page_header(menu)
+
+    wa_open = st.session_state.pop("wa_auto_open_url", None)
+    if wa_open:
+        import json as _json
+
+        inject_page_html(
+            f'<script>window.open({_json.dumps(wa_open)}, "_blank", "noopener");</script>',
+            height=0,
+        )
+        st.info(
+            "O WhatsApp deve ter aberto em outra aba com a escala completa. "
+            "Confirme o envio no grupo e anexe o PDF pelo botão verde no celular."
+        )
 
     if menu in SWAP_ALERT_MENUS:
         escalas_alert, programa_alert, equipe_alert, trocas_alert = get_escalas_bundle()

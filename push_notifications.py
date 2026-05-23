@@ -123,10 +123,21 @@ def notify_chat_message(author: str, text: str) -> bool:
     return ok
 
 
-def notify_new_escala(event: str, culto_date: str, responsible: str = "") -> bool:
+def notify_new_escala(
+    event: str,
+    culto_date: str,
+    responsible: str = "",
+    *,
+    detail: str = "",
+) -> bool:
     msg = f"{culto_date} — {event}".strip(" —")
     if responsible:
-        msg = f"{msg}\nResponsável: {responsible}"
+        msg = f"{msg}\nMinistrador: {responsible}"
+    if detail:
+        short = detail.strip()
+        if len(short) > 220:
+            short = short[:217] + "…"
+        msg = f"{msg}\n{short}"
     ok, _ = send_push(
         "📅 Nova escala no culto",
         msg,
