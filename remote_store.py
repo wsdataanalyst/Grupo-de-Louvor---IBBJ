@@ -29,6 +29,7 @@ SYNC_CSV_NAMES = frozenset(
         "escalas.csv",
         "trocas_escalas.csv",
         "programa_culto.csv",
+        "programa_sequencia.csv",
         "escala_equipe.csv",
         "playlist.csv",
         "eventos.csv",

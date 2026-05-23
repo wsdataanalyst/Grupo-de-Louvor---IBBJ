@@ -97,6 +97,27 @@ from escala_pdf import (
     format_period_label,
     suggested_filename,
 )
+from sequencia_culto import (
+    PROGRAMA_SEQUENCIA_COLUMNS,
+    TOM_OPCOES,
+    build_trechos_banda_ui,
+    build_trechos_vocal_ui,
+    default_cifra_from_louvor,
+    default_lyrics_from_louvor,
+    display_cifra_transposed,
+    effective_tom,
+    get_sequencia_row,
+    join_paragraphs,
+    markup_to_json,
+    parse_markup,
+    render_cifra_html,
+    render_lyrics_annotated_html,
+    split_lyrics_paragraphs,
+    trechos_from_markup,
+    upsert_sequencia_row,
+    vocalistas_escala,
+    banda_escala,
+)
 from user_feedback import (
     MSG_IMPROVEMENTS,
     show_exception_error,
@@ -140,6 +161,7 @@ CHAT_FILE = DATA_DIR / "chat.csv"
 ESCALAS_FILE = DATA_DIR / "escalas.csv"
 TROCAS_FILE = DATA_DIR / "trocas_escalas.csv"
 PROGRAMA_FILE = DATA_DIR / "programa_culto.csv"
+PROGRAMA_SEQUENCIA_FILE = DATA_DIR / "programa_sequencia.csv"
 EQUIPE_FILE = DATA_DIR / "escala_equipe.csv"
 PLAYLIST_FILE = DATA_DIR / "playlist.csv"
 LOUVORES_FILE = DATA_DIR / "louvores.csv"
@@ -250,6 +272,7 @@ LOUVOR_EXTRA_COLUMNS = (
     "validacao_status",
     "validacao_nota",
 )
+LOUVOR_SEQUENCIA_COLUMNS = ("lyrics_text", "cifra_text")
 ENSAIO_AUDIO_DIR = DATA_DIR / "audios_ensaio"
 EVENTO_COLUMNS = (
     "id",
@@ -865,7 +888,7 @@ def prepare_louvores_with_meta(df: pd.DataFrame) -> pd.DataFrame:
     from catalog_sanitize import prepare_louvores_df
 
     df = prepare_louvores_df(df)
-    for col in LOUVOR_EXTRA_COLUMNS:
+    for col in LOUVOR_EXTRA_COLUMNS + LOUVOR_SEQUENCIA_COLUMNS:
         if col not in df.columns:
             df[col] = ""
     return df
@@ -1748,6 +1771,27 @@ def user_escalas(escalas_df: pd.DataFrame, email: str) -> pd.DataFrame:
         name = st.session_state.user_name.strip().lower()
         mask = escalas_df["responsible"].astype(str).str.lower().str.contains(name, na=False)
     return escalas_df[mask].copy()
+
+
+def prepare_programa_sequencia(df: pd.DataFrame) -> pd.DataFrame:
+    for column in PROGRAMA_SEQUENCIA_COLUMNS:
+        if column not in df.columns:
+            df[column] = ""
+    df = df[list(PROGRAMA_SEQUENCIA_COLUMNS)].copy()
+    empty = df["programa_id"].astype(str).str.strip() == ""
+    if not empty.empty and empty.any():
+        pass
+    return df
+
+
+def load_programa_sequencia_df() -> pd.DataFrame:
+    return prepare_programa_sequencia(
+        _load_csv_fresh(PROGRAMA_SEQUENCIA_FILE, PROGRAMA_SEQUENCIA_COLUMNS)
+    )
+
+
+def save_programa_sequencia_df(df: pd.DataFrame) -> None:
+    save_data(prepare_programa_sequencia(df), PROGRAMA_SEQUENCIA_FILE)
 
 
 def prepare_programa(df: pd.DataFrame) -> pd.DataFrame:
@@ -3506,6 +3550,49 @@ def apply_music_theme():
             background: rgba(139, 92, 246, 0.12);
         }
         table.catalog-table td:first-child { text-align: left; font-weight: 500; }
+        .seq-lyrics-view { margin: 1rem 0; }
+        .seq-lyric-block {
+            display: flex;
+            gap: 0.75rem;
+            margin: 0.85rem 0;
+            padding: 0.65rem 0.85rem;
+            background: rgba(18, 16, 28, 0.85);
+            border-radius: 10px;
+        }
+        .seq-lyric-badge {
+            flex: 0 0 11rem;
+            font-size: 0.72rem;
+            font-weight: 600;
+            color: #e9d5ff;
+            border-left: 3px solid #8b5cf6;
+            padding-left: 0.5rem;
+            line-height: 1.35;
+        }
+        .seq-lyric-lines {
+            flex: 1;
+            color: #f4f2fa;
+            font-size: 0.95rem;
+            line-height: 1.55;
+            white-space: pre-wrap;
+        }
+        .seq-cifra-view {
+            background: rgba(12, 10, 20, 0.9);
+            border: 1px solid rgba(167, 139, 250, 0.3);
+            border-radius: 12px;
+            padding: 1rem;
+            margin: 0.75rem 0;
+        }
+        .seq-cifra-meta { color: #a89bc4; font-size: 0.85rem; margin: 0 0 0.75rem; }
+        .seq-cifra-pre {
+            color: #fef3c7;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 0.82rem;
+            line-height: 1.45;
+            white-space: pre-wrap;
+            margin: 0;
+        }
+        .seq-empty { color: #a89bc4; font-style: italic; }
+        .prog-btn-seq { background: #6366f1; color: #fff !important; }
         </style>
         """,
         unsafe_allow_html=True,
@@ -4215,6 +4302,7 @@ ESCALA_LIVE_FILE_NAMES = frozenset(
         "escalas.csv",
         "escala_equipe.csv",
         "programa_culto.csv",
+        "programa_sequencia.csv",
         "trocas_escalas.csv",
     }
 )
@@ -4257,7 +4345,7 @@ def escalas_data_revision() -> str:
         except Exception:
             pass
     parts: list[str] = []
-    for path in (ESCALAS_FILE, EQUIPE_FILE, PROGRAMA_FILE, TROCAS_FILE):
+    for path in (ESCALAS_FILE, EQUIPE_FILE, PROGRAMA_FILE, PROGRAMA_SEQUENCIA_FILE, TROCAS_FILE):
         try:
             stat = path.stat()
             parts.append(f"{path.name}:{stat.st_mtime_ns}:{stat.st_size}")
@@ -4913,6 +5001,15 @@ def render_culto_programa(
         st.caption(
             f"⏱ Duração estimada do bloco de louvor: **{format_duracao_total(total_prog_min)}**"
         )
+
+    if st.button(
+        "🎼 Abrir Sequência do Culto (letras e cifras no app)",
+        key=f"open_seq_culto_{escala_id}",
+        use_container_width=True,
+    ):
+        st.session_state["focus_sequencia_escala_id"] = escala_id
+        st.session_state["_open_sequencia_tab"] = True
+        st.info("Abra a aba **🎼 Sequência do Culto** neste menu para ver e editar.")
 
     my_email = st.session_state.user_email.strip().lower()
     is_ministrador_culto = (
@@ -7101,8 +7198,13 @@ def show_gerenciar_escalas(
         ]
     )
 
-    tab_montar, tab_pdf, tab_membros = st.tabs(
-        ["🎯 Montar / editar escala", "📄 PDF WhatsApp", "👥 Integrantes"]
+    tab_montar, tab_sequencia, tab_pdf, tab_membros = st.tabs(
+        [
+            "🎯 Montar / editar escala",
+            "🎼 Sequência do Culto",
+            "📄 PDF WhatsApp",
+            "👥 Integrantes",
+        ]
     )
 
     with tab_montar:
@@ -7115,11 +7217,279 @@ def show_gerenciar_escalas(
             chat_ensaio_df,
         )
 
+    with tab_sequencia:
+        pref = st.session_state.pop("focus_sequencia_escala_id", None)
+        show_sequencia_culto_page(
+            escalas_df,
+            programa_df,
+            equipe_df,
+            louvores_df,
+            members_df,
+            escala_id_pref=pref,
+        )
+
     with tab_pdf:
         render_escalas_pdf_export(escalas_df, programa_df, equipe_df)
 
     with tab_membros:
         show_members_overview(members_df, louvores_df, escalas_df, equipe_df)
+
+
+def show_sequencia_culto_page(
+    escalas_df: pd.DataFrame,
+    programa_df: pd.DataFrame,
+    equipe_df: pd.DataFrame,
+    louvores_df: pd.DataFrame,
+    members_df: pd.DataFrame | None = None,
+    *,
+    escala_id_pref: str | None = None,
+):
+    """Sequência do Culto: letras completas, marcações vocais e cifras por trecho."""
+    from catalog_sanitize import format_louvor_display, sanitize_catalog_text
+
+    seq_df = load_programa_sequencia_df()
+    can_edit = is_scale_manager(st.session_state.get("user_roles", []))
+    members_df = members_df if members_df is not None else pd.DataFrame()
+
+    st.markdown(
+        '<p class="music-panel-title">🎼 Sequência do Culto</p>',
+        unsafe_allow_html=True,
+    )
+    st.caption(
+        "Letras na ordem do culto, com marcações de solo, harmonia e uníssono. "
+        "Cifras com tom, capotraste e anotações por trecho para a banda."
+    )
+
+    todas = escalas_ordenadas(escalas_df)
+    if todas.empty:
+        st.info("Nenhuma escala cadastrada ainda.")
+        return
+
+    labels = [escala_label(r) for _, r in todas.iterrows()]
+    id_by_label = {escala_label(r): str(r["id"]) for _, r in todas.iterrows()}
+
+    pref = escala_id_pref or st.session_state.get("focus_sequencia_escala_id")
+    default_idx = 0
+    if pref:
+        for i, lb in enumerate(labels):
+            if id_by_label.get(lb) == str(pref):
+                default_idx = i
+                break
+
+    escolha = st.selectbox("Culto", labels, index=default_idx, key="seq_culto_sel")
+    escala_id = id_by_label[escolha]
+    row_esc = todas[todas["id"].astype(str) == escala_id].iloc[0]
+
+    prog = programa_por_escala(programa_df, escala_id)
+    if prog.empty:
+        st.warning(
+            "Esta escala ainda não tem louvores na programação. "
+            "Monte em **Gerenciar Escalas → Montar / editar escala**."
+        )
+        return
+
+    team = integrantes_escalados(row_esc, equipe_df, members_df)
+    vocal_opts = vocalistas_escala(team)
+    banda_opts = banda_escala(team)
+    if not vocal_opts:
+        st.caption("Nenhum vocal escalado identificado — use as funções Vocal/Ministrador na equipe.")
+    if not banda_opts:
+        st.caption("Nenhum instrumentista escalado — cadastre Baixo, Guitarra, Teclado, etc. na equipe.")
+
+    try:
+        dt = pd.to_datetime(str(row_esc.get("date", "")))
+        date_fmt = f"{_DIAS_SEMANA_PT[dt.weekday()]}, {dt.strftime('%d/%m/%Y')}"
+    except (ValueError, TypeError):
+        date_fmt = str(row_esc.get("date", ""))
+    st.markdown(
+        f"**{row_esc.get('event', 'Culto')}** · {date_fmt} · "
+        f"{len(prog)} música(s) na sequência"
+    )
+
+    song_labels = []
+    prog_by_label: dict[str, pd.Series] = {}
+    for _, item in prog.iterrows():
+        louvor = fix_louvor_display_title(sanitize_catalog_text(item.get("louvor_title", "")))
+        artist = sanitize_catalog_text(item.get("artist", ""))
+        lbl = f"{item['ordem']}. {format_louvor_display(louvor, artist)} ({item.get('parte', '')})"
+        song_labels.append(lbl)
+        prog_by_label[lbl] = item
+
+    musica = st.selectbox("Música na sequência", song_labels, key="seq_musica_sel")
+    item = prog_by_label[musica]
+    programa_id = str(item.get("id", ""))
+    louvor_t = sanitize_catalog_text(item.get("louvor_title", ""))
+    artist_t = sanitize_catalog_text(item.get("artist", ""))
+    tom_base = sanitize_catalog_text(item.get("key", "")) or "C"
+
+    seq_row = get_sequencia_row(seq_df, programa_id)
+    lyrics_stored = str(seq_row.get("lyrics_text", "")).strip()
+    cifra_stored = str(seq_row.get("cifra_text", "")).strip()
+    lyrics_default = lyrics_stored or default_lyrics_from_louvor(louvores_df, louvor_t, artist_t)
+    cifra_default = cifra_stored or default_cifra_from_louvor(louvores_df, louvor_t, artist_t)
+
+    tom_prog = str(seq_row.get("tom_programa", "")).strip() or tom_base
+    capo_val = int(pd.to_numeric(seq_row.get("capo", 0), errors="coerce") or 0)
+
+    tab_ver, tab_edit = st.tabs(["👁 Visualizar", "✏️ Editar sequência"])
+
+    paragraphs = split_lyrics_paragraphs(lyrics_default)
+    trechos_v = trechos_from_markup(str(seq_row.get("lyrics_markup", "")), max(len(paragraphs), 1))
+    trechos_b = trechos_from_markup(str(seq_row.get("cifra_markup", "")), max(len(paragraphs), 1))
+
+    lyrics_edit = lyrics_default
+    cifra_edit = cifra_default
+    tom_new = tom_prog if tom_prog in TOM_OPCOES else (tom_base if tom_base in TOM_OPCOES else "C")
+    capo_new = capo_val
+    trechos_v_new = trechos_v
+    trechos_b_new = trechos_b
+    salvar_rep = False
+
+    with tab_ver:
+        st.subheader("Letra com marcações")
+        if paragraphs:
+            st.markdown(
+                render_lyrics_annotated_html(paragraphs, trechos_v),
+                unsafe_allow_html=True,
+            )
+        else:
+            st.info("Letra ainda não cadastrada. Use a aba **Editar** para colar o texto completo.")
+
+        st.subheader("Cifra")
+        cifra_show = display_cifra_transposed(
+            cifra_default,
+            tom_base,
+            tom_prog,
+        ) or cifra_default
+        if cifra_show:
+            st.markdown(
+                render_cifra_html(cifra_show, effective_tom(tom_base, tom_prog), capo_val),
+                unsafe_allow_html=True,
+            )
+        else:
+            st.caption("Cole a cifra na aba Editar ou cadastre no repertório.")
+
+    with tab_edit:
+        if not can_edit:
+            st.info("Somente líderes e organizadores podem editar letras e cifras desta escala.")
+        else:
+            tab_letra, tab_cifra = st.tabs(["📝 Letra e vocais", "🎸 Cifra e banda"])
+
+            with tab_letra:
+                lyrics_edit = st.text_area(
+                    "Letra completa (parágrafos separados por linha em branco)",
+                    value=lyrics_default,
+                    height=280,
+                    key=f"seq_ly_{programa_id}",
+                )
+                paragraphs_edit = split_lyrics_paragraphs(lyrics_edit)
+                if not paragraphs_edit and lyrics_edit.strip():
+                    paragraphs_edit = [lyrics_edit.strip()]
+                st.markdown("**Marcações por trecho**")
+                st.caption(
+                    "Escolha Solo (lista dos vocais escalados), Harmonia de voz ou Uníssono. "
+                    "A pré-visualização à direita mostra as anotações na margem da letra."
+                )
+                col_ed, col_prev = st.columns([1, 1])
+                with col_ed:
+                    trechos_v_new = build_trechos_vocal_ui(
+                        st,
+                        paragraphs_edit or ["(cole a letra acima)"],
+                        vocal_opts,
+                        trechos_v,
+                        f"seqv_{programa_id}",
+                    )
+                with col_prev:
+                    if paragraphs_edit:
+                        st.markdown("**Prévia**")
+                        st.markdown(
+                            render_lyrics_annotated_html(paragraphs_edit, trechos_v_new),
+                            unsafe_allow_html=True,
+                        )
+
+            with tab_cifra:
+                cifra_edit = st.text_area(
+                    "Cifra (texto com acordes — uma linha por verso)",
+                    value=cifra_default,
+                    height=280,
+                    key=f"seq_cf_{programa_id}",
+                )
+                c1, c2, c3 = st.columns(3)
+                with c1:
+                    idx_tom = (
+                        list(TOM_OPCOES).index(tom_prog)
+                        if tom_prog in TOM_OPCOES
+                        else 0
+                    )
+                    tom_new = st.selectbox(
+                        "Tom do culto",
+                        TOM_OPCOES,
+                        index=idx_tom,
+                        key=f"seq_tom_{programa_id}",
+                    )
+                with c2:
+                    capo_new = st.number_input(
+                        "Capotraste (casa)",
+                        min_value=0,
+                        max_value=11,
+                        value=capo_val,
+                        key=f"seq_capo_{programa_id}",
+                    )
+                with c3:
+                    st.caption(f"Tom original no repertório: **{tom_base or '—'}**")
+                cifra_trans = display_cifra_transposed(cifra_edit, tom_base, tom_new)
+                st.markdown("**Cifra transposta (visualização)**")
+                if cifra_trans:
+                    st.markdown(
+                        render_cifra_html(cifra_trans, tom_new, int(capo_new)),
+                        unsafe_allow_html=True,
+                    )
+                st.markdown("**Anotações da banda por trecho**")
+                para_cifra = split_lyrics_paragraphs(lyrics_edit)
+                if not para_cifra:
+                    para_cifra = ["Trecho 1"]
+                trechos_b_new = build_trechos_banda_ui(
+                    st,
+                    para_cifra,
+                    banda_opts,
+                    trechos_b,
+                    f"seqb_{programa_id}",
+                )
+
+            salvar_rep = st.checkbox(
+                "Salvar letra e cifra também no **Repertório** (base para próximas escalas)",
+                value=False,
+                key=f"seq_rep_{programa_id}",
+            )
+            if st.button(
+                "💾 Salvar sequência desta música",
+                type="primary",
+                key=f"seq_save_{programa_id}",
+            ):
+                seq_df = upsert_sequencia_row(
+                    seq_df,
+                    programa_id,
+                    lyrics_text=lyrics_edit.strip(),
+                    lyrics_markup=markup_to_json(trechos_v_new),
+                    cifra_text=cifra_edit.strip(),
+                    tom_programa=str(tom_new),
+                    capo=int(capo_new),
+                    cifra_markup=markup_to_json(trechos_b_new),
+                )
+                save_programa_sequencia_df(seq_df)
+                if salvar_rep and louvor_t:
+                    mask = louvores_df["title"].astype(str).str.strip().str.lower() == louvor_t.lower()
+                    if artist_t:
+                        mask &= louvores_df["artist"].astype(str).str.strip().str.lower() == artist_t.lower()
+                    if mask.any():
+                        idx_l = louvores_df[mask].index[0]
+                        louvores_df.at[idx_l, "lyrics_text"] = lyrics_edit.strip()
+                        louvores_df.at[idx_l, "cifra_text"] = cifra_edit.strip()
+                        if tom_new:
+                            louvores_df.at[idx_l, "key"] = str(tom_new)
+                        save_data(louvores_df, LOUVORES_FILE)
+                st.success("Sequência salva para este louvor.")
+                st.rerun()
 
 
 def show_programa_culto_editor(
@@ -7151,10 +7521,11 @@ def show_escalas_page(
             "Aqui você solicita trocas e acompanha o chat do ensaio."
         )
 
-    tab_equipe, tab_todas, tab_trocar, tab_pedidos, tab_ensaio = st.tabs(
+    tab_equipe, tab_todas, tab_sequencia, tab_trocar, tab_pedidos, tab_ensaio = st.tabs(
         [
             "👥 Minha equipe",
             "📆 Todas minhas escalas",
+            "🎼 Sequência do Culto",
             "🔄 Trocar escala",
             "📬 Solicitações",
             "💬 Chat do ensaio",
@@ -7214,6 +7585,22 @@ def show_escalas_page(
                     louvores_df,
                     ensaio_notice=True,
                 )
+
+    with tab_sequencia:
+        pref = None
+        if st.session_state.get("_open_sequencia_tab"):
+            pref = st.session_state.pop("focus_sequencia_escala_id", None)
+            st.session_state.pop("_open_sequencia_tab", None)
+        if not pref:
+            pref = st.session_state.pop("focus_sequencia_escala_id", None)
+        show_sequencia_culto_page(
+            escalas_df,
+            programa_df,
+            equipe_df,
+            louvores_df,
+            members_df,
+            escala_id_pref=pref,
+        )
 
     with tab_trocar:
         st.write(
@@ -7872,6 +8259,7 @@ def _run_app() -> None:
                 "letter",
                 "source",
                 *LOUVOR_EXTRA_COLUMNS,
+                *LOUVOR_SEQUENCIA_COLUMNS,
             ),
         )
     )
