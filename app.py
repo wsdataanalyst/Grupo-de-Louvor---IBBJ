@@ -7239,6 +7239,26 @@ def show_gerenciar_escalas(
         show_members_overview(members_df, louvores_df, escalas_df, equipe_df)
 
 
+@st.cache_data(ttl=86400, show_spinner=False)
+def _fetch_louvor_web_cached(
+    title: str, artist: str, cifra_url: str, programa_id: str
+) -> tuple[str, str]:
+    """Letra e cifra via Vagalume (cache 24h por música do culto)."""
+    from cifra_fetch import fetch_louvor_lyrics_and_cifra
+    from link_finder import find_cifra_url
+
+    try:
+        result = fetch_louvor_lyrics_and_cifra(
+            title,
+            artist,
+            cifra_club_url=cifra_url,
+            resolve_cifra_url=find_cifra_url,
+        )
+        return result.lyrics_text, result.cifra_text
+    except Exception:
+        return "", ""
+
+
 def show_sequencia_culto_page(
     escalas_df: pd.DataFrame,
     programa_df: pd.DataFrame,
@@ -7331,6 +7351,55 @@ def show_sequencia_culto_page(
     cifra_stored = str(seq_row.get("cifra_text", "")).strip()
     lyrics_default = lyrics_stored or default_lyrics_from_louvor(louvores_df, louvor_t, artist_t)
     cifra_default = cifra_stored or default_cifra_from_louvor(louvores_df, louvor_t, artist_t)
+    cifra_url_item = sanitize_catalog_text(item.get("cifra_url", ""))
+
+    need_web = not lyrics_default.strip() or not cifra_default.strip()
+    fetch_col1, fetch_col2 = st.columns([1, 2])
+    with fetch_col1:
+        refetch = st.button(
+            "🌐 Buscar letra e cifra na web",
+            key=f"seq_fetch_{programa_id}",
+            disabled=not can_edit,
+        )
+    with fetch_col2:
+        st.caption(
+            "Importa automaticamente do Vagalume (usa o link do Cifra Club do repertório quando existir)."
+        )
+    if refetch:
+        _fetch_louvor_web_cached.clear()
+        st.session_state[f"_force_fetch_{programa_id}"] = True
+
+    force_fetch = st.session_state.pop(f"_force_fetch_{programa_id}", False)
+    if need_web or force_fetch:
+        with st.spinner("Buscando letra e cifra na internet…"):
+            web_ly, web_cf = _fetch_louvor_web_cached(
+                louvor_t, artist_t, cifra_url_item, programa_id
+            )
+        if web_ly and (not lyrics_default.strip() or force_fetch):
+            lyrics_default = web_ly
+        if web_cf and (not cifra_default.strip() or force_fetch):
+            cifra_default = web_cf
+        if web_ly or web_cf:
+            if can_edit and (force_fetch or not (lyrics_stored and cifra_stored)):
+                seq_df = upsert_sequencia_row(
+                    seq_df,
+                    programa_id,
+                    lyrics_text=lyrics_default.strip(),
+                    cifra_text=cifra_default.strip(),
+                )
+                save_programa_sequencia_df(seq_df)
+                st.success(
+                    "Letra e cifra encontradas na web e salvas para este louvor do culto."
+                )
+            else:
+                st.info(
+                    "Conteúdo carregado da internet. Revise em **Editar** e salve se for líder."
+                )
+        elif need_web:
+            st.warning(
+                "Não foi possível buscar automaticamente. Confira o link de cifra no repertório "
+                "ou cole a letra manualmente em **Editar**."
+            )
 
     tom_prog = str(seq_row.get("tom_programa", "")).strip() or tom_base
     capo_val = int(pd.to_numeric(seq_row.get("capo", 0), errors="coerce") or 0)
@@ -7357,7 +7426,9 @@ def show_sequencia_culto_page(
                 unsafe_allow_html=True,
             )
         else:
-            st.info("Letra ainda não cadastrada. Use a aba **Editar** para colar o texto completo.")
+            st.info(
+                "Letra ainda não disponível. Use **Buscar letra e cifra na web** ou a aba **Editar**."
+            )
 
         st.subheader("Cifra")
         cifra_show = display_cifra_transposed(
@@ -7371,7 +7442,9 @@ def show_sequencia_culto_page(
                 unsafe_allow_html=True,
             )
         else:
-            st.caption("Cole a cifra na aba Editar ou cadastre no repertório.")
+            st.caption(
+                "Use **Buscar letra e cifra na web** ou cole a cifra na aba **Editar**."
+            )
 
     with tab_edit:
         if not can_edit:
