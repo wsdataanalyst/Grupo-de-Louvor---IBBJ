@@ -1796,6 +1796,23 @@ def save_programa_sequencia_df(df: pd.DataFrame) -> None:
     save_data(prepare_programa_sequencia(df), PROGRAMA_SEQUENCIA_FILE)
 
 
+def hydrate_escala_sequencia_content(
+    escala_id: str,
+    programa_df: pd.DataFrame,
+    louvores_df: pd.DataFrame,
+) -> int:
+    """Copia letras/cifras do repertório para a sequência deste culto (sem internet)."""
+    from louvor_content import hydrate_escala_sequencia
+
+    return hydrate_escala_sequencia(
+        escala_id,
+        programa_df,
+        louvores_df,
+        load_seq=load_programa_sequencia_df,
+        save_seq=save_programa_sequencia_df,
+    )
+
+
 def prepare_programa(df: pd.DataFrame) -> pd.DataFrame:
     from catalog_sanitize import sanitize_catalog_text
 
@@ -6565,6 +6582,8 @@ def render_programa_louvores_editor(
                 pd.concat([programa_df, pd.DataFrame(novas)], ignore_index=True),
                 PROGRAMA_FILE,
             )
+            programa_df = prepare_programa(load_data(PROGRAMA_FILE, PROGRAMA_COLUMNS))
+            hydrate_escala_sequencia_content(escala_id, programa_df, louvores_df)
             st.success(f"{len(novas)} louvor(es) adicionado(s). O dashboard já está atualizado.")
             clear_louvor_picker_state(key_prefix)
             st.rerun()
@@ -6743,6 +6762,12 @@ def show_escala_completa_editor(
                                 [programa_df, pd.DataFrame(novas_prog)], ignore_index=True
                             ),
                             PROGRAMA_FILE,
+                        )
+                        programa_df = prepare_programa(
+                            load_data(PROGRAMA_FILE, PROGRAMA_COLUMNS)
+                        )
+                        hydrate_escala_sequencia_content(
+                            escala_id, programa_df, louvores_df
                         )
 
                     try:
@@ -7241,26 +7266,6 @@ def show_gerenciar_escalas(
         show_members_overview(members_df, louvores_df, escalas_df, equipe_df)
 
 
-@st.cache_data(ttl=86400, show_spinner=False)
-def _fetch_louvor_web_cached(
-    title: str, artist: str, cifra_url: str, programa_id: str
-) -> tuple[str, str]:
-    """Letra e cifra via Vagalume (cache 24h por música do culto)."""
-    from cifra_fetch import fetch_louvor_lyrics_and_cifra
-    from link_finder import find_cifra_url
-
-    try:
-        result = fetch_louvor_lyrics_and_cifra(
-            title,
-            artist,
-            cifra_club_url=cifra_url,
-            resolve_cifra_url=find_cifra_url,
-        )
-        return result.lyrics_text, result.cifra_text
-    except Exception:
-        return "", ""
-
-
 def show_sequencia_culto_page(
     escalas_df: pd.DataFrame,
     programa_df: pd.DataFrame,
@@ -7282,8 +7287,8 @@ def show_sequencia_culto_page(
         unsafe_allow_html=True,
     )
     st.caption(
-        "Letras na ordem do culto, com marcações de solo, harmonia e uníssono. "
-        "Cifras com tom, capotraste e anotações por trecho para a banda."
+        "Letras e cifras vêm do **repertório** (já salvas no app). "
+        "Marcações de solo, harmonia, tom e capotraste por trecho."
     )
 
     todas = escalas_ordenadas(escalas_df)
@@ -7313,6 +7318,10 @@ def show_sequencia_culto_page(
             "Monte em **Gerenciar Escalas → Montar / editar escala**."
         )
         return
+
+    n_sync = hydrate_escala_sequencia_content(escala_id, programa_df, louvores_df)
+    if n_sync:
+        seq_df = load_programa_sequencia_df()
 
     team = integrantes_escalados(row_esc, equipe_df, members_df)
     vocal_opts = vocalistas_escala(team)
@@ -7353,55 +7362,16 @@ def show_sequencia_culto_page(
     cifra_stored = str(seq_row.get("cifra_text", "")).strip()
     lyrics_default = lyrics_stored or default_lyrics_from_louvor(louvores_df, louvor_t, artist_t)
     cifra_default = cifra_stored or default_cifra_from_louvor(louvores_df, louvor_t, artist_t)
-    cifra_url_item = sanitize_catalog_text(item.get("cifra_url", ""))
 
-    need_web = not lyrics_default.strip() or not cifra_default.strip()
-    fetch_col1, fetch_col2 = st.columns([1, 2])
-    with fetch_col1:
-        refetch = st.button(
-            "🌐 Buscar letra e cifra na web",
-            key=f"seq_fetch_{programa_id}",
-            disabled=not can_edit,
-        )
-    with fetch_col2:
-        st.caption(
-            "Importa automaticamente do Vagalume (usa o link do Cifra Club do repertório quando existir)."
-        )
-    if refetch:
-        _fetch_louvor_web_cached.clear()
-        st.session_state[f"_force_fetch_{programa_id}"] = True
+    if not lyrics_default.strip() or not cifra_default.strip():
+        from louvor_content import count_louvores_missing_content
 
-    force_fetch = st.session_state.pop(f"_force_fetch_{programa_id}", False)
-    if need_web or force_fetch:
-        with st.spinner("Buscando letra e cifra na internet…"):
-            web_ly, web_cf = _fetch_louvor_web_cached(
-                louvor_t, artist_t, cifra_url_item, programa_id
-            )
-        if web_ly and (not lyrics_default.strip() or force_fetch):
-            lyrics_default = web_ly
-        if web_cf and (not cifra_default.strip() or force_fetch):
-            cifra_default = web_cf
-        if web_ly or web_cf:
-            if can_edit and (force_fetch or not (lyrics_stored and cifra_stored)):
-                seq_df = upsert_sequencia_row(
-                    seq_df,
-                    programa_id,
-                    lyrics_text=lyrics_default.strip(),
-                    cifra_text=cifra_default.strip(),
-                )
-                save_programa_sequencia_df(seq_df)
-                st.success(
-                    "Letra e cifra encontradas na web e salvas para este louvor do culto."
-                )
-            else:
-                st.info(
-                    "Conteúdo carregado da internet. Revise em **Editar** e salve se for líder."
-                )
-        elif need_web:
-            st.warning(
-                "Não foi possível buscar automaticamente. Confira o link de cifra no repertório "
-                "ou cole a letra manualmente em **Editar**."
-            )
+        faltam_rep = count_louvores_missing_content(louvores_df)
+        st.warning(
+            "Letra ou cifra ainda não estão no repertório desta música. "
+            f"({faltam_rep} louvor(es) sem texto completo no catálogo.) "
+            "Em **Repertório**, use **Importar letras e cifras** (líderes) ou cole em **Editar**."
+        )
 
     tom_prog = str(seq_row.get("tom_programa", "")).strip() or tom_base
     capo_val = int(pd.to_numeric(seq_row.get("capo", 0), errors="coerce") or 0)
@@ -7429,7 +7399,7 @@ def show_sequencia_culto_page(
             )
         else:
             st.info(
-                "Letra ainda não disponível. Use **Buscar letra e cifra na web** ou a aba **Editar**."
+                "Letra ainda não disponível no repertório. Importe em **Repertório** ou use **Editar**."
             )
 
         st.subheader("Cifra")
@@ -7445,7 +7415,7 @@ def show_sequencia_culto_page(
             )
         else:
             st.caption(
-                "Use **Buscar letra e cifra na web** ou cole a cifra na aba **Editar**."
+                "Importe no **Repertório** ou cole a cifra na aba **Editar**."
             )
 
     with tab_edit:
@@ -8027,6 +7997,52 @@ def show_louvores_catalog(louvores_df: pd.DataFrame):
                 missing += 1
     if missing:
         st.info(f"**{missing}** música(s) ainda sem link direto de YouTube ou Cifra.")
+
+    from louvor_content import (
+        count_louvores_missing_content,
+        enrich_louvores_letras_cifras,
+        ensure_louvor_content_columns,
+    )
+
+    louvores_df = ensure_louvor_content_columns(louvores_df.copy())
+    faltam_texto = count_louvores_missing_content(louvores_df)
+    if faltam_texto:
+        st.info(
+            f"**{faltam_texto}** música(s) sem letra ou cifra completa no app. "
+            "Importe abaixo (recomendado uma vez; depois tudo fica local)."
+        )
+
+    col_l0, col_l0b = st.columns(2)
+    with col_l0:
+        batch_letras = st.number_input(
+            "Importar letras/cifras (por vez)",
+            min_value=3,
+            max_value=20,
+            value=10,
+            step=1,
+            key="batch_letras_n",
+            help="Grava no repertório. A Sequência do Culto usa esses dados sem buscar na hora.",
+        )
+        if st.button("📜 Importar letras e cifras no repertório", use_container_width=True):
+            try:
+                with st.spinner(f"Importando até {int(batch_letras)} música(s)…"):
+                    df = louvores_df.copy()
+                    df, n = enrich_louvores_letras_cifras(
+                        df, use_web=True, limit=int(batch_letras)
+                    )
+                save_data(df, LOUVORES_FILE)
+                st.success(
+                    f"{n} música(s) com letra/cifra salvas no repertório. "
+                    "Abra **Sequência do Culto** para ver no culto."
+                )
+                st.rerun()
+            except Exception as exc:
+                show_exception_error(exc, context="Importar letras e cifras")
+    with col_l0b:
+        st.caption(
+            "Fonte: Vagalume (via link do Cifra Club). Execute várias vezes até zerar as pendências. "
+            "No terminal: `python scripts/enrich_louvor_letras.py --limit 30`"
+        )
 
     col_l1, col_l2 = st.columns(2)
     with col_l1:
