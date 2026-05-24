@@ -170,6 +170,10 @@ FEED_POSTS_FILE = DATA_DIR / "feed_posts.csv"
 FEED_LIKES_FILE = DATA_DIR / "feed_likes.csv"
 FEED_COMMENTS_FILE = DATA_DIR / "feed_comments.csv"
 FEED_QUEUE_FILE = DATA_DIR / "feed_queue.csv"
+# Orações/posts automáticos no feed (desativado: geravam centenas de posts e lentidão).
+FEED_AUTO_SCHEDULE_ENABLED = False
+# Limpeza única após deploy (incremente se precisar rodar de novo).
+FEED_ONE_TIME_PURGE_VERSION = 1
 SUGESTOES_FILE = DATA_DIR / "sugestoes_louvor.csv"
 PLAYLIST_COLUMNS = (
     "id",
@@ -894,6 +898,35 @@ def prepare_louvores_with_meta(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def purge_all_feed_data() -> int:
+    """Apaga todos os posts, curtidas, comentários e fila do feed (local + nuvem)."""
+    removed = 0
+    try:
+        from remote_store import dataframe_from_remote, is_remote_enabled
+
+        if is_remote_enabled():
+            remote_df = dataframe_from_remote(FEED_POST_COLUMNS, FEED_POSTS_FILE.name)
+            if remote_df is not None:
+                removed = len(remote_df)
+        elif FEED_POSTS_FILE.exists():
+            removed = len(pd.read_csv(FEED_POSTS_FILE, encoding="utf-8"))
+    except Exception:
+        pass
+    save_data(pd.DataFrame(columns=list(FEED_POST_COLUMNS)), FEED_POSTS_FILE)
+    save_data(pd.DataFrame(columns=list(FEED_LIKE_COLUMNS)), FEED_LIKES_FILE)
+    save_data(pd.DataFrame(columns=list(FEED_COMMENT_COLUMNS)), FEED_COMMENTS_FILE)
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame(columns=list(FEED_QUEUE_COLUMNS)).to_csv(
+        FEED_QUEUE_FILE, index=False, encoding="utf-8"
+    )
+    load_data.clear()
+    try:
+        st.session_state.pop("_feed_rev", None)
+    except Exception:
+        pass
+    return removed
+
+
 def delete_feed_post(post_id: str) -> None:
     posts, likes, comments = load_feed_bundle()
     pid = str(post_id)
@@ -981,7 +1014,9 @@ def schedule_feed_posts_for_escala(
     programa_df: pd.DataFrame,
     louvores_df: pd.DataFrame,
 ) -> None:
-    """Agenda post da equipe e orações diárias no feed."""
+    """Agenda posts no feed (desativado por padrão)."""
+    if not FEED_AUTO_SCHEDULE_ENABLED:
+        return
     dt_culto = pd.to_datetime(escala_row.get("date"), errors="coerce")
     culto_d = dt_culto.date() if pd.notna(dt_culto) else date.today()
     event = str(escala_row.get("event", "Culto"))
@@ -1249,11 +1284,13 @@ def append_feed_post(
     posts_df, _, _ = load_feed_bundle()
     ref_id = str(ref_id).strip()
     title_s = title.strip()
-    if ref_id and title_s and not posts_df.empty:
-        dup = posts_df[
-            (posts_df["ref_id"].astype(str).str.strip() == ref_id)
-            & (posts_df["title"].astype(str).str.strip() == title_s)
-        ]
+    post_type_s = post_type.strip()
+    if ref_id and not posts_df.empty:
+        dup = posts_df[posts_df["ref_id"].astype(str).str.strip() == ref_id]
+        if post_type_s:
+            dup = dup[dup["post_type"].astype(str).str.strip() == post_type_s]
+        if title_s:
+            dup = dup[dup["title"].astype(str).str.strip() == title_s]
         if not dup.empty:
             return
     row = {
@@ -5339,6 +5376,16 @@ def show_feed_page(
         "Novidades, músicas aprovadas e comunicados. Curta e comente — as atualizações "
         "sincronizam automaticamente a cada poucos segundos."
     )
+    if is_scale_manager(st.session_state.user_roles):
+        with st.expander("⚠️ Manutenção do feed (líderes)", expanded=False):
+            st.caption(
+                "Apaga **todos** os posts, curtidas e comentários. Use se o feed estiver "
+                "duplicado ou deixando o app lento."
+            )
+            if st.button("🗑️ Apagar todo o feed agora", key="feed_purge_all_btn"):
+                n = purge_all_feed_data()
+                st.success(f"Feed limpo ({n} publicação(ões) removida(s)).")
+                st.rerun()
 
     with st.expander("➕ Nova publicação", expanded=False):
         with st.form(key="feed_post_form"):
@@ -8500,6 +8547,13 @@ def _run_app() -> None:
     apply_music_theme()
     ensure_session_state()
 
+    if st.session_state.get("_feed_purge_v") != FEED_ONE_TIME_PURGE_VERSION:
+        try:
+            purge_all_feed_data()
+        except Exception:
+            pass
+        st.session_state._feed_purge_v = FEED_ONE_TIME_PURGE_VERSION
+
     if "data_guard_initialized" not in st.session_state:
         snapshot_data_folder(DATA_DIR)
         st.session_state.data_guard_initialized = True
@@ -8545,11 +8599,6 @@ def _run_app() -> None:
     if not st.session_state.authenticated:
         show_login_page(members_df)
         return
-
-    try:
-        process_feed_queue()
-    except Exception:
-        pass
 
     if not session_is_valid(st.session_state):
         session_logout(st.session_state)
