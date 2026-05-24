@@ -1632,6 +1632,7 @@ def render_swap_alerts_panel(
                         t, my_email, name, escalas_df, equipe_df, trocas_df
                     )
                     save_data(escalas_df, ESCALAS_FILE)
+                    save_data(equipe_df, EQUIPE_FILE)
                     save_data(trocas_df, TROCAS_FILE)
                     st.success("Troca aceita! A escala já foi atualizada para todos.")
                     st.rerun()
@@ -1668,10 +1669,11 @@ def render_swap_alerts_panel(
                 use_container_width=True,
                 type="primary",
             ):
-                escalas_df, _, trocas_df = accept_open_swap(
+                escalas_df, equipe_df, trocas_df = accept_open_swap(
                     t, my_email, name, escalas_df, equipe_df, trocas_df
                 )
                 save_data(escalas_df, ESCALAS_FILE)
+                save_data(equipe_df, EQUIPE_FILE)
                 save_data(trocas_df, TROCAS_FILE)
                 st.success("Troca realizada! A solicitação saiu do painel de todos.")
                 st.rerun()
@@ -1710,6 +1712,15 @@ def accept_open_swap(
                 accepter_name,
                 accepter_name,
             ]
+        req_email = str(troca_row.get("requester_email", "")).strip().lower()
+        if req_email and not equipe_df.empty:
+            mask_eq = (equipe_df["escala_id"].astype(str) == escala_id) & (
+                equipe_df["member_email"].astype(str).str.strip().str.lower() == req_email
+            )
+            if mask_eq.any():
+                equipe_df = equipe_df.copy()
+                equipe_df.loc[mask_eq, "member_email"] = accepter_email
+                equipe_df.loc[mask_eq, "member_name"] = accepter_name
 
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     tid = str(troca_row["id"])
@@ -2012,8 +2023,9 @@ def integrantes_escalados(
 
 
 def execute_swap(escalas_df: pd.DataFrame, escala_a: str, escala_b: str) -> pd.DataFrame:
-    idx_a = escalas_df.index[escalas_df["id"] == escala_a]
-    idx_b = escalas_df.index[escalas_df["id"] == escala_b]
+    escala_a, escala_b = str(escala_a), str(escala_b)
+    idx_a = escalas_df.index[escalas_df["id"].astype(str) == escala_a]
+    idx_b = escalas_df.index[escalas_df["id"].astype(str) == escala_b]
     if len(idx_a) == 0 or len(idx_b) == 0:
         return escalas_df
 
@@ -7964,10 +7976,11 @@ def show_escalas_page(
             with c1:
                 if st.button("✅ Aceitar", key=f"a{t['id']}", use_container_width=True):
                     name = st.session_state.user_full_name or st.session_state.user_name
-                    escalas_df, _, trocas_df = accept_open_swap(
+                    escalas_df, equipe_df, trocas_df = accept_open_swap(
                         t, my_email, name, escalas_df, equipe_df, trocas_df
                     )
                     save_data(escalas_df, ESCALAS_FILE)
+                    save_data(equipe_df, EQUIPE_FILE)
                     save_data(trocas_df, TROCAS_FILE)
                     st.rerun()
             with c2:
