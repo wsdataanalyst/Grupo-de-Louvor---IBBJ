@@ -279,15 +279,25 @@ def ensure_sequencia_louvor_content(
     if not cifra:
         cifra = default_cifra_from_louvor(louvores_df, louvor_t, artist_t)
 
+    try:
+        from cifra_fetch import _looks_like_cifra
+
+        if cifra and not _looks_like_cifra(cifra):
+            cifra = ""
+    except ImportError:
+        pass
+
     fetched_web = False
-    if use_web and (force_web_refresh or not lyrics or not cifra):
+    need_ly = force_web_refresh or not lyrics
+    need_cf = force_web_refresh or not cifra
+    if use_web and (need_ly or need_cf):
         web_ly, web_cf = fetch_louvor_content_web(
             louvor_t, artist_t, cifra_club_url=cifra_url
         )
-        if web_ly and (force_web_refresh or not lyrics):
+        if web_ly and need_ly:
             lyrics = web_ly
             fetched_web = True
-        if web_cf and (force_web_refresh or not cifra):
+        if web_cf and need_cf:
             cifra = web_cf
             fetched_web = True
 
@@ -302,7 +312,12 @@ def ensure_sequencia_louvor_content(
             tom_programa=tom,
         )
         if fetched_web:
-            msg = "Letra e cifra importadas da internet e salvas neste culto."
+            parts = []
+            if lyrics:
+                parts.append("letra")
+            if cifra:
+                parts.append("cifra")
+            msg = f"{' e '.join(parts).capitalize()} importada(s) da internet e salva(s) neste culto."
             if save_to_catalog and (lyrics or cifra):
                 louvores_df = apply_content_to_louvores_df(
                     louvores_df, louvor_t, artist_t, lyrics, cifra
@@ -310,6 +325,11 @@ def ensure_sequencia_louvor_content(
                 msg += " Também gravadas no repertório."
         elif not lyrics_hint and not cifra_hint:
             msg = "Carregado do repertório."
+    elif lyrics and not cifra:
+        msg = (
+            "Letra encontrada, mas a cifra não está disponível automaticamente para esta música. "
+            "Cole a cifra manualmente ou ajuste o link no repertório."
+        )
     elif use_web:
         msg = (
             "Não encontramos letra/cifra na web para esta música. "

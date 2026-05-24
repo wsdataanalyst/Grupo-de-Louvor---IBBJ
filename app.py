@@ -3643,6 +3643,29 @@ def apply_music_theme():
             line-height: 1.55;
             white-space: pre-wrap;
         }
+        .seq-inline-lyric {
+            display: flex;
+            gap: 0.65rem;
+            align-items: flex-start;
+            margin: 0 0 0.65rem;
+            padding: 0.5rem 0.65rem;
+            background: rgba(12, 10, 22, 0.6);
+            border-radius: 8px;
+        }
+        .seq-inline-lines {
+            flex: 1;
+            color: #f4f2fa;
+            font-size: 0.95rem;
+            line-height: 1.5;
+            white-space: pre-wrap;
+        }
+        .seq-cifra-panel {
+            background: rgba(12, 10, 20, 0.92);
+            border: 1px solid rgba(167, 139, 250, 0.35);
+            border-radius: 12px;
+            padding: 0.85rem 1rem;
+            margin-bottom: 1rem;
+        }
         .seq-cifra-view {
             background: rgba(12, 10, 20, 0.9);
             border: 1px solid rgba(167, 139, 250, 0.3);
@@ -7497,8 +7520,6 @@ def show_sequencia_culto_page(
     tom_prog = str(seq_row.get("tom_programa", "")).strip() or tom_base
     capo_val = int(pd.to_numeric(seq_row.get("capo", 0), errors="coerce") or 0)
 
-    tab_ver, tab_edit = st.tabs(["👁 Visualizar", "✏️ Editar sequência"])
-
     paragraphs = split_lyrics_paragraphs(lyrics_default)
     trechos_v = trechos_from_markup(str(seq_row.get("lyrics_markup", "")), max(len(paragraphs), 1))
     trechos_b = trechos_from_markup(str(seq_row.get("cifra_markup", "")), max(len(paragraphs), 1))
@@ -7511,148 +7532,142 @@ def show_sequencia_culto_page(
     trechos_b_new = trechos_b
     salvar_rep = False
 
-    with tab_ver:
-        st.subheader("Letra com marcações")
-        if paragraphs:
-            st.markdown(
-                render_lyrics_annotated_html(paragraphs, trechos_v),
-                unsafe_allow_html=True,
+    idx_tom = list(TOM_OPCOES).index(tom_prog) if tom_prog in TOM_OPCOES else 0
+    c1, c2, c3, c4 = st.columns([1.2, 1, 1, 2])
+    with c1:
+        tom_view = st.selectbox(
+            "Tom do culto",
+            TOM_OPCOES,
+            index=idx_tom,
+            key=f"seq_tom_view_{programa_id}",
+            disabled=not can_edit,
+        )
+    with c2:
+        capo_view = st.number_input(
+            "Capotraste",
+            min_value=0,
+            max_value=11,
+            value=capo_val,
+            key=f"seq_capo_view_{programa_id}",
+            disabled=not can_edit,
+        )
+    with c3:
+        st.caption(f"Tom no repertório: **{tom_base or '—'}**")
+    with c4:
+        if not cifra_default.strip():
+            st.warning("Cifra ainda não carregada — use o botão acima para buscar na internet.")
+
+    tom_show = tom_view if can_edit else tom_prog
+    capo_show = int(capo_view) if can_edit else capo_val
+    cifra_show = display_cifra_transposed(cifra_default, tom_base, tom_show) or cifra_default
+
+    st.markdown('<div class="seq-cifra-panel">', unsafe_allow_html=True)
+    st.markdown("#### 🎸 Cifra")
+    if cifra_show:
+        st.markdown(
+            render_cifra_html(cifra_show, effective_tom(tom_base, tom_show), capo_show),
+            unsafe_allow_html=True,
+        )
+    else:
+        st.info(
+            "Cifra indisponível. Clique em **Atualizar letra/cifra da internet** "
+            "ou cole manualmente abaixo (líderes)."
+        )
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    st.markdown("#### 📝 Letra com marcações vocais")
+    if can_edit:
+        with st.expander("✏️ Editar texto da letra", expanded=not paragraphs):
+            lyrics_edit = st.text_area(
+                "Letra completa — estrofes separadas por linha em branco",
+                value=lyrics_default,
+                height=220,
+                key=f"seq_ly_{programa_id}",
+                label_visibility="collapsed",
+            )
+        paragraphs_edit = split_lyrics_paragraphs(lyrics_edit)
+        if not paragraphs_edit and lyrics_edit.strip():
+            paragraphs_edit = [lyrics_edit.strip()]
+        if paragraphs_edit:
+            trechos_v_new = build_trechos_vocal_ui(
+                st,
+                paragraphs_edit,
+                vocal_opts,
+                trechos_v,
+                f"seqv_{programa_id}",
             )
         else:
-            st.info(
-                "Letra indisponível. O app tentará buscar na internet ao abrir a música, "
-                "ou cole em **Editar**."
+            st.caption("Cole a letra no expander acima para marcar os trechos.")
+    elif paragraphs:
+        st.markdown(
+            render_lyrics_annotated_html(paragraphs, trechos_v),
+            unsafe_allow_html=True,
+        )
+    else:
+        st.info("Letra indisponível para esta música.")
+
+    if can_edit:
+        st.markdown("---")
+        with st.expander("🎸 Editar cifra e anotações da banda"):
+            cifra_edit = st.text_area(
+                "Cifra (acordes por linha)",
+                value=cifra_default,
+                height=240,
+                key=f"seq_cf_{programa_id}",
+            )
+            tom_new = tom_view
+            capo_new = int(capo_view)
+            cifra_trans = display_cifra_transposed(cifra_edit, tom_base, tom_new)
+            if cifra_trans:
+                st.markdown("**Prévia transposta**")
+                st.markdown(
+                    render_cifra_html(cifra_trans, tom_new, capo_new),
+                    unsafe_allow_html=True,
+                )
+            para_cifra = split_lyrics_paragraphs(lyrics_edit) or ["Trecho 1"]
+            st.markdown("**Banda — por trecho da letra**")
+            trechos_b_new = build_trechos_banda_ui(
+                st,
+                para_cifra,
+                banda_opts,
+                trechos_b,
+                f"seqb_{programa_id}",
             )
 
-        st.subheader("Cifra")
-        cifra_show = display_cifra_transposed(
-            cifra_default,
-            tom_base,
-            tom_prog,
-        ) or cifra_default
-        if cifra_show:
-            st.markdown(
-                render_cifra_html(cifra_show, effective_tom(tom_base, tom_prog), capo_val),
-                unsafe_allow_html=True,
+        salvar_rep = st.checkbox(
+            "Salvar letra e cifra também no **Repertório**",
+            value=False,
+            key=f"seq_rep_{programa_id}",
+        )
+        if st.button(
+            "💾 Salvar sequência desta música",
+            type="primary",
+            key=f"seq_save_{programa_id}",
+        ):
+            seq_df = upsert_sequencia_row(
+                seq_df,
+                programa_id,
+                lyrics_text=lyrics_edit.strip(),
+                lyrics_markup=markup_to_json(trechos_v_new),
+                cifra_text=cifra_edit.strip(),
+                tom_programa=str(tom_new),
+                capo=int(capo_new),
+                cifra_markup=markup_to_json(trechos_b_new),
             )
-        else:
-            st.caption(
-                "Será buscada na internet automaticamente quando possível, ou cole em **Editar**."
-            )
-
-    with tab_edit:
-        if not can_edit:
-            st.info("Somente líderes e organizadores podem editar letras e cifras desta escala.")
-        else:
-            tab_letra, tab_cifra = st.tabs(["📝 Letra e vocais", "🎸 Cifra e banda"])
-
-            with tab_letra:
-                lyrics_edit = st.text_area(
-                    "Letra completa (parágrafos separados por linha em branco)",
-                    value=lyrics_default,
-                    height=280,
-                    key=f"seq_ly_{programa_id}",
-                )
-                paragraphs_edit = split_lyrics_paragraphs(lyrics_edit)
-                if not paragraphs_edit and lyrics_edit.strip():
-                    paragraphs_edit = [lyrics_edit.strip()]
-                st.markdown("**Marcações por trecho**")
-                st.caption(
-                    "Use os **atalhos** para marcar vários trechos de uma vez, ou a tabela abaixo. "
-                    "Vocais escalados aparecem automaticamente em Solo e Harmonia."
-                )
-                trechos_v_new = build_trechos_vocal_ui(
-                    st,
-                    paragraphs_edit or ["(cole a letra acima)"],
-                    vocal_opts,
-                    trechos_v,
-                    f"seqv_{programa_id}",
-                )
-
-            with tab_cifra:
-                cifra_edit = st.text_area(
-                    "Cifra (texto com acordes — uma linha por verso)",
-                    value=cifra_default,
-                    height=280,
-                    key=f"seq_cf_{programa_id}",
-                )
-                c1, c2, c3 = st.columns(3)
-                with c1:
-                    idx_tom = (
-                        list(TOM_OPCOES).index(tom_prog)
-                        if tom_prog in TOM_OPCOES
-                        else 0
-                    )
-                    tom_new = st.selectbox(
-                        "Tom do culto",
-                        TOM_OPCOES,
-                        index=idx_tom,
-                        key=f"seq_tom_{programa_id}",
-                    )
-                with c2:
-                    capo_new = st.number_input(
-                        "Capotraste (casa)",
-                        min_value=0,
-                        max_value=11,
-                        value=capo_val,
-                        key=f"seq_capo_{programa_id}",
-                    )
-                with c3:
-                    st.caption(f"Tom original no repertório: **{tom_base or '—'}**")
-                cifra_trans = display_cifra_transposed(cifra_edit, tom_base, tom_new)
-                st.markdown("**Cifra transposta (visualização)**")
-                if cifra_trans:
-                    st.markdown(
-                        render_cifra_html(cifra_trans, tom_new, int(capo_new)),
-                        unsafe_allow_html=True,
-                    )
-                st.markdown("**Anotações da banda por trecho**")
-                st.caption("Numeração igual à da letra — solo, entrada, tom local, dinâmica.")
-                para_cifra = split_lyrics_paragraphs(lyrics_edit)
-                if not para_cifra:
-                    para_cifra = ["Trecho 1"]
-                trechos_b_new = build_trechos_banda_ui(
-                    st,
-                    para_cifra,
-                    banda_opts,
-                    trechos_b,
-                    f"seqb_{programa_id}",
-                )
-
-            salvar_rep = st.checkbox(
-                "Salvar letra e cifra também no **Repertório** (base para próximas escalas)",
-                value=False,
-                key=f"seq_rep_{programa_id}",
-            )
-            if st.button(
-                "💾 Salvar sequência desta música",
-                type="primary",
-                key=f"seq_save_{programa_id}",
-            ):
-                seq_df = upsert_sequencia_row(
-                    seq_df,
-                    programa_id,
-                    lyrics_text=lyrics_edit.strip(),
-                    lyrics_markup=markup_to_json(trechos_v_new),
-                    cifra_text=cifra_edit.strip(),
-                    tom_programa=str(tom_new),
-                    capo=int(capo_new),
-                    cifra_markup=markup_to_json(trechos_b_new),
-                )
-                save_programa_sequencia_df(seq_df)
-                if salvar_rep and louvor_t:
-                    mask = louvores_df["title"].astype(str).str.strip().str.lower() == louvor_t.lower()
-                    if artist_t:
-                        mask &= louvores_df["artist"].astype(str).str.strip().str.lower() == artist_t.lower()
-                    if mask.any():
-                        idx_l = louvores_df[mask].index[0]
-                        louvores_df.at[idx_l, "lyrics_text"] = lyrics_edit.strip()
-                        louvores_df.at[idx_l, "cifra_text"] = cifra_edit.strip()
-                        if tom_new:
-                            louvores_df.at[idx_l, "key"] = str(tom_new)
-                        save_data(louvores_df, LOUVORES_FILE)
-                st.success("Sequência salva para este louvor.")
-                st.rerun()
+            save_programa_sequencia_df(seq_df)
+            if salvar_rep and louvor_t:
+                mask = louvores_df["title"].astype(str).str.strip().str.lower() == louvor_t.lower()
+                if artist_t:
+                    mask &= louvores_df["artist"].astype(str).str.strip().str.lower() == artist_t.lower()
+                if mask.any():
+                    idx_l = louvores_df[mask].index[0]
+                    louvores_df.at[idx_l, "lyrics_text"] = lyrics_edit.strip()
+                    louvores_df.at[idx_l, "cifra_text"] = cifra_edit.strip()
+                    if tom_new:
+                        louvores_df.at[idx_l, "key"] = str(tom_new)
+                    save_data(louvores_df, LOUVORES_FILE)
+            st.success("Sequência salva para este louvor.")
+            st.rerun()
 
 
 def show_programa_culto_editor(
