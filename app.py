@@ -1702,25 +1702,38 @@ def accept_open_swap(
     dest_id = str(troca_row.get("escala_id_destino", "")).strip()
     tipo = str(troca_row.get("tipo", "")).lower()
 
+    req_email = str(troca_row.get("requester_email", "")).strip().lower()
+
     if dest_id and tipo in ("direta", "com_escala", ""):
         escalas_df = execute_swap(escalas_df, escala_id, dest_id)
+        if req_email and not equipe_df.empty:
+            equipe_df = equipe_df.copy()
+            for eid in (escala_id, dest_id):
+                mask_eq = (equipe_df["escala_id"].astype(str) == eid) & (
+                    equipe_df["member_email"].astype(str).str.strip().str.lower() == req_email
+                )
+                if mask_eq.any():
+                    equipe_df.loc[mask_eq, "member_email"] = accepter_email
+                    equipe_df.loc[mask_eq, "member_name"] = accepter_name
     else:
-        idx = escalas_df.index[escalas_df["id"].astype(str) == escala_id]
-        if len(idx):
-            escalas_df.loc[idx[0], ["member_email", "member_name", "responsible"]] = [
-                accepter_email,
-                accepter_name,
-                accepter_name,
-            ]
-        req_email = str(troca_row.get("requester_email", "")).strip().lower()
+        equipe_df = equipe_df.copy() if not equipe_df.empty else equipe_df
+        swapped_in_equipe = False
         if req_email and not equipe_df.empty:
             mask_eq = (equipe_df["escala_id"].astype(str) == escala_id) & (
                 equipe_df["member_email"].astype(str).str.strip().str.lower() == req_email
             )
             if mask_eq.any():
-                equipe_df = equipe_df.copy()
                 equipe_df.loc[mask_eq, "member_email"] = accepter_email
                 equipe_df.loc[mask_eq, "member_name"] = accepter_name
+                swapped_in_equipe = True
+        if not swapped_in_equipe:
+            idx = escalas_df.index[escalas_df["id"].astype(str) == escala_id]
+            if len(idx) and str(escalas_df.loc[idx[0], "member_email"]).strip().lower() == req_email:
+                escalas_df.loc[idx[0], ["member_email", "member_name", "responsible"]] = [
+                    accepter_email,
+                    accepter_name,
+                    accepter_name,
+                ]
 
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     tid = str(troca_row["id"])
@@ -1825,13 +1838,66 @@ def escala_label(row) -> str:
     return f"{date} · {event} · {name}"
 
 
-def user_escalas(escalas_df: pd.DataFrame, email: str) -> pd.DataFrame:
+def _format_escala_date(raw: str) -> str:
+    try:
+        return pd.to_datetime(raw, errors="coerce").strftime("%d/%m/%Y")
+    except (ValueError, TypeError):
+        return str(raw)
+
+
+def escala_label_for_user(
+    row,
+    email: str,
+    equipe_df: pd.DataFrame,
+) -> str:
+    """Rótulo do culto para troca — mostra data, evento e função do usuário logado."""
     email = email.strip().lower()
-    mask = escalas_df["member_email"].astype(str).str.strip().str.lower() == email
-    if not mask.any():
-        name = st.session_state.user_name.strip().lower()
-        mask = escalas_df["responsible"].astype(str).str.lower().str.contains(name, na=False)
-    return escalas_df[mask].copy()
+    escala_id = str(row.get("id", ""))
+    event = str(row.get("event", ""))
+    date_fmt = _format_escala_date(str(row.get("date", "")))
+    if str(row.get("member_email", "")).strip().lower() == email:
+        func = FUNCAO_MINISTRADOR
+    else:
+        eq = equipe_por_escala(equipe_df, escala_id)
+        match = eq[eq["member_email"].astype(str).str.strip().str.lower() == email]
+        func = (
+            normalize_funcao_escala(str(match.iloc[0].get("funcao", "Integrante")))
+            if not match.empty
+            else "Integrante"
+        )
+    return f"{date_fmt} · {event} · {func}"
+
+
+def user_escalas(
+    escalas_df: pd.DataFrame,
+    email: str,
+    equipe_df: pd.DataFrame | None = None,
+) -> pd.DataFrame:
+    """Cultos em que o usuário participa (ministrador principal ou equipe do culto)."""
+    email = email.strip().lower()
+    escala_ids: set[str] = set()
+
+    principal_mask = escalas_df["member_email"].astype(str).str.strip().str.lower() == email
+    escala_ids.update(escalas_df.loc[principal_mask, "id"].astype(str))
+
+    if not escala_ids:
+        try:
+            name = st.session_state.user_name.strip().lower()
+        except Exception:
+            name = ""
+        if name:
+            resp_mask = escalas_df["responsible"].astype(str).str.lower().str.contains(
+                name, na=False
+            )
+            escala_ids.update(escalas_df.loc[resp_mask, "id"].astype(str))
+
+    if equipe_df is not None and not equipe_df.empty:
+        eq_mask = equipe_df["member_email"].astype(str).str.strip().str.lower() == email
+        escala_ids.update(equipe_df.loc[eq_mask, "escala_id"].astype(str))
+
+    if not escala_ids:
+        return escalas_df.iloc[0:0].copy()
+    return escalas_df[escalas_df["id"].astype(str).isin(escala_ids)].copy()
 
 
 def prepare_programa_sequencia(df: pd.DataFrame) -> pd.DataFrame:
@@ -7888,11 +7954,17 @@ def show_escalas_page(
             "Divulgue para o grupo ou peça a um integrante específico. "
             "A escala atualiza após aceite ou quando alguém assumir."
         )
-        minhas = user_escalas(escalas_df, my_email)
+        minhas = user_escalas(escalas_df, my_email, equipe_df)
         if minhas.empty:
-            st.warning("Você não tem escala vinculada ao seu login.")
+            st.warning(
+                "Não encontramos culto vinculado ao seu e-mail. "
+                "Confira se você está escalado em **Minha equipe** com o mesmo login."
+            )
         else:
-            minhas_opts = {escala_label(r): r["id"] for _, r in minhas.iterrows()}
+            minhas_opts = {
+                escala_label_for_user(r, my_email, equipe_df): str(r["id"])
+                for _, r in minhas.iterrows()
+            }
             with st.form(key="troca_form_v2"):
                 minha = st.selectbox("Minha escala", list(minhas_opts.keys()))
                 modo = st.radio(
