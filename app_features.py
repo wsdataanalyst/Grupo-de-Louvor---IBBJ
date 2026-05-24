@@ -28,16 +28,17 @@ def inject_app_notification_badges(
     sugestoes_pending: int = 0,
     swap_pending: int = 0,
 ) -> None:
-    """Badges separados no menu lateral (não colados ao texto)."""
+    """Badge vermelho flutuante sobre o ícone do menu (não ao lado do texto)."""
     from app import inject_page_html
 
-    badges = {}
+    badges: dict[str, int] = {}
     if chat_unread > 0:
         badges["Chat"] = min(99, int(chat_unread))
     if sugestoes_pending > 0:
         badges["Sugestão de louvor"] = min(99, int(sugestoes_pending))
     if swap_pending > 0:
         badges["Escalas"] = min(99, int(swap_pending))
+
     total = sum(badges.values())
     show_bell = "flex" if total > 0 else "none"
     total_label = "99+" if total > 99 else str(total)
@@ -47,35 +48,32 @@ def inject_app_notification_badges(
         f"""
         <style>
         section[data-testid="stSidebar"] div[data-testid="stRadio"] label {{
+            position: relative !important;
             display: flex !important;
             align-items: center !important;
-            justify-content: space-between !important;
-            gap: 0.5rem !important;
-            position: relative !important;
+            gap: 0.45rem !important;
+            padding-left: 0.15rem !important;
         }}
-        .nav-menu-badge {{
-            flex-shrink: 0;
-            min-width: 1.35rem;
-            height: 1.35rem;
-            padding: 0 0.35rem;
+        section[data-testid="stSidebar"] div[data-testid="stRadio"] label .nav-icon-badge {{
+            position: absolute;
+            left: 0.95rem;
+            top: -0.05rem;
+            min-width: 1.05rem;
+            height: 1.05rem;
+            padding: 0 0.28rem;
             border-radius: 999px;
-            background: #ef4444;
+            background: #ef4444 !important;
             color: #fff !important;
-            font-size: 0.7rem;
+            font-size: 0.58rem;
             font-weight: 800;
-            display: inline-flex;
+            display: none;
             align-items: center;
             justify-content: center;
-            margin-left: 0.35rem;
-            box-shadow: 0 2px 8px rgba(239,68,68,.45);
-        }}
-        .nav-menu-badge--sug {{
-            background: #f59e0b;
-            color: #1a0a2e !important;
-        }}
-        .nav-menu-badge--swap {{
-            background: #60a5fa;
-            color: #0f172a !important;
+            line-height: 1;
+            box-shadow: 0 2px 8px rgba(239, 68, 68, 0.65);
+            z-index: 12;
+            pointer-events: none;
+            border: 1.5px solid rgba(18, 10, 30, 0.9);
         }}
         #app-bell-notif {{
             position: fixed; top: 0.65rem; right: 0.75rem; z-index: 9999;
@@ -97,25 +95,46 @@ def inject_app_notification_badges(
         (function () {{
           var badges = {badges_json};
           var doc = window.parent.document;
+          function matchMenu(raw, menuName) {{
+            if (!raw || raw.indexOf(menuName) < 0) return false;
+            if (menuName === "Chat" && raw.toLowerCase().indexOf("ensaio") >= 0) return false;
+            if (menuName === "Escalas" && raw.indexOf("Gerenciar") >= 0) return false;
+            return true;
+          }}
           function attach() {{
             var sidebar = doc.querySelector('[data-testid="stSidebar"]');
             if (!sidebar) return;
             sidebar.querySelectorAll('[data-testid="stRadio"] label').forEach(function (el) {{
-              el.querySelectorAll('.nav-menu-badge').forEach(function (b) {{ b.remove(); }});
+              el.querySelectorAll('.nav-icon-badge').forEach(function (b) {{ b.remove(); }});
               var raw = (el.innerText || "").trim();
               Object.keys(badges).forEach(function (menuName) {{
-                if (raw.indexOf(menuName) < 0) return;
+                if (!matchMenu(raw, menuName)) return;
                 var n = badges[menuName];
                 var badge = doc.createElement('span');
-                badge.className = 'nav-menu-badge';
-                if (menuName.indexOf('Sugest') >= 0) badge.className += ' nav-menu-badge--sug';
-                if (menuName === 'Escalas') badge.className += ' nav-menu-badge--swap';
+                badge.className = 'nav-icon-badge';
                 badge.textContent = n > 99 ? '99+' : String(n);
+                badge.style.display = 'flex';
                 el.appendChild(badge);
               }});
             }});
+            doc.querySelectorAll('.quick-nav-btn').forEach(function (wrap) {{
+              wrap.querySelectorAll('.nav-icon-badge').forEach(function (b) {{ b.remove(); }});
+              var raw = (wrap.innerText || "").trim();
+              Object.keys(badges).forEach(function (menuName) {{
+                if (!matchMenu(raw, menuName)) return;
+                var n = badges[menuName];
+                var badge = doc.createElement('span');
+                badge.className = 'nav-icon-badge';
+                badge.textContent = n > 99 ? '99+' : String(n);
+                badge.style.display = 'flex';
+                wrap.style.position = 'relative';
+                wrap.appendChild(badge);
+              }});
+            }});
           }}
-          attach(); setTimeout(attach, 400); setTimeout(attach, 1200);
+          attach();
+          setTimeout(attach, 300);
+          setTimeout(attach, 900);
         }})();
         </script>
         """,

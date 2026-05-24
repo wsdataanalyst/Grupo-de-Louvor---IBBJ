@@ -1211,7 +1211,11 @@ def prepare_playlist(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def prepare_feed_posts(df: pd.DataFrame) -> pd.DataFrame:
-    return _prepare_text_columns(df, FEED_POST_COLUMNS)
+    df = _prepare_text_columns(df, FEED_POST_COLUMNS)
+    if df.empty or "id" not in df.columns:
+        return df
+    df = df.drop_duplicates(subset=["id"], keep="last")
+    return df
 
 
 def prepare_feed_likes(df: pd.DataFrame) -> pd.DataFrame:
@@ -1243,6 +1247,15 @@ def append_feed_post(
     image_url: str = "",
 ) -> None:
     posts_df, _, _ = load_feed_bundle()
+    ref_id = str(ref_id).strip()
+    title_s = title.strip()
+    if ref_id and title_s and not posts_df.empty:
+        dup = posts_df[
+            (posts_df["ref_id"].astype(str).str.strip() == ref_id)
+            & (posts_df["title"].astype(str).str.strip() == title_s)
+        ]
+        if not dup.empty:
+            return
     row = {
         "id": new_id(),
         "post_type": post_type.strip(),
@@ -2971,6 +2984,9 @@ def apply_music_theme():
         div[data-testid="column"] button[kind="secondary"] {
             border-radius: var(--radius-md) !important;
         }
+        .quick-nav-btn {
+            position: relative;
+        }
         .quick-nav-btn > button {
             min-height: 4.25rem !important;
             flex-direction: column !important;
@@ -3674,6 +3690,28 @@ def apply_music_theme():
             margin: 0.75rem 0;
         }
         .seq-cifra-meta { color: #a89bc4; font-size: 0.85rem; margin: 0 0 0.75rem; }
+        .cifra-club-body { margin-top: 0.5rem; }
+        .cifra-strophe { margin: 0.65rem 0 1rem; }
+        .cifra-chord-line {
+            color: #fbbf24;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 0.8rem;
+            font-weight: 700;
+            line-height: 1.35;
+            min-height: 1.2rem;
+            white-space: pre-wrap;
+        }
+        .cifra-chord-line .cifra-chord { color: #fbbf24; }
+        .cifra-lyric-line {
+            color: #f4f2fa;
+            font-size: 0.92rem;
+            line-height: 1.5;
+            white-space: pre-wrap;
+        }
+        .cifra-strophe-inline .cifra-lyric-line .cifra-chord {
+            color: #fbbf24;
+            font-weight: 700;
+        }
         .seq-cifra-pre {
             color: #fef3c7;
             font-family: 'Consolas', 'Courier New', monospace;
@@ -4032,8 +4070,7 @@ def render_dashboard_quick_actions(roles: str):
     cols = st.columns(min(len(links), 4))
     for col, name in zip(cols, links[:4]):
         with col:
-            extra = " quick-nav-btn--chat" if name == "Chat" else ""
-            st.markdown(f'<div class="quick-nav-btn{extra}">', unsafe_allow_html=True)
+            st.markdown('<div class="quick-nav-btn">', unsafe_allow_html=True)
             if st.button(
                 f"{icons.get(name, '🎵')}\n{name}",
                 key=f"quick_nav_{name}",
@@ -4047,8 +4084,7 @@ def render_dashboard_quick_actions(roles: str):
         cols2 = st.columns(min(len(links) - 4, 4))
         for col, name in zip(cols2, links[4:8]):
             with col:
-                extra = " quick-nav-btn--chat" if name == "Chat" else ""
-                st.markdown(f'<div class="quick-nav-btn{extra}">', unsafe_allow_html=True)
+                st.markdown('<div class="quick-nav-btn">', unsafe_allow_html=True)
                 if st.button(
                     f"{icons.get(name, '🎵')}\n{name}",
                     key=f"quick_nav2_{name}",
@@ -4400,8 +4436,8 @@ ESCALA_LIVE_FILE_NAMES = frozenset(
 MENUS_AUTO_REFRESH_ESCALA = frozenset(
     {"Dashboard", "Escalas", "Gerenciar Escalas", "Chat", "Feed", "Repertório"}
 )
-ESCALA_POLL_SECONDS = 2
-FEED_POLL_SECONDS = 2
+ESCALA_POLL_SECONDS = 8
+FEED_POLL_SECONDS = 10
 FEED_LIVE_FILE_NAMES = frozenset(
     {"feed_posts.csv", "feed_likes.csv", "feed_comments.csv"}
 )
@@ -5343,8 +5379,6 @@ def show_feed_page(
                 )
                 st.success("Publicado no feed!")
                 st.rerun()
-
-    _feed_global_sync()
 
     if posts_df.empty:
         st.info("Nenhuma publicação ainda. Músicas aprovadas aparecem aqui automaticamente.")
@@ -7576,12 +7610,18 @@ def show_sequencia_culto_page(
     st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown("#### 📝 Letra com marcações vocais")
+    lyrics_edit = lyrics_default
     if can_edit:
+        if paragraphs:
+            st.markdown(
+                render_lyrics_annotated_html(paragraphs, trechos_v),
+                unsafe_allow_html=True,
+            )
         with st.expander("✏️ Editar texto da letra", expanded=not paragraphs):
             lyrics_edit = st.text_area(
                 "Letra completa — estrofes separadas por linha em branco",
                 value=lyrics_default,
-                height=220,
+                height=180,
                 key=f"seq_ly_{programa_id}",
                 label_visibility="collapsed",
             )
@@ -8542,7 +8582,6 @@ def _run_app() -> None:
     except Exception:
         swap_alert_count = 0
     inject_app_notification_badges(chat_unread, sug_badge, swap_alert_count)
-    inject_swap_alerts_badges(swap_alert_count)
     render_sidebar_footer()
     render_push_admin_sidebar(members_df)
     render_data_loss_warning(members_df)
