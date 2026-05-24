@@ -47,6 +47,23 @@ TIPOS_BANDA = (
     "Silêncio",
 )
 
+TIPO_BANDA_CORE = (
+    "—",
+    "Solo instrumento",
+    "Entrada banda",
+    "Harmonia instrumental",
+    "Todos (banda)",
+)
+
+TIPO_BANDA_COLORS = {
+    "Solo instrumento": "#fbbf24",
+    "Entrada banda": "#60a5fa",
+    "Harmonia instrumental": "#c084fc",
+    "Todos (banda)": "#2dd4bf",
+    "Dinâmica / volume": "#fb7185",
+    "Silêncio": "#64748b",
+}
+
 PROGRAMA_SEQUENCIA_COLUMNS = (
     "programa_id",
     "lyrics_text",
@@ -95,61 +112,199 @@ def join_paragraphs(parts: list[str]) -> str:
     return "\n\n".join(p.strip() for p in parts if p.strip())
 
 
-def _tipo_label(tipo: str, integrantes: list[str], nota: str) -> str:
+def _append_nota(label: str, nota: str) -> str:
+    """Garante que observações opcionais apareçam na visualização final."""
+    nota = str(nota or "").strip()
+    if not nota:
+        return label
+    if nota in label:
+        return label
+    return f"{label} — {nota}" if label else f"💬 {nota}"
+
+
+def _tipo_label(
+    tipo: str,
+    integrantes: list[str],
+    nota: str,
+    *,
+    tom_trecho: str = "",
+) -> str:
     tipo = str(tipo or "").strip()
+    nota = str(nota or "").strip()
+    tom = str(tom_trecho or "").strip()
+    tom_suffix = f" · Tom {tom}" if tom else ""
     if tipo in ("—", ""):
-        return ""
+        return _append_nota("", nota)
     names = ", ".join(integrantes) if integrantes else ""
-    extra = f" — {nota}" if nota else ""
     if tipo == "Solo" and names:
-        return f"🎤 Solo: {names}{extra}"
+        return _append_nota(f"🎤 Solo: {names}", nota)
     if tipo == "Harmonia de voz":
-        return f"🎵 Harmonia de voz{f': {names}' if names else ''}{extra}"
+        base = f"🎵 Harmonia de voz{f': {names}' if names else ''}"
+        return _append_nota(base, nota)
     if tipo == "Uníssono":
-        return "👥 Uníssono"
+        return _append_nota("👥 Uníssono", nota)
     if tipo == "Todos juntos":
-        return "👥 Todos juntos"
+        return _append_nota("👥 Todos juntos", nota)
     if tipo == "Solo instrumento" and names:
-        return f"🎸 Solo: {names}{extra}"
+        return _append_nota(f"🎸 Solo: {names}{tom_suffix}", nota)
     if tipo == "Entrada banda":
-        return f"🎹 Entrada banda{f' ({names})' if names else ''}{extra}"
-    return f"{tipo}{f': {names}' if names else ''}{extra}"
+        base = f"🎹 Entrada banda{f' ({names})' if names else ''}{tom_suffix}"
+        return _append_nota(base, nota)
+    if tipo == "Harmonia instrumental":
+        base = f"🎶 Harmonia{f' ({names})' if names else ''}{tom_suffix}"
+        return _append_nota(base, nota)
+    if tipo == "Todos (banda)":
+        return _append_nota(f"🎹 Todos (banda){tom_suffix}", nota)
+    base = f"{tipo}{f': {names}' if names else ''}{tom_suffix}"
+    return _append_nota(base, nota)
+
+
+def _trecho_tem_marcacao(t: dict) -> bool:
+    tipo = str(t.get("tipo", "")).strip()
+    nota = str(t.get("nota", "")).strip()
+    tom = str(t.get("tom_trecho", "")).strip()
+    integrantes = t.get("integrantes") or []
+    return bool(
+        (tipo and tipo != "—")
+        or nota
+        or tom
+        or (integrantes and integrantes != [])
+    )
+
+
+def _badge_html(label: str, border: str, css_class: str = "seq-lyric-badge") -> str:
+    if not label:
+        return ""
+    return (
+        f'<span class="{css_class}" style="border-left-color:{border}">'
+        f"{html.escape(label)}</span>"
+    )
 
 
 def render_lyrics_annotated_html(
     paragraphs: list[str],
-    trechos: list[dict],
+    trechos_v: list[dict],
+    trechos_b: list[dict] | None = None,
 ) -> str:
-    """HTML da letra com margem colorida por trecho."""
+    """HTML da letra com vocal, banda e observações por trecho."""
     if not paragraphs:
         return '<p class="seq-empty">Cole a letra completa acima e salve.</p>'
 
+    trechos_b = trechos_b or []
     blocks = ['<div class="seq-lyrics-view">']
     blocks.append(render_legend_vocal_html())
+    if trechos_b:
+        blocks.append(render_legend_banda_html())
     for i, para in enumerate(paragraphs):
-        t = next((x for x in trechos if int(x.get("paragrafo", -1)) == i), {})
-        tipo = str(t.get("tipo", ""))
-        integrantes = t.get("integrantes") or []
-        if isinstance(integrantes, str):
-            integrantes = [integrantes] if integrantes else []
-        nota = str(t.get("nota", ""))
-        label = _tipo_label(tipo, integrantes, nota)
-        border = TIPO_CORE_COLORS.get(tipo, "#6b7280")
-        label_html = (
-            f'<span class="seq-lyric-badge" style="border-left-color:{border}">'
-            f"{html.escape(label)}</span>"
-            if label
-            else '<span class="seq-lyric-badge seq-lyric-badge-empty">sem marcação</span>'
-        )
+        tv = next((x for x in trechos_v if int(x.get("paragrafo", -1)) == i), {})
+        tb = next((x for x in trechos_b if int(x.get("paragrafo", -1)) == i), {})
+        tipo_v = str(tv.get("tipo", ""))
+        tipo_b = str(tb.get("tipo", ""))
+        int_v = tv.get("integrantes") or []
+        int_b = tb.get("integrantes") or []
+        if isinstance(int_v, str):
+            int_v = [int_v] if int_v else []
+        if isinstance(int_b, str):
+            int_b = [int_b] if int_b else []
+        nota_v = str(tv.get("nota", ""))
+        nota_b = str(tb.get("nota", ""))
+        tom_b = str(tb.get("tom_trecho", ""))
+        label_v = _tipo_label(tipo_v, list(int_v), nota_v)
+        label_b = _tipo_label(tipo_b, list(int_b), nota_b, tom_trecho=tom_b)
+        border = TIPO_CORE_COLORS.get(tipo_v) or TIPO_BANDA_COLORS.get(tipo_b, "#6b7280")
+        badges: list[str] = []
+        if label_v:
+            badges.append(_badge_html(f"Vocal: {label_v}", TIPO_CORE_COLORS.get(tipo_v, "#8b5cf6")))
+        if label_b:
+            badges.append(
+                _badge_html(
+                    f"Banda: {label_b}",
+                    TIPO_BANDA_COLORS.get(tipo_b, "#60a5fa"),
+                    "seq-lyric-badge seq-badge-banda",
+                )
+            )
+        if not badges:
+            badges.append(
+                '<span class="seq-lyric-badge seq-lyric-badge-empty">sem marcação</span>'
+            )
+        badges_html = f'<div class="seq-badges-col">{"".join(badges)}</div>'
         safe_para = html.escape(para).replace("\n", "<br>")
         num = i + 1
         blocks.append(
             f'<div class="seq-lyric-block" style="border-left:4px solid {border}" id="trecho-{num}">'
             f'<span class="seq-trecho-num" style="background:{border}">{num}</span>'
-            f"{label_html}<div class=\"seq-lyric-lines\">{safe_para}</div></div>"
+            f"{badges_html}<div class=\"seq-lyric-lines\">{safe_para}</div></div>"
         )
     blocks.append("</div>")
     return "".join(blocks)
+
+
+def render_cifra_direcoes_html(
+    paragraphs: list[str],
+    trechos_v: list[dict],
+    trechos_b: list[dict],
+) -> str:
+    """Direcionamentos por trecho acima da cifra (vocal + banda + obs.)."""
+    if not paragraphs:
+        return ""
+    rows: list[str] = []
+    for i, para in enumerate(paragraphs):
+        tv = next((x for x in trechos_v if int(x.get("paragrafo", -1)) == i), {})
+        tb = next((x for x in trechos_b if int(x.get("paragrafo", -1)) == i), {})
+        if not _trecho_tem_marcacao(tv) and not _trecho_tem_marcacao(tb):
+            continue
+        tipo_v = str(tv.get("tipo", ""))
+        tipo_b = str(tb.get("tipo", ""))
+        int_v = tv.get("integrantes") or []
+        int_b = tb.get("integrantes") or []
+        if isinstance(int_v, str):
+            int_v = [int_v] if int_v else []
+        if isinstance(int_b, str):
+            int_b = [int_b] if int_b else []
+        lv = _tipo_label(tipo_v, list(int_v), str(tv.get("nota", "")))
+        lb = _tipo_label(
+            tipo_b,
+            list(int_b),
+            str(tb.get("nota", "")),
+            tom_trecho=str(tb.get("tom_trecho", "")),
+        )
+        border = TIPO_CORE_COLORS.get(tipo_v) or TIPO_BANDA_COLORS.get(tipo_b, "#6b7280")
+        parts = [p for p in (lv, lb) if p]
+        if not parts:
+            continue
+        preview = html.escape(_trecho_preview_line(para, 56))
+        direcao = " · ".join(html.escape(p) for p in parts)
+        rows.append(
+            f'<div class="seq-cifra-dir" style="border-left:3px solid {border}">'
+            f'<span class="seq-cifra-dir-num">{i + 1}</span>'
+            f'<span class="seq-cifra-dir-text"><b>{direcao}</b></span>'
+            f'<span class="seq-cifra-dir-lyric">{preview}</span></div>'
+        )
+    if not rows:
+        return ""
+    return (
+        '<div class="seq-cifra-direcoes">'
+        '<p class="seq-cifra-direcoes-title">Direcionamento por trecho</p>'
+        + "".join(rows)
+        + "</div>"
+    )
+
+
+def render_legend_banda_html() -> str:
+    chips = [
+        ("Solo inst.", "#fbbf24"),
+        ("Entrada", "#60a5fa"),
+        ("Harmonia", "#c084fc"),
+        ("Todos", "#2dd4bf"),
+    ]
+    parts = ['<div class="seq-legend seq-legend-banda">']
+    for name, color in chips:
+        parts.append(
+            f'<span class="seq-legend-chip" style="border-color:{color}">'
+            f'<i style="background:{color}"></i>{html.escape(name)}</span>'
+        )
+    parts.append("</div>")
+    return "".join(parts)
 
 
 def render_legend_vocal_html() -> str:
@@ -519,6 +674,78 @@ def trechos_from_markup(raw: str, n_paragraphs: int) -> list[dict]:
     return out
 
 
+def _empty_trecho_banda(i: int) -> dict:
+    return {
+        "paragrafo": i,
+        "tipo": "—",
+        "integrantes": [],
+        "tom_trecho": "",
+        "nota": "",
+    }
+
+
+def _normalize_trechos_banda_state(state: list[dict], n: int) -> list[dict]:
+    by_i = {int(x.get("paragrafo", -1)): x for x in state}
+    out = []
+    for i in range(n):
+        t = by_i.get(i, _empty_trecho_banda(i))
+        integrantes = t.get("integrantes") or []
+        if isinstance(integrantes, str):
+            integrantes = [integrantes] if integrantes else []
+        out.append(
+            {
+                "paragrafo": i,
+                "tipo": str(t.get("tipo", "—")),
+                "integrantes": list(integrantes),
+                "tom_trecho": str(t.get("tom_trecho", "")),
+                "nota": str(t.get("nota", "")),
+            }
+        )
+    return out
+
+
+def trechos_banda_from_markup(raw: str, n_paragraphs: int) -> list[dict]:
+    parsed = parse_markup(raw)
+    by_idx = {int(x.get("paragrafo", -1)): x for x in parsed if "paragrafo" in x}
+    state = []
+    for i in range(n_paragraphs):
+        state.append(by_idx.get(i, _empty_trecho_banda(i)))
+    return _normalize_trechos_banda_state(state, n_paragraphs)
+
+
+def _apply_banda_preset(
+    state: list[dict],
+    preset: str,
+    banda_labels: list[str],
+) -> list[dict]:
+    n = len(state)
+    if preset == "todos_banda":
+        for i in range(n):
+            state[i] = {
+                **state[i],
+                "tipo": "Todos (banda)",
+                "integrantes": banda_labels[:],
+            }
+    elif preset == "primeiro_solo":
+        for i in range(n):
+            if i == 0:
+                state[i] = {
+                    **state[i],
+                    "tipo": "Solo instrumento",
+                    "integrantes": banda_labels[:1] if banda_labels else [],
+                }
+            else:
+                state[i] = {
+                    **state[i],
+                    "tipo": "Entrada banda",
+                    "integrantes": banda_labels[:],
+                }
+    elif preset == "limpar":
+        for i in range(n):
+            state[i] = _empty_trecho_banda(i)
+    return state
+
+
 def _render_inline_lyric_text(para: str, border: str, num: int) -> None:
     safe = html.escape(para).replace("\n", "<br>")
     st.markdown(
@@ -635,21 +862,19 @@ def build_trechos_vocal_ui(
                     if tipo_extra != "—":
                         tipo = tipo_extra
 
-            nota = ""
-            if tipo != "—":
-                nota = st.text_input(
-                    "Obs.",
-                    value=str(prev.get("nota", "")),
-                    key=f"{key_prefix}_vnota_{i}",
-                    placeholder="opcional",
-                    label_visibility="collapsed",
-                )
+            nota = st.text_input(
+                "Direcionamento",
+                value=str(prev.get("nota", "")),
+                key=f"{key_prefix}_vnota_{i}",
+                placeholder="Direcionamento opcional (aparece na letra e na cifra)",
+                label_visibility="collapsed",
+            )
 
         state[i] = {
             "paragrafo": i,
             "tipo": tipo,
             "integrantes": integrantes,
-            "nota": str(nota).strip() if tipo != "—" else "",
+            "nota": str(nota).strip(),
         }
 
     st.session_state[state_key] = state
@@ -663,61 +888,67 @@ def build_trechos_banda_ui(
     existing: list[dict],
     key_prefix: str,
 ) -> list[dict]:
-    """Tabela compacta de anotações da banda (sem expanders)."""
+    """Marcação da banda no mesmo padrão da vocal: estrofe + um clique por trecho."""
     n = len(paragraphs)
     if n == 0:
+        st.caption("Separe estrofes com linha em branco na letra (mesmos trechos da vocal).")
         return []
 
     labels = [x[0] for x in banda_opts]
     state_key = f"{key_prefix}_bstate"
+
     if state_key not in st.session_state or len(st.session_state[state_key]) != n:
-        by_i = {int(x.get("paragrafo", -1)): x for x in existing}
-        st.session_state[state_key] = [
-            {
-                "paragrafo": i,
-                "tipo": str(by_i.get(i, {}).get("tipo", "—")),
-                "integrantes": list(by_i.get(i, {}).get("integrantes") or []),
-                "tom_trecho": str(by_i.get(i, {}).get("tom_trecho", "")),
-                "nota": str(by_i.get(i, {}).get("nota", "")),
-            }
-            for i in range(n)
-        ]
+        st.session_state[state_key] = _normalize_trechos_banda_state(existing, n)
 
     state: list[dict] = st.session_state[state_key]
-    st.caption("Mesmos números de trecho da letra. Deixe em «—» se não houver anotação.")
 
-    h1, h2, h3, h4, h5, h6 = st.columns([0.35, 2.5, 1.4, 1.6, 1.1, 1.3])
-    h1.markdown("**#**")
-    h2.markdown("**Trecho**")
-    h3.markdown("**Tipo**")
-    h4.markdown("**Quem**")
-    h5.markdown("**Tom**")
-    h6.markdown("**Obs.**")
+    st.info(
+        "Mesmo formato da marcação vocal: escolha o tipo em cada estrofe. "
+        "Tom e observações aparecem na cifra e na letra ao salvar."
+    )
+
+    p1, p2, p3 = st.columns(3)
+    with p1:
+        if st.button("🎹 Todos (banda)", key=f"{key_prefix}_pre_tb", use_container_width=True):
+            st.session_state[state_key] = _apply_banda_preset(state, "todos_banda", labels)
+            st.rerun()
+    with p2:
+        if st.button("🎸 1º solo", key=f"{key_prefix}_pre_bs", use_container_width=True):
+            st.session_state[state_key] = _apply_banda_preset(state, "primeiro_solo", labels)
+            st.rerun()
+    with p3:
+        if st.button("↺ Limpar banda", key=f"{key_prefix}_pre_bc", use_container_width=True):
+            st.session_state[state_key] = _apply_banda_preset(state, "limpar", labels)
+            st.rerun()
+
+    radio_opts = list(TIPO_BANDA_CORE)
+    extra_tipos = [t for t in TIPOS_BANDA if t not in TIPO_BANDA_CORE]
 
     for i, para in enumerate(paragraphs):
         prev = state[i]
         tipo_prev = str(prev.get("tipo", "—"))
-        tom_prev = str(prev.get("tom_trecho", ""))
-        c1, c2, c3, c4, c5, c6 = st.columns([0.35, 2.5, 1.4, 1.6, 1.1, 1.3])
-        with c1:
-            st.markdown(f"**{i + 1}**")
-        with c2:
-            st.caption(_trecho_preview_line(para, 50))
-        with c3:
-            tipo = st.selectbox(
-                "btipo",
-                TIPOS_BANDA,
-                index=TIPOS_BANDA.index(tipo_prev) if tipo_prev in TIPOS_BANDA else 0,
+        border = TIPO_BANDA_COLORS.get(tipo_prev, "#4b5563")
+
+        with st.container(border=True):
+            _render_inline_lyric_text(para, border, i + 1)
+            if tipo_prev not in ("—", "") and tipo_prev not in radio_opts:
+                st.caption(f"Atual: **{tipo_prev}**")
+
+            tipo = st.radio(
+                "Tipo banda",
+                radio_opts,
+                index=radio_opts.index(tipo_prev) if tipo_prev in radio_opts else 0,
                 key=f"{key_prefix}_btipo_{i}",
+                horizontal=True,
                 label_visibility="collapsed",
             )
-        integrantes: list[str] = []
-        with c4:
+
+            integrantes: list[str] = []
             if tipo == "Solo instrumento" and labels:
                 prev_names = [x for x in (prev.get("integrantes") or []) if x in labels]
                 default_solo = prev_names[0] if prev_names else labels[0]
                 sel = st.selectbox(
-                    "bsolo",
+                    "Solo instrumento",
                     labels,
                     index=labels.index(default_solo) if default_solo in labels else 0,
                     key=f"{key_prefix}_bsolo_{i}",
@@ -726,38 +957,59 @@ def build_trechos_banda_ui(
                 integrantes = [sel]
             elif tipo in ("Entrada banda", "Harmonia instrumental") and labels:
                 integrantes = st.multiselect(
-                    "bband",
+                    "Quem",
                     labels,
                     default=[x for x in (prev.get("integrantes") or []) if x in labels],
                     key=f"{key_prefix}_bband_{i}",
                     label_visibility="collapsed",
                 )
-            else:
-                st.caption("—")
-        with c5:
+            elif tipo == "Todos (banda)":
+                integrantes = labels[:]
+
+            tom_prev = str(prev.get("tom_trecho", ""))
             tom_opts = [""] + list(TOM_OPCOES)
             tom_idx = tom_opts.index(tom_prev) if tom_prev in tom_opts else 0
-            tom_trecho = st.selectbox(
-                "btom",
-                tom_opts,
-                index=tom_idx,
-                key=f"{key_prefix}_btom_{i}",
-                label_visibility="collapsed",
-            )
-        with c6:
-            nota = st.text_input(
-                "bnota",
-                value=str(prev.get("nota", "")),
-                key=f"{key_prefix}_bnota_{i}",
-                label_visibility="collapsed",
-                placeholder="opcional",
-            )
+            c_tom, c_nota = st.columns([1, 2])
+            with c_tom:
+                tom_trecho = st.selectbox(
+                    "Tom do trecho",
+                    tom_opts,
+                    index=tom_idx,
+                    key=f"{key_prefix}_btom_{i}",
+                    label_visibility="visible",
+                )
+            with c_nota:
+                nota = st.text_input(
+                    "Direcionamento",
+                    value=str(prev.get("nota", "")),
+                    key=f"{key_prefix}_bnota_{i}",
+                    placeholder="Direcionamento opcional (aparece na letra e na cifra)",
+                    label_visibility="collapsed",
+                )
+
+            if extra_tipos:
+                with st.expander("Outro tipo (dinâmica, silêncio…)", expanded=False):
+                    tipo_extra = st.selectbox(
+                        "Tipo extra banda",
+                        ["—"] + extra_tipos,
+                        index=0
+                        if tipo_prev in radio_opts
+                        else (
+                            extra_tipos.index(tipo_prev) + 1
+                            if tipo_prev in extra_tipos
+                            else 0
+                        ),
+                        key=f"{key_prefix}_bextra_{i}",
+                    )
+                    if tipo_extra != "—":
+                        tipo = tipo_extra
+
         state[i] = {
             "paragrafo": i,
             "tipo": tipo,
             "integrantes": integrantes,
-            "tom_trecho": tom_trecho,
-            "nota": nota.strip(),
+            "tom_trecho": str(tom_trecho or ""),
+            "nota": str(nota).strip(),
         }
 
     st.session_state[state_key] = state

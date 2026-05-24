@@ -110,9 +110,11 @@ from sequencia_culto import (
     join_paragraphs,
     markup_to_json,
     parse_markup,
+    render_cifra_direcoes_html,
     render_cifra_html,
     render_lyrics_annotated_html,
     split_lyrics_paragraphs,
+    trechos_banda_from_markup,
     trechos_from_markup,
     upsert_sequencia_row,
     integrantes_marcacao_opts,
@@ -3768,8 +3770,13 @@ def apply_music_theme():
             font-weight: 700;
             color: #0f0a1a;
         }
+        .seq-badges-col {
+            flex: 0 0 12rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.35rem;
+        }
         .seq-lyric-badge {
-            flex: 0 0 11rem;
             font-size: 0.72rem;
             font-weight: 600;
             color: #e9d5ff;
@@ -3777,6 +3784,7 @@ def apply_music_theme():
             padding-left: 0.5rem;
             line-height: 1.35;
         }
+        .seq-badge-banda { color: #bae6fd; }
         .seq-lyric-badge-empty {
             color: #6b7280 !important;
             border-left-color: #4b5563 !important;
@@ -3805,6 +3813,40 @@ def apply_music_theme():
             font-size: 0.95rem;
             line-height: 1.5;
             white-space: pre-wrap;
+        }
+        .seq-cifra-direcoes {
+            margin: 0 0 0.85rem;
+            padding: 0.5rem 0.65rem;
+            background: rgba(30, 27, 45, 0.75);
+            border-radius: 8px;
+            border: 1px solid rgba(167, 139, 250, 0.25);
+        }
+        .seq-cifra-direcoes-title {
+            font-size: 0.75rem;
+            color: #a89bc4;
+            margin: 0 0 0.45rem;
+            font-weight: 600;
+        }
+        .seq-cifra-dir {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: baseline;
+            gap: 0.35rem 0.65rem;
+            margin: 0.35rem 0;
+            padding: 0.35rem 0.5rem;
+            font-size: 0.78rem;
+        }
+        .seq-cifra-dir-num {
+            font-weight: 700;
+            color: #c4b5fd;
+            min-width: 1.2rem;
+        }
+        .seq-cifra-dir-text { color: #f4f2fa; flex: 1 1 12rem; }
+        .seq-cifra-dir-lyric {
+            color: #9ca3af;
+            font-size: 0.72rem;
+            font-style: italic;
+            flex: 1 1 8rem;
         }
         .seq-cifra-panel {
             background: rgba(12, 10, 20, 0.92);
@@ -7597,7 +7639,7 @@ def show_sequencia_culto_page(
 
     team = integrantes_escalados(row_esc, equipe_df, members_df)
     vocal_opts = integrantes_marcacao_opts(team)
-    banda_opts = banda_escala(team)
+    banda_opts = banda_escala(team) or integrantes_marcacao_opts(team)
     if not vocal_opts:
         st.caption("Nenhum integrante na equipe deste culto — cadastre a escala em Gerenciar Escalas.")
     if not banda_opts:
@@ -7696,8 +7738,9 @@ def show_sequencia_culto_page(
     capo_val = int(pd.to_numeric(seq_row.get("capo", 0), errors="coerce") or 0)
 
     paragraphs = split_lyrics_paragraphs(lyrics_default)
-    trechos_v = trechos_from_markup(str(seq_row.get("lyrics_markup", "")), max(len(paragraphs), 1))
-    trechos_b = trechos_from_markup(str(seq_row.get("cifra_markup", "")), max(len(paragraphs), 1))
+    n_para = max(len(paragraphs), 1)
+    trechos_v = trechos_from_markup(str(seq_row.get("lyrics_markup", "")), n_para)
+    trechos_b = trechos_banda_from_markup(str(seq_row.get("cifra_markup", "")), n_para)
 
     lyrics_edit = lyrics_default
     cifra_edit = cifra_default
@@ -7705,6 +7748,7 @@ def show_sequencia_culto_page(
     capo_new = capo_val
     trechos_v_new = trechos_v
     trechos_b_new = trechos_b
+    paragraphs_edit = paragraphs
     salvar_rep = False
 
     idx_tom = list(TOM_OPCOES).index(tom_prog) if tom_prog in TOM_OPCOES else 0
@@ -7736,8 +7780,11 @@ def show_sequencia_culto_page(
     capo_show = int(capo_view) if can_edit else capo_val
     cifra_show = display_cifra_transposed(cifra_default, tom_base, tom_show) or cifra_default
 
+    direcoes_html = render_cifra_direcoes_html(paragraphs, trechos_v, trechos_b)
     st.markdown('<div class="seq-cifra-panel">', unsafe_allow_html=True)
     st.markdown("#### 🎸 Cifra")
+    if direcoes_html:
+        st.markdown(direcoes_html, unsafe_allow_html=True)
     if cifra_show:
         st.markdown(
             render_cifra_html(cifra_show, effective_tom(tom_base, tom_show), capo_show),
@@ -7750,14 +7797,17 @@ def show_sequencia_culto_page(
         )
     st.markdown("</div>", unsafe_allow_html=True)
 
-    st.markdown("#### 📝 Letra com marcações vocais")
+    st.markdown("#### 📝 Letra com marcações (vocal e banda)")
     lyrics_edit = lyrics_default
+    cifra_edit = cifra_default
+    tom_new = tom_prog if tom_prog in TOM_OPCOES else (tom_base if tom_base in TOM_OPCOES else "C")
+    capo_new = capo_val
+    if paragraphs:
+        st.markdown(
+            render_lyrics_annotated_html(paragraphs, trechos_v, trechos_b),
+            unsafe_allow_html=True,
+        )
     if can_edit:
-        if paragraphs:
-            st.markdown(
-                render_lyrics_annotated_html(paragraphs, trechos_v),
-                unsafe_allow_html=True,
-            )
         with st.expander("✏️ Editar texto da letra", expanded=not paragraphs):
             lyrics_edit = st.text_area(
                 "Letra completa — estrofes separadas por linha em branco",
@@ -7770,6 +7820,7 @@ def show_sequencia_culto_page(
         if not paragraphs_edit and lyrics_edit.strip():
             paragraphs_edit = [lyrics_edit.strip()]
         if paragraphs_edit:
+            st.markdown("#### 🎤 Marcações vocais")
             trechos_v_new = build_trechos_vocal_ui(
                 st,
                 paragraphs_edit,
@@ -7777,19 +7828,18 @@ def show_sequencia_culto_page(
                 trechos_v,
                 f"seqv_{programa_id}",
             )
+            st.markdown("#### 🎹 Marcações da banda")
+            trechos_b_new = build_trechos_banda_ui(
+                st,
+                paragraphs_edit,
+                banda_opts,
+                trechos_b,
+                f"seqb_{programa_id}",
+            )
         else:
             st.caption("Cole a letra no expander acima para marcar os trechos.")
-    elif paragraphs:
-        st.markdown(
-            render_lyrics_annotated_html(paragraphs, trechos_v),
-            unsafe_allow_html=True,
-        )
-    else:
-        st.info("Letra indisponível para esta música.")
-
-    if can_edit:
         st.markdown("---")
-        with st.expander("🎸 Editar cifra e anotações da banda"):
+        with st.expander("🎸 Editar cifra (texto)", expanded=False):
             cifra_edit = st.text_area(
                 "Cifra (acordes por linha)",
                 value=cifra_default,
@@ -7805,15 +7855,8 @@ def show_sequencia_culto_page(
                     render_cifra_html(cifra_trans, tom_new, capo_new),
                     unsafe_allow_html=True,
                 )
-            para_cifra = split_lyrics_paragraphs(lyrics_edit) or ["Trecho 1"]
-            st.markdown("**Banda — por trecho da letra**")
-            trechos_b_new = build_trechos_banda_ui(
-                st,
-                para_cifra,
-                banda_opts,
-                trechos_b,
-                f"seqb_{programa_id}",
-            )
+    elif not paragraphs:
+        st.info("Letra indisponível para esta música.")
 
         salvar_rep = st.checkbox(
             "Salvar letra e cifra também no **Repertório**",
