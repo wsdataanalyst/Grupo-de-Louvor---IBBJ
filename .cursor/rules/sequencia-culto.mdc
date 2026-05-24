@@ -24,6 +24,12 @@ Não regredir estas escolhas de UX sem pedido explícito:
 - `render_cifra_direcoes_html`: resumo dos trechos acima da cifra.
 - Cifra estilo Cifra Club (`render_cifra_html` + `normalize_cifra_text`); sem lixo de site.
 
+## Repertório (banco local)
+- Prioridade de letra/cifra: `lyrics_text` / `cifra_text` no CSV do repertório → sequência → web.
+- Salvar na Sequência com checkbox grava no repertório (`sequencia_culto` em `source`).
+- Edição no repertório propaga título/artista/links via `louvor_sync.propagate_louvor_catalog_update`.
+- Importação em lote: `enrich_louvores_letras_cifras` (não exibir na tabela; só no banco).
+
 ## Importação web
 - `lyrics_validation.py`: validar letra/cifra antes de salvar (título, slug URL, tamanho).
 - Não gravar letra errada de outra música.

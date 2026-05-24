@@ -1,0 +1,15 @@
+---
+description: Repertório como fonte única — propagação e banco de letras/cifras
+globs:
+  - louvor_content.py
+  - louvor_sync.py
+  - data/louvores.csv
+  - app.py
+---
+
+# Repertório — sincronização em todo o app
+
+- `data/louvores.csv` é o banco: `lyrics_text`, `cifra_text` (organizadas), metadados visíveis na UI.
+- Ao **editar título/artista/tom/links** no repertório, usar `louvor_sync.apply_repertoire_save_side_effects` para atualizar `programa_culto.csv` e `programa_sequencia.csv`.
+- Não duplicar lógica de match de louvor; usar `louvor_sync.louvor_matches_row`.
+- Sequência do Culto e hydrate: repertório **antes** da web (`louvor_content.ensure_sequencia_louvor_content`).

@@ -7576,8 +7576,8 @@ def show_sequencia_culto_page(
         unsafe_allow_html=True,
     )
     st.caption(
-        "Primeiro usa o **repertório**; se ainda não houver letra/cifra, o app **busca na internet** "
-        "e traz o texto completo, pronto para ensaio (marcações, tom e capotraste)."
+        "Ordem: **repertório local** (banco) → sequência salva → **internet** se faltar. "
+        "Marque «Salvar na base do Repertório» para alimentar o banco do ministério."
     )
 
     todas = escalas_ordenadas(escalas_df)
@@ -7858,9 +7858,10 @@ def show_sequencia_culto_page(
     elif not paragraphs:
         st.info("Letra indisponível para esta música.")
 
+    if can_edit:
         salvar_rep = st.checkbox(
-            "Salvar letra e cifra também no **Repertório**",
-            value=False,
+            "Salvar letra e cifra na **base do Repertório** (banco local do ministério)",
+            value=True,
             key=f"seq_rep_{programa_id}",
         )
         if st.button(
@@ -7868,29 +7869,47 @@ def show_sequencia_culto_page(
             type="primary",
             key=f"seq_save_{programa_id}",
         ):
+            from cifra_fetch import normalize_cifra_text
+            from louvor_content import apply_content_to_louvores_df
+
+            cifra_save = normalize_cifra_text(cifra_edit)
             seq_df = upsert_sequencia_row(
                 seq_df,
                 programa_id,
                 lyrics_text=lyrics_edit.strip(),
                 lyrics_markup=markup_to_json(trechos_v_new),
-                cifra_text=cifra_edit.strip(),
+                cifra_text=cifra_save,
                 tom_programa=str(tom_new),
                 capo=int(capo_new),
                 cifra_markup=markup_to_json(trechos_b_new),
             )
             save_programa_sequencia_df(seq_df)
             if salvar_rep and louvor_t:
-                mask = louvores_df["title"].astype(str).str.strip().str.lower() == louvor_t.lower()
-                if artist_t:
-                    mask &= louvores_df["artist"].astype(str).str.strip().str.lower() == artist_t.lower()
-                if mask.any():
-                    idx_l = louvores_df[mask].index[0]
-                    louvores_df.at[idx_l, "lyrics_text"] = lyrics_edit.strip()
-                    louvores_df.at[idx_l, "cifra_text"] = cifra_edit.strip()
-                    if tom_new:
-                        louvores_df.at[idx_l, "key"] = str(tom_new)
-                    save_data(louvores_df, LOUVORES_FILE)
-            st.success("Sequência salva para este louvor.")
+                louvores_df = apply_content_to_louvores_df(
+                    louvores_df,
+                    louvor_t,
+                    artist_t,
+                    lyrics_edit,
+                    cifra_save,
+                    source_tag="sequencia_culto",
+                )
+                if tom_new:
+                    mask_l = (
+                        louvores_df["title"].astype(str).str.strip().str.lower()
+                        == louvor_t.lower()
+                    )
+                    if artist_t:
+                        mask_l &= (
+                            louvores_df["artist"].astype(str).str.strip().str.lower()
+                            == artist_t.lower()
+                        )
+                    if mask_l.any():
+                        louvores_df.at[louvores_df[mask_l].index[0], "key"] = str(tom_new)
+                save_data(louvores_df, LOUVORES_FILE)
+            msg_ok = "Sequência salva para este louvor."
+            if salvar_rep and louvor_t:
+                msg_ok += " Letra e cifra gravadas no repertório local."
+            st.success(msg_ok)
             st.rerun()
 
 
@@ -8305,10 +8324,24 @@ def _render_louvores_edit_manager(louvores_df: pd.DataFrame):
         nk = st.text_input("Tom", value=str(louvores_df.at[idx, "key"]))
         nr = st.text_input("Ritmo", value=str(louvores_df.at[idx, "ritmo"]))
         nyt = st.text_input("YouTube", value=str(louvores_df.at[idx, "youtube_url"]))
-        ncif = st.text_input("Cifra", value=str(louvores_df.at[idx, "cifra_url"]))
+        ncif = st.text_input("Link Cifra Club", value=str(louvores_df.at[idx, "cifra_url"]))
         ntemas = st.text_input(
             "Temas (separados por ;)",
             value=str(louvores_df.at[idx, "temas"]),
+        )
+        st.caption(
+            "Letra e cifra abaixo ficam no **banco do repertório** e alimentam a "
+            "**Sequência do Culto** (antes da busca na internet)."
+        )
+        nly = st.text_area(
+            "Letra completa (repertório)",
+            value=str(louvores_df.at[idx, "lyrics_text"]),
+            height=140,
+        )
+        ncf = st.text_area(
+            "Cifra completa (repertório)",
+            value=str(louvores_df.at[idx, "cifra_text"]),
+            height=140,
         )
         c1, c2 = st.columns(2)
         with c1:
@@ -8316,6 +8349,11 @@ def _render_louvores_edit_manager(louvores_df: pd.DataFrame):
         with c2:
             excluir = st.form_submit_button("🗑️ Excluir", use_container_width=True)
     if salvar:
+        from louvor_content import apply_content_to_louvores_df
+        from louvor_sync import apply_repertoire_save_side_effects
+
+        old_title = titulo_orig.strip()
+        old_artist = str(louvores_df.at[idx, "artist"]).strip()
         meta = ensure_louvor_row_metadata(nt, na, ntemas, "", "")
         louvores_df.at[idx, "title"] = nt.strip()
         louvores_df.at[idx, "artist"] = na.strip()
@@ -8327,8 +8365,38 @@ def _render_louvores_edit_manager(louvores_df: pd.DataFrame):
         louvores_df.at[idx, "ref_biblica"] = meta["ref_biblica"]
         louvores_df.at[idx, "duracao_min"] = meta["duracao_min"]
         louvores_df.at[idx, "letter"] = nt.strip()[0].upper() if nt.strip() else "A"
+        louvores_df = apply_content_to_louvores_df(
+            louvores_df,
+            nt.strip(),
+            na.strip(),
+            nly,
+            ncf,
+            source_tag="repertorio_editado",
+        )
         save_data(louvores_df, LOUVORES_FILE)
-        st.success("Louvor atualizado.")
+        programa_df = prepare_programa(load_data(PROGRAMA_FILE, PROGRAMA_COLUMNS))
+        seq_df = load_programa_sequencia_df()
+        programa_df, seq_df, stats = apply_repertoire_save_side_effects(
+            programa_df,
+            seq_df,
+            louvores_df,
+            old_title,
+            old_artist,
+            nt.strip(),
+            na.strip(),
+            refresh_sequencia=True,
+        )
+        if stats["programa"]:
+            save_data(programa_df, PROGRAMA_FILE)
+        if stats["sequencia"]:
+            save_programa_sequencia_df(seq_df)
+        extra = ""
+        if stats["programa"] or stats["sequencia"]:
+            extra = (
+                f" Atualizado em **{stats['programa']}** culto(s) na programação "
+                f"e **{stats['sequencia']}** sequência(s) com letra/cifra do repertório."
+            )
+        st.success(f"Louvor atualizado.{extra}")
         st.rerun()
     if excluir:
         louvores_df = louvores_df.drop(index=idx)
@@ -8360,16 +8428,23 @@ def show_louvores_catalog(louvores_df: pd.DataFrame):
 
     from louvor_content import (
         count_louvores_missing_content,
+        count_louvores_with_full_content,
         enrich_louvores_letras_cifras,
         ensure_louvor_content_columns,
     )
 
     louvores_df = ensure_louvor_content_columns(louvores_df.copy())
     faltam_texto = count_louvores_missing_content(louvores_df)
+    completas = count_louvores_with_full_content(louvores_df)
+    total_rep = len(louvores_df)
+    st.caption(
+        f"Banco local: **{completas}** de **{total_rep}** com letra e cifra no repertório "
+        "(usadas na Sequência do Culto antes da internet)."
+    )
     if faltam_texto:
         st.info(
-            f"**{faltam_texto}** música(s) sem letra ou cifra completa no app. "
-            "Importe abaixo (recomendado uma vez; depois tudo fica local)."
+            f"**{faltam_texto}** música(s) ainda sem letra ou cifra no banco. "
+            "Importe abaixo para montar o acervo do ministério."
         )
 
     col_l0, col_l0b = st.columns(2)
@@ -8377,13 +8452,13 @@ def show_louvores_catalog(louvores_df: pd.DataFrame):
         batch_letras = st.number_input(
             "Importar letras/cifras (por vez)",
             min_value=3,
-            max_value=20,
+            max_value=50,
             value=10,
             step=1,
             key="batch_letras_n",
-            help="Grava no repertório. A Sequência do Culto usa esses dados sem buscar na hora.",
+            help="Grava no repertório (não aparece na tabela). Sequência do Culto lê daqui primeiro.",
         )
-        if st.button("📜 Importar letras e cifras no repertório", use_container_width=True):
+        if st.button("📜 Importar lote no repertório", use_container_width=True):
             try:
                 with st.spinner(f"Importando até {int(batch_letras)} música(s)…"):
                     df = louvores_df.copy()
@@ -8392,16 +8467,42 @@ def show_louvores_catalog(louvores_df: pd.DataFrame):
                     )
                 save_data(df, LOUVORES_FILE)
                 st.success(
-                    f"{n} música(s) com letra/cifra salvas no repertório. "
-                    "Abra **Sequência do Culto** para ver no culto."
+                    f"{n} música(s) salvas no banco do repertório. "
+                    "A Sequência do Culto e as escalas passam a usar esses textos."
                 )
                 st.rerun()
             except Exception as exc:
                 show_exception_error(exc, context="Importar letras e cifras")
+        if is_scale_manager(st.session_state.user_roles) and faltam_texto:
+            if st.button(
+                "🌐 Preencher todas as pendências (pode demorar)",
+                use_container_width=True,
+                key="batch_letras_all",
+            ):
+                try:
+                    with st.spinner(
+                        f"Buscando letra e cifra para até {faltam_texto} música(s)…"
+                    ):
+                        df = louvores_df.copy()
+                        df, n = enrich_louvores_letras_cifras(
+                            df,
+                            use_web=True,
+                            limit=faltam_texto,
+                            only_missing=True,
+                            delay_sec=0.4,
+                        )
+                    save_data(df, LOUVORES_FILE)
+                    st.success(
+                        f"{n} música(s) adicionadas ao banco local do repertório."
+                    )
+                    st.rerun()
+                except Exception as exc:
+                    show_exception_error(exc, context="Importar todo repertório")
     with col_l0b:
         st.caption(
-            "Fonte: Vagalume (via link do Cifra Club). Execute várias vezes até zerar as pendências. "
-            "No terminal: `python scripts/enrich_louvor_letras.py --limit 30`"
+            "Fonte web: Vagalume/e-chords (validado). Os textos ficam em `lyrics_text` e "
+            "`cifra_text` no CSV — nosso banco, sem depender da internet no culto. "
+            "Terminal: `python scripts/enrich_louvor_letras.py --limit 30`"
         )
 
     col_l1, col_l2 = st.columns(2)

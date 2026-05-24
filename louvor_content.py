@@ -111,9 +111,9 @@ def enrich_louvores_letras_cifras(
             df.at[idx, "cifra_text"] = normalize_cifra_text(content.cifra_text)
             changed = True
         if changed:
-            src = str(row.get("source", "")).strip()
-            tag = "letras_web"
-            df.at[idx, "source"] = f"{src}, {tag}".strip(", ") if src else tag
+            df.at[idx, "source"] = _append_source_tag(
+                str(row.get("source", "")), "letras_web"
+            )
             updated += 1
         if delay_sec:
             time.sleep(delay_sec)
@@ -233,14 +233,26 @@ def _find_louvor_catalog_index(
     return None
 
 
+def _append_source_tag(current: str, tag: str) -> str:
+    src = str(current or "").strip()
+    if not tag:
+        return src
+    parts = [p.strip() for p in src.split(",") if p.strip()]
+    if tag not in parts:
+        parts.append(tag)
+    return ", ".join(parts)
+
+
 def apply_content_to_louvores_df(
     louvores_df: pd.DataFrame,
     title: str,
     artist: str,
     lyrics: str,
     cifra: str,
+    *,
+    source_tag: str = "repertorio_local",
 ) -> pd.DataFrame:
-    """Grava letra/cifra no repertório para não precisar buscar de novo."""
+    """Grava letra/cifra organizadas no repertório (banco local do ministério)."""
     df = ensure_louvor_content_columns(louvores_df.copy())
     idx = _find_louvor_catalog_index(df, title, artist)
     if idx is None:
@@ -251,11 +263,22 @@ def apply_content_to_louvores_df(
         from cifra_fetch import normalize_cifra_text
 
         df.at[idx, "cifra_text"] = normalize_cifra_text(cifra)
-    src = str(df.at[idx, "source"]).strip()
-    tag = "letras_web"
-    if tag not in src:
-        df.at[idx, "source"] = f"{src}, {tag}".strip(", ") if src else tag
+    if lyrics.strip() or cifra.strip():
+        df.at[idx, "source"] = _append_source_tag(
+            str(df.at[idx, "source"]), source_tag
+        )
     return df
+
+
+def count_louvores_with_full_content(louvores_df: pd.DataFrame) -> int:
+    df = ensure_louvor_content_columns(louvores_df)
+    if df.empty:
+        return 0
+    n = 0
+    for _, row in df.iterrows():
+        if str(row.get("lyrics_text", "")).strip() and str(row.get("cifra_text", "")).strip():
+            n += 1
+    return n
 
 
 def ensure_sequencia_louvor_content(
@@ -274,7 +297,7 @@ def ensure_sequencia_louvor_content(
     force_web_refresh: bool = False,
 ) -> tuple[pd.DataFrame, pd.DataFrame, str, bool]:
     """
-    Garante letra e cifra: repertório → sequência salva → internet.
+    Garante letra e cifra: sequência salva → repertório local → internet (se faltar).
     Retorna (seq_df, louvores_df, mensagem, buscou_web).
     """
     from catalog_sanitize import sanitize_catalog_text
@@ -291,10 +314,12 @@ def ensure_sequencia_louvor_content(
         lyrics = (lyrics_hint or str(row.get("lyrics_text", ""))).strip()
         cifra = (cifra_hint or str(row.get("cifra_text", ""))).strip()
 
+    catalog_ly = default_lyrics_from_louvor(louvores_df, louvor_t, artist_t)
+    catalog_cf = default_cifra_from_louvor(louvores_df, louvor_t, artist_t)
     if not lyrics:
-        lyrics = default_lyrics_from_louvor(louvores_df, louvor_t, artist_t)
+        lyrics = catalog_ly
     if not cifra:
-        cifra = default_cifra_from_louvor(louvores_df, louvor_t, artist_t)
+        cifra = catalog_cf
 
     try:
         from cifra_fetch import _looks_like_cifra
@@ -306,6 +331,10 @@ def ensure_sequencia_louvor_content(
 
     fetched_web = False
     msg = ""
+    used_catalog = not force_web_refresh and bool(
+        (catalog_ly and lyrics == catalog_ly) or (catalog_cf and cifra == catalog_cf)
+    )
+
     need_ly = force_web_refresh or not lyrics
     need_cf = force_web_refresh or not cifra
     if use_web and (need_ly or need_cf):
@@ -351,10 +380,17 @@ def ensure_sequencia_louvor_content(
             msg = f"{' e '.join(parts).capitalize()} importada(s) da internet e salva(s) neste culto."
             if save_to_catalog and (lyrics or cifra):
                 louvores_df = apply_content_to_louvores_df(
-                    louvores_df, louvor_t, artist_t, lyrics, cifra
+                    louvores_df,
+                    louvor_t,
+                    artist_t,
+                    lyrics,
+                    cifra,
+                    source_tag="letras_web",
                 )
                 msg += " Também gravadas no repertório."
-        elif not lyrics_hint and not cifra_hint:
+        elif used_catalog and not fetched_web:
+            msg = "Carregado do repertório local (letra/cifra já no banco)."
+        elif not lyrics_hint and not cifra_hint and (lyrics or cifra):
             msg = "Carregado do repertório."
     elif lyrics and not cifra:
         msg = (
