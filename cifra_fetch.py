@@ -134,6 +134,96 @@ _CHORD_TOKEN_RE = re.compile(
     re.I,
 )
 
+_CIFRA_JUNK_LINE = re.compile(
+    r"^(tom\b|capo|capotraste|afina[cç][aã]o|simplificar|rolagem|auto\s*scroll|"
+    r"imprimir|compartilhar|reportar|dicion[aá]rio|acordes\s*:|vers[aã]o\b|"
+    r"tablatura|video\b|v[ií]deo\b|arrastar|zoom|tuning|afinar)",
+    re.I,
+)
+
+_CIFRA_STOP_SECTION = re.compile(
+    r"(coment[aá]rios|aprenda a tocar|outras vers[oõ]es|ver\s+v[ií]deo|"
+    r"letra da m[uú]sica|autoria|cifra\s*club|e-chords|enviar\s+cifra|"
+    r"corrigir\s+cifra|imprimir\s+cifra|partitura|tablaturas\s+para)",
+    re.I,
+)
+
+
+def _line_is_chord_row(line: str) -> bool:
+    tokens = [t for t in line.strip().split() if t]
+    if not tokens:
+        return False
+    chord_n = sum(1 for t in tokens if _CHORD_TOKEN_RE.match(t))
+    return chord_n >= max(2, int(len(tokens) * 0.55))
+
+
+def normalize_cifra_text(text: str) -> str:
+    """
+    Remove lixo do site e mantém só pares acorde/letra organizados (estilo Cifra Club).
+    """
+    raw = str(text or "").replace("\r\n", "\n").strip()
+    if not raw:
+        return ""
+
+    cleaned: list[str] = []
+    for ln in raw.splitlines():
+        s = ln.rstrip()
+        if not s.strip():
+            if cleaned and cleaned[-1] != "":
+                cleaned.append("")
+            continue
+        if _CIFRA_STOP_SECTION.search(s):
+            break
+        if _CIFRA_JUNK_LINE.match(s.strip()):
+            continue
+        if len(s.strip()) > 220 and not _line_is_chord_row(s):
+            continue
+        cleaned.append(s)
+
+    paired: list[str] = []
+    i = 0
+    while i < len(cleaned):
+        line = cleaned[i]
+        if line == "":
+            i += 1
+            continue
+        if _line_is_chord_row(line):
+            paired.append(line)
+            if i + 1 < len(cleaned) and cleaned[i + 1] and not _line_is_chord_row(cleaned[i + 1]):
+                paired.append(cleaned[i + 1])
+                i += 2
+            else:
+                paired.append("")
+                i += 1
+        else:
+            paired.append(line)
+            i += 1
+
+    out: list[str] = []
+    blank = 0
+    for ln in paired:
+        if not ln.strip():
+            blank += 1
+            if blank <= 1 and out:
+                out.append("")
+            continue
+        blank = 0
+        out.append(ln.rstrip())
+    return "\n".join(out).strip()
+
+
+def _extract_vagalume_page_title(html: str) -> str:
+    for pat in (
+        r'property="og:title"\s+content="([^"]+)"',
+        r"<meta[^>]+name=\"title\"[^>]+content=\"([^\"]+)\"",
+        r"<h1[^>]*>(.*?)</h1>",
+    ):
+        m = re.search(pat, html, re.S | re.I)
+        if m:
+            t = re.sub(r"<[^>]+>", "", m.group(1))
+            return html_lib.unescape(t).strip()
+    return ""
+
 
 def _looks_like_cifra(text: str) -> bool:
     """Evita gravar letra pura no lugar da cifra."""
@@ -154,7 +244,7 @@ def _extract_vagalume_cifra(html: str) -> str:
     )
     if not m:
         return ""
-    text = _clean_cifra_html(m.group(1))
+    text = normalize_cifra_text(_clean_cifra_html(m.group(1)))
     return text if _looks_like_cifra(text) else ""
 
 
@@ -183,7 +273,7 @@ def _extract_echords_cifra(html: str) -> str:
     s = re.sub(r"<[^>]+>", "", s)
     s = html_lib.unescape(s)
     lines = [ln.rstrip() for ln in s.splitlines()]
-    text = "\n".join(lines).strip()
+    text = normalize_cifra_text("\n".join(lines).strip())
     return text if _looks_like_cifra(text) else ""
 
 
@@ -246,9 +336,18 @@ def fetch_from_echords(
         try:
             html = _http_get(found_url)
             out.cifra_text = _extract_echords_cifra(html)
-            if out.cifra_text:
+            from lyrics_validation import validate_fetched_cifra
+
+            ok, _ = validate_fetched_cifra(
+                title,
+                out.cifra_text,
+                source_url=found_url,
+                expected_slug=song_slug,
+            )
+            if out.cifra_text and ok:
                 out.cifra_url = found_url
                 return out
+            out.cifra_text = ""
         except (urllib.error.URLError, TimeoutError, OSError) as exc:
             logger.info("e-chords %s: %s", found_url, exc)
 
@@ -260,9 +359,18 @@ def fetch_from_echords(
             try:
                 html = _http_get(url)
                 out.cifra_text = _extract_echords_cifra(html)
-                if out.cifra_text:
+                from lyrics_validation import validate_fetched_cifra
+
+                ok, _ = validate_fetched_cifra(
+                    title,
+                    out.cifra_text,
+                    source_url=url,
+                    expected_slug=song_slug,
+                )
+                if out.cifra_text and ok:
                     out.cifra_url = url
                     return out
+                out.cifra_text = ""
             except (urllib.error.URLError, TimeoutError, OSError) as exc:
                 logger.info("e-chords %s: %s", url, exc)
     return out
@@ -359,6 +467,8 @@ def fetch_from_vagalume(
     if not artist_slugs:
         return LouvorWebContent()
 
+    from lyrics_validation import validate_fetched_cifra, validate_fetched_lyrics
+
     out = LouvorWebContent(source="vagalume")
     cifrada_extra = _find_vagalume_cifrada_url(title, artist)
     for artist_slug in artist_slugs:
@@ -366,9 +476,23 @@ def fetch_from_vagalume(
         try:
             if not out.lyrics_text:
                 html_letra = _http_get(letra_url)
-                out.lyrics_text = _extract_vagalume_lyrics(html_letra)
-                if out.lyrics_text:
+                page_title = _extract_vagalume_page_title(html_letra)
+                candidate = _extract_vagalume_lyrics(html_letra)
+                ok, reason = validate_fetched_lyrics(
+                    title,
+                    artist,
+                    candidate,
+                    source_url=letra_url,
+                    page_title=page_title,
+                    expected_slug=song_slug,
+                )
+                if ok and candidate:
+                    out.lyrics_text = candidate
                     out.letra_url = letra_url
+                elif candidate:
+                    logger.info(
+                        "Vagalume letra rejeitada %s: %s", letra_url, reason
+                    )
         except (urllib.error.URLError, TimeoutError, OSError) as exc:
             logger.info("Vagalume letra falhou %s: %s", letra_url, exc)
         for cf_url in (cifrada_url, cifrada_extra):
@@ -377,9 +501,19 @@ def fetch_from_vagalume(
             try:
                 html_cifra = _http_get(cf_url)
                 cifra = _extract_vagalume_cifra(html_cifra)
-                if cifra:
+                ok_cf, reason_cf = validate_fetched_cifra(
+                    title,
+                    cifra,
+                    source_url=cf_url,
+                    expected_slug=song_slug,
+                )
+                if cifra and ok_cf:
                     out.cifra_text = cifra
                     out.cifra_url = cf_url
+                elif cifra:
+                    logger.info(
+                        "Vagalume cifra rejeitada %s: %s", cf_url, reason_cf
+                    )
             except (urllib.error.URLError, TimeoutError, OSError) as exc:
                 logger.info("Vagalume cifra falhou %s: %s", cf_url, exc)
         if out.lyrics_text and out.cifra_text:
@@ -414,6 +548,8 @@ def fetch_louvor_lyrics_and_cifra(
             if ec.source:
                 result.source = f"{result.source}+{ec.source}".strip("+")
 
+    if result.cifra_text:
+        result.cifra_text = normalize_cifra_text(result.cifra_text)
     if result.lyrics_text or result.cifra_text:
         return result
 
@@ -425,4 +561,6 @@ def fetch_louvor_lyrics_and_cifra(
             if ec.cifra_text:
                 result.cifra_text = ec.cifra_text
                 result.cifra_url = ec.cifra_url
+    if result.cifra_text:
+        result.cifra_text = normalize_cifra_text(result.cifra_text)
     return result

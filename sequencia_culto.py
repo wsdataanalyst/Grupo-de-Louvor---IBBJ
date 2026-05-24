@@ -287,12 +287,14 @@ def _format_cifra_line_html(line: str) -> str:
 
 def render_cifra_html(cifra: str, tom: str, capo: int) -> str:
     """Visual estilo Cifra Club: acordes acima da letra, linha a linha."""
+    from cifra_fetch import normalize_cifra_text
+
     capo = max(0, min(11, int(capo or 0)))
     header = f"Tom: <b>{html.escape(tom or '—')}</b>"
     if capo:
         header += f" · Capotraste: <b>{capo}ª casa</b>"
 
-    raw = str(cifra or "").replace("\r\n", "\n").strip()
+    raw = normalize_cifra_text(str(cifra or "")).replace("\r\n", "\n").strip()
     if not raw:
         return (
             f'<div class="seq-cifra-view"><p class="seq-cifra-meta">{header}</p>'
@@ -389,6 +391,25 @@ def upsert_sequencia_row(
         clean_row = {k: _sequencia_cell_value(k, v) for k, v in row.items()}
         seq_df = pd.concat([seq_df, pd.DataFrame([clean_row])], ignore_index=True)
     return seq_df
+
+
+def integrantes_marcacao_opts(team: list[dict]) -> list[tuple[str, str]]:
+    """(label, email) — todos os integrantes da escala, para marcações vocais."""
+    seen: set[str] = set()
+    out: list[tuple[str, str]] = []
+    for p in team:
+        nome = str(p.get("nome", "")).strip()
+        if not nome:
+            continue
+        em = str(p.get("email", "")).strip()
+        func = str(p.get("funcao", "")).strip()
+        key = em.lower() if em else nome.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        label = f"{nome} ({func})" if func else nome
+        out.append((label, em))
+    return out
 
 
 def vocalistas_escala(team: list[dict]) -> list[tuple[str, str]]:

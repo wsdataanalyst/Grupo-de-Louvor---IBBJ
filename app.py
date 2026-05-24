@@ -115,7 +115,7 @@ from sequencia_culto import (
     split_lyrics_paragraphs,
     trechos_from_markup,
     upsert_sequencia_row,
-    vocalistas_escala,
+    integrantes_marcacao_opts,
     banda_escala,
 )
 from user_feedback import (
@@ -2068,20 +2068,36 @@ def integrantes_escalados(
     escala_id = str(escala_row.get("id", ""))
     team = []
 
+    def _nome_por_email(email: str, fallback: str = "") -> str:
+        em = str(email or "").strip().lower()
+        if em and not members_df.empty and "email" in members_df.columns:
+            m = members_df[members_df["email"].astype(str).str.lower() == em]
+            if not m.empty:
+                return member_display_name(m.iloc[0])
+        return str(fallback or "").strip()
+
     principal = {
         "nome": str(escala_row.get("member_name") or escala_row.get("responsible", "")),
         "funcao": FUNCAO_MINISTRADOR,
         "email": str(escala_row.get("member_email", "")),
     }
+    if not principal["nome"]:
+        principal["nome"] = _nome_por_email(principal["email"])
     if principal["nome"]:
         team.append(principal)
 
     for _, row in equipe_por_escala(equipe_df, escala_id).iterrows():
+        nome = str(row.get("member_name", "")).strip()
+        email = str(row.get("member_email", ""))
+        if not nome:
+            nome = _nome_por_email(email)
+        if not nome:
+            continue
         team.append(
             {
-                "nome": str(row.get("member_name", "")),
+                "nome": nome,
                 "funcao": normalize_funcao_escala(str(row.get("funcao", "Integrante"))),
-                "email": str(row.get("member_email", "")),
+                "email": email,
             }
         )
 
@@ -7580,10 +7596,10 @@ def show_sequencia_culto_page(
         st.caption(f"{n_sync} música(s) carregada(s) do repertório.")
 
     team = integrantes_escalados(row_esc, equipe_df, members_df)
-    vocal_opts = vocalistas_escala(team)
+    vocal_opts = integrantes_marcacao_opts(team)
     banda_opts = banda_escala(team)
     if not vocal_opts:
-        st.caption("Nenhum vocal escalado identificado — use as funções Vocal/Ministrador na equipe.")
+        st.caption("Nenhum integrante na equipe deste culto — cadastre a escala em Gerenciar Escalas.")
     if not banda_opts:
         st.caption("Nenhum instrumentista escalado — cadastre Baixo, Guitarra, Teclado, etc. na equipe.")
 

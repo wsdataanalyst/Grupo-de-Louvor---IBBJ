@@ -89,11 +89,26 @@ def enrich_louvores_letras_cifras(
             continue
 
         changed = False
-        if content.lyrics_text.strip() and (not has_ly or only_missing):
+        from lyrics_validation import validate_fetched_cifra, validate_fetched_lyrics
+
+        ly_ok, _ = validate_fetched_lyrics(
+            title,
+            artist,
+            content.lyrics_text,
+            source_url=content.letra_url,
+        )
+        cf_ok, _ = validate_fetched_cifra(
+            title,
+            content.cifra_text,
+            source_url=content.cifra_url,
+        )
+        if content.lyrics_text.strip() and ly_ok and (not has_ly or only_missing):
             df.at[idx, "lyrics_text"] = content.lyrics_text.strip()
             changed = True
-        if content.cifra_text.strip() and (not has_cf or only_missing):
-            df.at[idx, "cifra_text"] = content.cifra_text.strip()
+        if content.cifra_text.strip() and cf_ok and (not has_cf or only_missing):
+            from cifra_fetch import normalize_cifra_text
+
+            df.at[idx, "cifra_text"] = normalize_cifra_text(content.cifra_text)
             changed = True
         if changed:
             src = str(row.get("source", "")).strip()
@@ -233,7 +248,9 @@ def apply_content_to_louvores_df(
     if lyrics.strip():
         df.at[idx, "lyrics_text"] = lyrics.strip()
     if cifra.strip():
-        df.at[idx, "cifra_text"] = cifra.strip()
+        from cifra_fetch import normalize_cifra_text
+
+        df.at[idx, "cifra_text"] = normalize_cifra_text(cifra)
     src = str(df.at[idx, "source"]).strip()
     tag = "letras_web"
     if tag not in src:
@@ -288,20 +305,34 @@ def ensure_sequencia_louvor_content(
         pass
 
     fetched_web = False
+    msg = ""
     need_ly = force_web_refresh or not lyrics
     need_cf = force_web_refresh or not cifra
     if use_web and (need_ly or need_cf):
         web_ly, web_cf = fetch_louvor_content_web(
             louvor_t, artist_t, cifra_club_url=cifra_url
         )
-        if web_ly and need_ly:
+        from cifra_fetch import normalize_cifra_text
+        from lyrics_validation import validate_fetched_cifra, validate_fetched_lyrics
+
+        ly_ok, ly_reason = validate_fetched_lyrics(louvor_t, artist_t, web_ly)
+        cf_ok, cf_reason = validate_fetched_cifra(louvor_t, web_cf)
+        if web_ly and need_ly and ly_ok:
             lyrics = web_ly
             fetched_web = True
-        if web_cf and need_cf:
-            cifra = web_cf
+        elif web_ly and need_ly:
+            msg = (
+                f"Letra da internet não passou na validação ({ly_reason}). "
+                "Revise ou cole manualmente."
+            )
+        if web_cf and need_cf and cf_ok:
+            cifra = normalize_cifra_text(web_cf)
             fetched_web = True
-
-    msg = ""
+        elif web_cf and need_cf and not msg:
+            msg = (
+                f"Cifra da internet não passou na validação ({cf_reason}). "
+                "Cole manualmente se necessário."
+            )
     if lyrics or cifra:
         tom = str(row.get("tom_programa", "")).strip() or tom_base
         seq_df = upsert_sequencia_row(
@@ -311,7 +342,7 @@ def ensure_sequencia_louvor_content(
             cifra_text=cifra,
             tom_programa=tom,
         )
-        if fetched_web:
+        if fetched_web and not msg:
             parts = []
             if lyrics:
                 parts.append("letra")
