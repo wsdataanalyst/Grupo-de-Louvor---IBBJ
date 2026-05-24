@@ -516,6 +516,77 @@ def _sequencia_cell_value(column: str, value) -> str:
     return text
 
 
+def sequencia_work_signature(
+    lyrics_text: str,
+    cifra_text: str,
+    trechos_v: list[dict],
+    trechos_b: list[dict],
+    tom: str,
+    capo: int,
+) -> str:
+    import hashlib
+
+    payload = json.dumps(
+        {
+            "lyrics": str(lyrics_text or "").strip(),
+            "cifra": str(cifra_text or "").strip(),
+            "v": trechos_v,
+            "b": trechos_b,
+            "tom": str(tom or "").strip(),
+            "capo": int(capo or 0),
+        },
+        ensure_ascii=False,
+        sort_keys=True,
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:20]
+
+
+def autosave_sequencia_trabalho(
+    seq_df: pd.DataFrame,
+    programa_id: str,
+    *,
+    lyrics_text: str,
+    cifra_text: str,
+    trechos_v: list[dict],
+    trechos_b: list[dict],
+    tom_programa: str,
+    capo: int,
+) -> tuple[pd.DataFrame, bool]:
+    """
+    Salva rascunho da sequência (letra, cifra, marcações) sem exigir botão manual.
+    Evita perder marcações ao sair do app ou atualizar a página.
+    """
+    pid = str(programa_id)
+    sig = sequencia_work_signature(
+        lyrics_text, cifra_text, trechos_v, trechos_b, tom_programa, capo
+    )
+    sig_key = f"seq_autosave_sig_{pid}"
+    try:
+        if st.session_state.get(sig_key) == sig:
+            return seq_df, False
+    except Exception:
+        pass
+
+    seq_df = upsert_sequencia_row(
+        seq_df,
+        pid,
+        lyrics_text=str(lyrics_text or "").strip(),
+        cifra_text=str(cifra_text or "").strip(),
+        lyrics_markup=markup_to_json(trechos_v),
+        cifra_markup=markup_to_json(trechos_b),
+        tom_programa=str(tom_programa or "").strip(),
+        capo=int(capo or 0),
+    )
+    try:
+        st.session_state[sig_key] = sig
+        st.session_state[f"seq_autosave_at_{pid}"] = datetime.now().strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
+    except Exception:
+        pass
+    return seq_df, True
+
+
 def upsert_sequencia_row(
     seq_df: pd.DataFrame,
     programa_id: str,

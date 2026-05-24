@@ -14,11 +14,13 @@ from datetime import date, datetime, timedelta
 
 from app_time import (
     REMEMBER_EMAIL_KEY,
-    SESSION_MINUTES,
+    SESSION_IDLE_MINUTES,
+    SESSION_REMEMBER_DAYS,
     format_local,
     now_local,
     parse_timestamp,
     to_local_timestamps,
+    session_expired_user_message,
     session_is_valid,
     session_logout,
     session_touch,
@@ -57,6 +59,9 @@ from app_features import (
     member_escala_option_label,
     programa_duracao_total,
     render_dashboard_future_escalas,
+    render_dashboard_section_end,
+    render_dashboard_section_start,
+    quick_nav_css_class,
     render_escala_planner_panel,
     save_feed_image_file,
 )
@@ -117,6 +122,7 @@ from sequencia_culto import (
     trechos_banda_from_markup,
     trechos_from_markup,
     upsert_sequencia_row,
+    autosave_sequencia_trabalho,
     integrantes_marcacao_opts,
     banda_escala,
 )
@@ -2347,7 +2353,7 @@ def register_user(
     return new_member, None
 
 
-def set_user_session(user_row):
+def set_user_session(user_row, *, remember_me: bool = False):
     st.session_state.authenticated = True
     st.session_state.user_name = user_row["first_name"]
     st.session_state.user_full_name = member_display_name(user_row)
@@ -2355,6 +2361,7 @@ def set_user_session(user_row):
     st.session_state.user_roles = user_row["roles"]
     st.session_state.user_primary_role = parse_primary_role(user_row["roles"])
     st.session_state.user_profile_photo = str(user_row.get("profile_photo", ""))
+    st.session_state.remember_login = bool(remember_me)
     session_touch(st.session_state)
 
 
@@ -2648,6 +2655,79 @@ def inject_login_restore_fields():
     )
 
 
+def inject_auto_login_submit():
+    """Com «Lembrar login», envia o formulário após preencher (volta ao app sem clicar Entrar)."""
+    inject_page_html(
+        """
+        <script>
+        (function () {
+          if (localStorage.getItem("ibbj_remember_enabled") !== "1") return;
+          function trySubmit() {
+            var doc = window.parent.document;
+            var form = doc.querySelector('form[data-testid="stForm"]');
+            if (!form) return;
+            var btn = form.querySelector('button[kind="primaryFormSubmit"]')
+              || form.querySelector('button[type="submit"]');
+            if (btn && !btn.disabled) btn.click();
+          }
+          setTimeout(trySubmit, 1100);
+          setTimeout(trySubmit, 2200);
+        })();
+        </script>
+        """,
+        height=0,
+    )
+
+
+def inject_app_resume_listener():
+    """Ao voltar ao app (aba visível), força atualização dos dados na nuvem."""
+    inject_page_html(
+        """
+        <script>
+        (function () {
+          var last = 0;
+          document.addEventListener("visibilitychange", function () {
+            if (document.visibilityState !== "visible") return;
+            var now = Date.now();
+            if (now - last < 8000) return;
+            last = now;
+            try {
+              var w = window.parent;
+              var u = new URL(w.location.href);
+              u.searchParams.set("ibbj_resume", String(now));
+              w.location.replace(u.toString());
+            } catch (e) {}
+          });
+        })();
+        </script>
+        """,
+        height=0,
+    )
+
+
+def handle_app_resume_query_params() -> bool:
+    """Recarrega caches quando o usuário retorna ao app. Retorna True se houve resume."""
+    resume = str(st.query_params.get("ibbj_resume", "")).strip()
+    if not resume:
+        return False
+    try:
+        qp = dict(st.query_params)
+        qp.pop("ibbj_resume", None)
+        st.query_params.from_dict(qp)
+    except Exception:
+        pass
+    load_data.clear()
+    st.session_state.pop("_escalas_bundle", None)
+    st.session_state.pop("_feed_rev", None)
+    st.session_state.pop("_chat_df_cache", None)
+    try:
+        refresh_escalas_bundle()
+    except Exception:
+        pass
+    session_touch(st.session_state)
+    return True
+
+
 def catalog_link_label(url: str) -> str:
     u = str(url).strip().lower()
     if not u.startswith("http"):
@@ -2846,6 +2926,47 @@ def apply_music_theme():
             position: relative;
         }
         .music-hero .notes-deco { display: none; }
+
+        /* Dashboard — seções em cards */
+        .dash-section {
+            background: linear-gradient(155deg, rgba(22, 18, 38, 0.95), rgba(14, 12, 24, 0.98));
+            border: 1px solid rgba(167, 139, 250, 0.22);
+            border-radius: 14px;
+            margin: 0 0 1.15rem;
+            overflow: hidden;
+            box-shadow: 0 8px 28px rgba(0, 0, 0, 0.28);
+        }
+        .dash-section-header {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.65rem;
+            padding: 0.8rem 1rem;
+            background: rgba(255, 255, 255, 0.04);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+            border-left: 4px solid var(--dash-accent, #a78bfa);
+        }
+        .dash-section-icon {
+            font-size: 1.35rem;
+            line-height: 1;
+            filter: drop-shadow(0 2px 6px rgba(0,0,0,0.35));
+        }
+        .dash-section-header h4 {
+            margin: 0;
+            font-size: 0.78rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: #f8f6ff;
+        }
+        .dash-section-sub {
+            margin: 0.2rem 0 0;
+            font-size: 0.82rem;
+            color: var(--dash-accent, #c4b5fd);
+            font-weight: 500;
+        }
+        .dash-section-content {
+            padding: 0.85rem 0.9rem 1rem;
+        }
 
         /* Atalhos do dashboard */
         .quick-nav-grid {
@@ -3203,6 +3324,42 @@ def apply_music_theme():
         .quick-nav-btn > button:hover {
             border-color: var(--border-accent) !important;
             background: rgba(139, 92, 246, 0.12) !important;
+            transform: translateY(-1px);
+        }
+        .quick-nav--escalas > button {
+            background: linear-gradient(160deg, rgba(96, 165, 250, 0.42), rgba(37, 99, 235, 0.15)) !important;
+            border-color: rgba(96, 165, 250, 0.65) !important;
+            color: #e0f2fe !important;
+        }
+        .quick-nav--chat > button {
+            background: linear-gradient(160deg, rgba(52, 211, 153, 0.42), rgba(16, 185, 129, 0.14)) !important;
+            border-color: rgba(52, 211, 153, 0.65) !important;
+            color: #d1fae5 !important;
+        }
+        .quick-nav--eventos > button {
+            background: linear-gradient(160deg, rgba(56, 189, 248, 0.4), rgba(14, 165, 233, 0.14)) !important;
+            border-color: rgba(56, 189, 248, 0.6) !important;
+            color: #e0f2fe !important;
+        }
+        .quick-nav--playlist > button {
+            background: linear-gradient(160deg, rgba(244, 114, 182, 0.4), rgba(219, 39, 119, 0.14)) !important;
+            border-color: rgba(244, 114, 182, 0.6) !important;
+            color: #fce7f3 !important;
+        }
+        .quick-nav--feed > button {
+            background: linear-gradient(160deg, rgba(244, 114, 182, 0.38), rgba(236, 72, 153, 0.12)) !important;
+            border-color: rgba(244, 114, 182, 0.58) !important;
+            color: #fce7f3 !important;
+        }
+        .quick-nav--repertorio > button {
+            background: linear-gradient(160deg, rgba(251, 191, 36, 0.42), rgba(217, 119, 6, 0.14)) !important;
+            border-color: rgba(251, 191, 36, 0.62) !important;
+            color: #fef3c7 !important;
+        }
+        .quick-nav--perfil > button {
+            background: linear-gradient(160deg, rgba(192, 132, 252, 0.42), rgba(124, 58, 237, 0.14)) !important;
+            border-color: rgba(192, 132, 252, 0.62) !important;
+            color: #f3e8ff !important;
         }
 
         /* Botões com área de toque confortável */
@@ -4311,11 +4468,12 @@ def render_dashboard_quick_actions(roles: str):
     if not links:
         return
 
-    st.markdown('<p class="music-panel-title">⚡ Acesso rápido</p>', unsafe_allow_html=True)
+    render_dashboard_section_start("Acesso rápido", "⚡", "#f59e0b")
     cols = st.columns(min(len(links), 4))
     for col, name in zip(cols, links[:4]):
         with col:
-            st.markdown('<div class="quick-nav-btn">', unsafe_allow_html=True)
+            nav_cls = quick_nav_css_class(name)
+            st.markdown(f'<div class="quick-nav-btn {nav_cls}">', unsafe_allow_html=True)
             if st.button(
                 f"{icons.get(name, '🎵')}\n{name}",
                 key=f"quick_nav_{name}",
@@ -4329,7 +4487,8 @@ def render_dashboard_quick_actions(roles: str):
         cols2 = st.columns(min(len(links) - 4, 4))
         for col, name in zip(cols2, links[4:8]):
             with col:
-                st.markdown('<div class="quick-nav-btn">', unsafe_allow_html=True)
+                nav_cls = quick_nav_css_class(name)
+                st.markdown(f'<div class="quick-nav-btn {nav_cls}">', unsafe_allow_html=True)
                 if st.button(
                     f"{icons.get(name, '🎵')}\n{name}",
                     key=f"quick_nav2_{name}",
@@ -4338,6 +4497,7 @@ def render_dashboard_quick_actions(roles: str):
                     st.session_state.app_menu = name
                     st.rerun()
                 st.markdown("</div>", unsafe_allow_html=True)
+    render_dashboard_section_end()
 
 
 def render_sidebar_footer():
@@ -4348,9 +4508,6 @@ def render_sidebar_footer():
 
 
 def page_header(menu: str):
-    from verse_of_day import render_verse_of_day
-
-    render_verse_of_day()
     items, _, icons = get_menu_items_for_user(st.session_state.user_roles)
     icon = icons.get(menu, "🎵")
     title = MENU_HEADERS.get(menu, menu)
@@ -4618,12 +4775,16 @@ def show_login_page(members_df: pd.DataFrame):
 
         with tab_login:
             inject_login_restore_fields()
+            inject_auto_login_submit()
             with st.form(key="login_form"):
                 login_email = st.text_input("Email")
                 login_password = st.text_input("Senha", type="password")
                 remember_me = st.checkbox(
-                    "Lembrar login e senha neste dispositivo",
-                    help="Salva no navegador deste aparelho. Use só em celular ou PC pessoal.",
+                    "Lembrar login neste dispositivo (até 30 dias)",
+                    help=(
+                        f"Mantém você logado por até {SESSION_REMEMBER_DAYS} dias neste aparelho "
+                        "e preenche email/senha ao voltar. Use só em dispositivo pessoal."
+                    ),
                 )
                 login_button = st.form_submit_button(
                     "Entrar", type="primary", use_container_width=True
@@ -4644,7 +4805,7 @@ def show_login_page(members_df: pd.DataFrame):
                     ]
                     if not refreshed.empty:
                         user = refreshed.iloc[0]
-                    set_user_session(user)
+                    set_user_session(user, remember_me=remember_me)
                     inject_login_remember(
                         remember_me,
                         login_email.strip(),
@@ -4679,7 +4840,14 @@ ESCALA_LIVE_FILE_NAMES = frozenset(
     }
 )
 MENUS_AUTO_REFRESH_ESCALA = frozenset(
-    {"Dashboard", "Escalas", "Gerenciar Escalas", "Chat", "Feed", "Repertório"}
+    {
+        "Dashboard",
+        "Escalas",
+        "Gerenciar Escalas",
+        "Chat",
+        "Feed",
+        "Repertório",
+    }
 )
 ESCALA_POLL_SECONDS = 8
 FEED_POLL_SECONDS = 10
@@ -5562,7 +5730,7 @@ def render_feed_preview(limit: int = 3):
     posts_df, likes_df, comments_df = load_feed_bundle()
     if posts_df.empty:
         return
-    st.markdown('<p class="music-panel-title">📰 Novidades do ministério</p>', unsafe_allow_html=True)
+    render_dashboard_section_start("Novidades do ministério", "📰", MENU_ACCENTS.get("Feed", "#f472b6"))
     df = posts_df.copy()
     df["_sort"] = pd.to_datetime(df["created_at"], errors="coerce")
     df = df.sort_values("_sort", ascending=False).head(limit)
@@ -5573,6 +5741,7 @@ def render_feed_preview(limit: int = 3):
     if st.button("Ver feed completo", key="dash_go_feed", use_container_width=True):
         st.session_state.app_menu = "Feed"
         st.rerun()
+    render_dashboard_section_end()
 
 
 def show_feed_page(
@@ -5580,10 +5749,9 @@ def show_feed_page(
     likes_df: pd.DataFrame,
     comments_df: pd.DataFrame,
 ):
-    st.write(
-        "Novidades, músicas aprovadas e comunicados. Curta e comente — as atualizações "
-        "sincronizam automaticamente a cada poucos segundos."
-    )
+    from verse_of_day import render_verse_of_day
+
+    render_verse_of_day()
     if is_scale_manager(st.session_state.user_roles):
         with st.expander("⚠️ Manutenção do feed (líderes)", expanded=False):
             st.caption(
@@ -5807,7 +5975,11 @@ def show_playlist_page(louvores_df: pd.DataFrame, playlist_df: pd.DataFrame, mem
 def render_events_feed(eventos_df: pd.DataFrame, limit: int = 5):
     if eventos_df.empty:
         return
-    st.markdown('<p class="music-panel-title">📰 Próximos eventos</p>', unsafe_allow_html=True)
+    render_dashboard_section_start(
+        "Próximos eventos",
+        "📅",
+        MENU_ACCENTS.get("Eventos", "#38bdf8"),
+    )
     df = eventos_df.copy()
     df["_d"] = pd.to_datetime(df["event_date"], errors="coerce")
     df = df.sort_values("_d").head(limit)
@@ -5834,6 +6006,7 @@ def render_events_feed(eventos_df: pd.DataFrame, limit: int = 5):
                 pass
         if desc:
             st.caption(desc)
+    render_dashboard_section_end()
 
 
 def show_dashboard(
@@ -5905,11 +6078,12 @@ def show_dashboard(
     render_events_feed(eventos_df)
     render_dashboard_quick_actions(st.session_state.user_roles)
 
-    st.markdown('<p class="music-panel-title">📅 Cultos da semana</p>', unsafe_allow_html=True)
-    st.markdown(
-        f"<p style='text-align:center;color:#fbbf24;font-weight:600;margin:0.25rem 0 0.75rem'>"
-        f"Semana {start.strftime('%d/%m')} — {end.strftime('%d/%m/%Y')}</p>",
-        unsafe_allow_html=True,
+    week_label = f"Semana {start.strftime('%d/%m')} — {end.strftime('%d/%m/%Y')}"
+    render_dashboard_section_start(
+        "Cultos da semana",
+        "📅",
+        MENU_ACCENTS.get("Escalas", "#60a5fa"),
+        subtitle=week_label,
     )
     w1, w2 = st.columns(2)
     with w1:
@@ -5946,6 +6120,7 @@ def show_dashboard(
         st.info(
             "Nenhum culto nesta semana por enquanto. Quando houver escala, ela aparecerá aqui para todos."
         )
+        render_dashboard_section_end()
         return
 
     minhas_ids = {
@@ -5963,6 +6138,7 @@ def show_dashboard(
             ensaio_notice=eid in minhas_ids,
             widget_key_prefix=f"dash_{eid}",
         )
+    render_dashboard_section_end()
 
 
 def show_user_profile(
@@ -7821,7 +7997,6 @@ def show_sequencia_culto_page(
     trechos_v_new = trechos_v
     trechos_b_new = trechos_b
     paragraphs_edit = paragraphs
-    salvar_rep = False
 
     idx_tom = list(TOM_OPCOES).index(tom_prog) if tom_prog in TOM_OPCOES else 0
     c1, c2, c3, c4 = st.columns([1.2, 1, 1, 2])
@@ -7927,6 +8102,33 @@ def show_sequencia_culto_page(
                     render_cifra_html(cifra_trans, tom_new, capo_new),
                     unsafe_allow_html=True,
                 )
+        if paragraphs_edit:
+            from cifra_fetch import normalize_cifra_text
+
+            cifra_draft = normalize_cifra_text(cifra_edit)
+            tom_draft = (
+                str(tom_view)
+                if str(tom_view) in TOM_OPCOES
+                else str(tom_new)
+            )
+            seq_df, autosaved = autosave_sequencia_trabalho(
+                seq_df,
+                programa_id,
+                lyrics_text=lyrics_edit,
+                cifra_text=cifra_draft,
+                trechos_v=trechos_v_new,
+                trechos_b=trechos_b_new,
+                tom_programa=tom_draft,
+                capo=int(capo_view),
+            )
+            if autosaved:
+                save_programa_sequencia_df(seq_df)
+            autosave_at = st.session_state.get(f"seq_autosave_at_{programa_id}", "")
+            st.caption(
+                "💾 Letra, cifra e **marcações vocais/banda** são salvas automaticamente"
+                + (f" (última: {autosave_at})" if autosave_at else "")
+                + " — você não perde ao sair do app ou atualizar a página."
+            )
     elif not paragraphs:
         st.info("Letra indisponível para esta música.")
 
@@ -8924,11 +9126,15 @@ def _run_app() -> None:
 
     if not session_is_valid(st.session_state):
         session_logout(st.session_state)
-        st.warning(
-            f"Sessão encerrada após {SESSION_MINUTES} minutos sem uso. Entre novamente."
-        )
+        st.warning(session_expired_user_message(st.session_state))
         show_login_page(members_df)
         return
+
+    inject_app_resume_listener()
+    if handle_app_resume_query_params():
+        st.rerun()
+
+    session_touch(st.session_state)
 
     render_sidebar_profile()
     if "_escalas_bundle" not in st.session_state:

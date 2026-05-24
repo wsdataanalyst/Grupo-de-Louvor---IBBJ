@@ -24,6 +24,10 @@ Não regredir estas escolhas de UX sem pedido explícito:
 - `render_cifra_direcoes_html`: resumo dos trechos acima da cifra.
 - Cifra estilo Cifra Club (`render_cifra_html` + `normalize_cifra_text`); sem lixo de site.
 
+## Persistência ao sair do app
+- `autosave_sequencia_trabalho`: salva letra, cifra e marcações (JSON) a cada interação, sem depender só do botão Salvar.
+- Sessão longa: ver `app_time.py` (`SESSION_IDLE_MINUTES`, `SESSION_REMEMBER_DAYS`).
+
 ## Repertório (banco local)
 - Prioridade de letra/cifra: `lyrics_text` / `cifra_text` no CSV do repertório → sequência → web.
 - Salvar na Sequência com checkbox grava no repertório (`sequencia_culto` em `source`).

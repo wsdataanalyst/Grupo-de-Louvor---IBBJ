@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import html
 import json
+import re
 from datetime import date
 
 import pandas as pd
@@ -142,6 +144,49 @@ def inject_app_notification_badges(
     )
 
 
+def render_dashboard_section_start(
+    title: str,
+    icon: str,
+    accent: str,
+    subtitle: str = "",
+) -> None:
+    """Abre card de seção do Dashboard (título + conteúdo abaixo)."""
+    import streamlit as st
+
+    sub_html = (
+        f'<p class="dash-section-sub">{html.escape(subtitle)}</p>' if subtitle else ""
+    )
+    st.markdown(
+        f'<div class="dash-section">'
+        f'<div class="dash-section-header" style="--dash-accent:{html.escape(accent)}">'
+        f'<span class="dash-section-icon">{icon}</span>'
+        f"<div><h4>{html.escape(title)}</h4>{sub_html}</div>"
+        f"</div>"
+        f'<div class="dash-section-content">',
+        unsafe_allow_html=True,
+    )
+
+
+def render_dashboard_section_end() -> None:
+    import streamlit as st
+
+    st.markdown("</div></div>", unsafe_allow_html=True)
+
+
+def quick_nav_css_class(menu_name: str) -> str:
+    known = {
+        "Escalas": "escalas",
+        "Chat": "chat",
+        "Eventos": "eventos",
+        "Playlist": "playlist",
+        "Feed": "feed",
+        "Repertório": "repertorio",
+        "Perfil": "perfil",
+    }
+    slug = known.get(menu_name) or re.sub(r"[^a-z0-9]+", "-", menu_name.lower()).strip("-")
+    return f"quick-nav--{slug or 'item'}"
+
+
 def user_future_escalas(
     email: str,
     escalas_df: pd.DataFrame,
@@ -168,13 +213,18 @@ def render_dashboard_future_escalas(
     futuras = user_future_escalas(email, escalas_df, equipe_df)
     if not futuras:
         return
-    st.markdown('<p class="music-panel-title">📆 Suas próximas escalas</p>', unsafe_allow_html=True)
+    render_dashboard_section_start(
+        "Suas próximas escalas",
+        "📆",
+        "#60a5fa",
+    )
     cols = st.columns(min(4, len(futuras[:8])))
     for i, item in enumerate(futuras[:8]):
         d = item["date"].strftime("%d/%m/%Y")
         ev = str(item["event"])
         eid = str(item["escala_id"])
         with cols[i % len(cols)]:
+            st.markdown('<div class="quick-nav-btn quick-nav--escalas">', unsafe_allow_html=True)
             if st.button(
                 f"📅 {d}\n{ev}",
                 key=f"dash_fe_{eid}",
@@ -189,8 +239,10 @@ def render_dashboard_future_escalas(
                 except Exception:
                     pass
                 st.rerun()
+            st.markdown("</div>", unsafe_allow_html=True)
     if len(futuras) > 8:
         st.caption(f"Mais {len(futuras) - 8} culto(s) — veja em **Escalas**.")
+    render_dashboard_section_end()
 
 
 def render_escala_planner_panel(
