@@ -1560,7 +1560,10 @@ SWAP_ALERT_MENUS = frozenset({"Dashboard", "Escalas"})
 
 
 def swap_alerts_for_user(
-    trocas_df: pd.DataFrame, my_email: str
+    trocas_df: pd.DataFrame,
+    my_email: str,
+    escalas_df: pd.DataFrame | None = None,
+    equipe_df: pd.DataFrame | None = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """Abertas (assumir), recebidas (responder) e enviadas (aguardando) para o usuário."""
     my_email = my_email.strip().lower()
@@ -1573,11 +1576,33 @@ def swap_alerts_for_user(
     ]
     rec = pend[pend["target_email"].astype(str).str.strip().str.lower() == my_email]
     env = pend[pend["requester_email"].astype(str).str.strip().str.lower() == my_email]
+
+    if escalas_df is not None and not escalas_df.empty:
+        eq = equipe_df if equipe_df is not None else pd.DataFrame()
+
+        def _troca_visivel(row) -> bool:
+            eid = str(row.get("escala_id_origem", ""))
+            return not user_already_on_escala(escalas_df, eq, eid, my_email)
+
+        if not abertas.empty:
+            mask = abertas.apply(_troca_visivel, axis=1)
+            abertas = abertas[mask]
+        if not rec.empty:
+            mask_r = rec.apply(_troca_visivel, axis=1)
+            rec = rec[mask_r]
+
     return abertas, rec, env
 
 
-def count_swap_alerts_for_user(trocas_df: pd.DataFrame, my_email: str) -> int:
-    abertas, rec, _ = swap_alerts_for_user(trocas_df, my_email)
+def count_swap_alerts_for_user(
+    trocas_df: pd.DataFrame,
+    my_email: str,
+    escalas_df: pd.DataFrame | None = None,
+    equipe_df: pd.DataFrame | None = None,
+) -> int:
+    abertas, rec, _ = swap_alerts_for_user(
+        trocas_df, my_email, escalas_df=escalas_df, equipe_df=equipe_df
+    )
     return len(abertas) + len(rec)
 
 
@@ -1596,7 +1621,9 @@ def render_swap_alerts_panel(
     """Painel em destaque: trocas abertas, pedidos recebidos e solicitações enviadas."""
     my_email = st.session_state.user_email.strip().lower()
     name = st.session_state.user_full_name or st.session_state.user_name
-    abertas, rec, env = swap_alerts_for_user(trocas_df, my_email)
+    abertas, rec, env = swap_alerts_for_user(
+        trocas_df, my_email, escalas_df=escalas_df, equipe_df=equipe_df
+    )
     if abertas.empty and rec.empty and env.empty:
         return
 
@@ -1630,14 +1657,19 @@ def render_swap_alerts_panel(
                     use_container_width=True,
                     type="primary",
                 ):
-                    escalas_df, equipe_df, trocas_df = accept_open_swap(
+                    escalas_df, equipe_df, trocas_df, ok = accept_open_swap(
                         t, my_email, name, escalas_df, equipe_df, trocas_df
                     )
-                    save_data(escalas_df, ESCALAS_FILE)
-                    save_data(equipe_df, EQUIPE_FILE)
-                    save_data(trocas_df, TROCAS_FILE)
-                    st.success("Troca aceita! A escala já foi atualizada para todos.")
-                    st.rerun()
+                    if ok:
+                        save_data(escalas_df, ESCALAS_FILE)
+                        save_data(equipe_df, EQUIPE_FILE)
+                        save_data(trocas_df, TROCAS_FILE)
+                        st.success("Troca aceita! A escala já foi atualizada para todos.")
+                        st.rerun()
+                    else:
+                        st.error(
+                            "Você já está escalado neste culto — não é possível assumir esta troca."
+                        )
             with c2:
                 if st.button(
                     "❌ Recusar",
@@ -1671,14 +1703,19 @@ def render_swap_alerts_panel(
                 use_container_width=True,
                 type="primary",
             ):
-                escalas_df, equipe_df, trocas_df = accept_open_swap(
+                escalas_df, equipe_df, trocas_df, ok = accept_open_swap(
                     t, my_email, name, escalas_df, equipe_df, trocas_df
                 )
-                save_data(escalas_df, ESCALAS_FILE)
-                save_data(equipe_df, EQUIPE_FILE)
-                save_data(trocas_df, TROCAS_FILE)
-                st.success("Troca realizada! A solicitação saiu do painel de todos.")
-                st.rerun()
+                if ok:
+                    save_data(escalas_df, ESCALAS_FILE)
+                    save_data(equipe_df, EQUIPE_FILE)
+                    save_data(trocas_df, TROCAS_FILE)
+                    st.success("Troca realizada! A solicitação saiu do painel de todos.")
+                    st.rerun()
+                else:
+                    st.error(
+                        "Você já está escalado neste culto — não é possível assumir esta troca."
+                    )
 
     if not env.empty:
         st.markdown("**📤 Suas solicitações aguardando**")
@@ -1697,7 +1734,7 @@ def accept_open_swap(
     escalas_df: pd.DataFrame,
     equipe_df: pd.DataFrame,
     trocas_df: pd.DataFrame,
-) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, bool]:
     """Aceita troca aberta ou assume vaga — atualiza escala e encerra pedidos relacionados."""
     trocas_df = prepare_trocas(trocas_df)
     escala_id = str(troca_row["escala_id_origem"])
@@ -1705,6 +1742,12 @@ def accept_open_swap(
     tipo = str(troca_row.get("tipo", "")).lower()
 
     req_email = str(troca_row.get("requester_email", "")).strip().lower()
+    accepter_email = accepter_email.strip().lower()
+
+    if accepter_email != req_email and user_already_on_escala(
+        escalas_df, equipe_df, escala_id, accepter_email
+    ):
+        return escalas_df, equipe_df, trocas_df, False
 
     if dest_id and tipo in ("direta", "com_escala", ""):
         escalas_df = execute_swap(escalas_df, escala_id, dest_id)
@@ -1751,7 +1794,7 @@ def accept_open_swap(
     )
     trocas_df.loc[pend_mask, "status"] = "cancelada"
     trocas_df.loc[pend_mask, "responded_at"] = now
-    return escalas_df, equipe_df, trocas_df
+    return escalas_df, equipe_df, trocas_df, True
 
 
 def enrich_programa_from_catalog(
@@ -1868,6 +1911,35 @@ def escala_label_for_user(
             else "Integrante"
         )
     return f"{date_fmt} · {event} · {func}"
+
+
+def user_already_on_escala(
+    escalas_df: pd.DataFrame,
+    equipe_df: pd.DataFrame,
+    escala_id: str,
+    email: str,
+) -> bool:
+    """True se o integrante já é ministrador principal ou está na equipe do culto."""
+    email = str(email or "").strip().lower()
+    escala_id = str(escala_id or "")
+    if not email or not escala_id:
+        return False
+    idx = escalas_df.index[escalas_df["id"].astype(str) == escala_id]
+    if len(idx):
+        principal = str(escalas_df.loc[idx[0], "member_email"]).strip().lower()
+        if principal == email:
+            return True
+    if equipe_df is not None and not equipe_df.empty:
+        on_team = equipe_df[
+            (equipe_df["escala_id"].astype(str) == escala_id)
+            & (
+                equipe_df["member_email"].astype(str).str.strip().str.lower()
+                == email
+            )
+        ]
+        if not on_team.empty:
+            return True
+    return False
 
 
 def user_escalas(
@@ -8101,9 +8173,9 @@ def show_escalas_page(
                     st.rerun()
 
     with tab_pedidos:
-        pend = trocas_df[trocas_df["status"] == "pendente"]
-        rec = pend[pend["target_email"].astype(str).str.lower() == my_email]
-        env = pend[pend["requester_email"].astype(str).str.lower() == my_email]
+        _, rec, env = swap_alerts_for_user(
+            trocas_df, my_email, escalas_df=escalas_df, equipe_df=equipe_df
+        )
         st.subheader("📥 Recebidos")
         if rec.empty:
             st.info("Nenhum pedido direcionado a você.")
@@ -8126,13 +8198,18 @@ def show_escalas_page(
             with c1:
                 if st.button("✅ Aceitar", key=f"a{t['id']}", use_container_width=True):
                     name = st.session_state.user_full_name or st.session_state.user_name
-                    escalas_df, equipe_df, trocas_df = accept_open_swap(
+                    escalas_df, equipe_df, trocas_df, ok = accept_open_swap(
                         t, my_email, name, escalas_df, equipe_df, trocas_df
                     )
-                    save_data(escalas_df, ESCALAS_FILE)
-                    save_data(equipe_df, EQUIPE_FILE)
-                    save_data(trocas_df, TROCAS_FILE)
-                    st.rerun()
+                    if ok:
+                        save_data(escalas_df, ESCALAS_FILE)
+                        save_data(equipe_df, EQUIPE_FILE)
+                        save_data(trocas_df, TROCAS_FILE)
+                        st.rerun()
+                    else:
+                        st.error(
+                            "Você já está escalado neste culto — não é possível aceitar esta troca."
+                        )
             with c2:
                 if st.button("❌ Recusar", key=f"r{t['id']}", use_container_width=True):
                     trocas_df = prepare_trocas(trocas_df)
@@ -8869,9 +8946,12 @@ def _run_app() -> None:
         else 0
     )
     try:
-        _, _, _, trocas_alert_df = get_escalas_bundle()
+        escalas_b, _, equipe_b, trocas_alert_df = get_escalas_bundle()
         swap_alert_count = count_swap_alerts_for_user(
-            trocas_alert_df, st.session_state.user_email
+            trocas_alert_df,
+            st.session_state.user_email,
+            escalas_df=escalas_b,
+            equipe_df=equipe_b,
         )
     except Exception:
         swap_alert_count = 0
