@@ -18,11 +18,14 @@ from louvor_meta import (
 
 
 def count_pending_sugestoes(sugestoes_df: pd.DataFrame) -> int:
+    """Sugestões novas (pendente) para a liderança receber."""
     if sugestoes_df.empty:
         return 0
-    return int(
-        (sugestoes_df["status"].astype(str).str.lower() == "pendente").sum()
+    status = sugestoes_df["status"].astype(str).str.strip().str.lower()
+    status = status.replace(
+        {"em análise": "em_analise", "em_analise": "em_analise", "aprovado": "aprovada"}
     )
+    return int((status == "pendente").sum())
 
 
 def inject_app_notification_badges(
