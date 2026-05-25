@@ -152,16 +152,23 @@ def inject_app_notification_badges(
 
 def render_dashboard_section_start(
     title: str,
-    icon: str = "",
-    accent: str = "#a78bfa",
+    icon: str,
+    accent: str,
+    subtitle: str = "",
 ) -> None:
+    """Abre card de seção do Dashboard (título + conteúdo abaixo)."""
     import streamlit as st
 
-    icon_html = f'<span class="dash-section-icon">{icon}</span>' if icon else ""
+    sub_html = (
+        f'<p class="dash-section-sub">{html.escape(subtitle)}</p>' if subtitle else ""
+    )
     st.markdown(
-        f'<div class="dash-section" style="--dash-accent:{accent}">'
-        f'<div class="dash-section-head">{icon_html}'
-        f'<h3 class="dash-section-title">{html.escape(title)}</h3></div>',
+        f'<div class="dash-section">'
+        f'<div class="dash-section-header" style="--dash-accent:{html.escape(accent)}">'
+        f'<span class="dash-section-icon">{icon}</span>'
+        f"<div><h4>{html.escape(title)}</h4>{sub_html}</div>"
+        f"</div>"
+        f'<div class="dash-section-content">',
         unsafe_allow_html=True,
     )
 
@@ -169,17 +176,21 @@ def render_dashboard_section_start(
 def render_dashboard_section_end() -> None:
     import streamlit as st
 
-    st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown("</div></div>", unsafe_allow_html=True)
 
 
 def quick_nav_css_class(menu_name: str) -> str:
-    extra = {
-        "Chat": "quick-nav--chat",
-        "Escalas": "quick-nav--escalas",
-        "Feed": "quick-nav--feed",
-        "Repertório": "quick-nav--repertorio",
+    known = {
+        "Escalas": "escalas",
+        "Chat": "chat",
+        "Eventos": "eventos",
+        "Playlist": "playlist",
+        "Feed": "feed",
+        "Repertório": "repertorio",
+        "Perfil": "perfil",
     }
-    return extra.get(menu_name, "")
+    slug = known.get(menu_name) or re.sub(r"[^a-z0-9]+", "-", menu_name.lower()).strip("-")
+    return f"quick-nav--{slug or 'item'}"
 
 
 def user_future_escalas(
