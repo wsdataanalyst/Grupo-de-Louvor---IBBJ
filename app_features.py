@@ -138,8 +138,7 @@ def inject_app_notification_badges(
           }}
         }})();
         </script>
-        """,
-        height=0,
+        """
     )
 
 

@@ -3852,7 +3852,8 @@ def get_escalas_bundle() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.D
     return refresh_escalas_bundle()
 
 
-def _escalas_global_sync_body():
+@st.fragment(run_every=timedelta(seconds=ESCALA_POLL_SECONDS))
+def _escalas_global_sync():
     """Sincronização em tempo real: detecta mudanças na nuvem e atualiza a tela aberta."""
     if not st.session_state.get("authenticated"):
         return
@@ -3882,13 +3883,11 @@ def _escalas_global_sync_body():
 
     menu = st.session_state.get("app_menu", "")
     changed = old_rev is not None and new_rev != old_rev
-    # Só atualiza telas de escala/feed; rerun após o conteúdo já ter sido desenhado.
     if menu in MENUS_AUTO_REFRESH_ESCALA and changed:
-        st.session_state._escalas_live_dirty = True
-        st.rerun()
+        st.session_state["_pending_menu_refresh"] = menu
 
 
-def _feed_global_sync_body():
+def _feed_global_sync():
     """Atualiza revisão do feed sem rerun automático (evita avisos de formulário)."""
     if not st.session_state.get("authenticated"):
         return
@@ -3898,7 +3897,8 @@ def _feed_global_sync_body():
         pass
 
 
-def _chat_global_sync_body():
+@st.fragment(run_every=timedelta(seconds=CHAT_POLL_SECONDS))
+def _chat_global_sync():
     """Atualiza contagem de não lidas e badge do menu Chat em tempo quase real."""
     if not st.session_state.get("authenticated"):
         return
@@ -3929,16 +3929,6 @@ def _chat_global_sync_body():
     unread = count_unread_chat_messages(st.session_state.get("_chat_df_cache"))
     st.session_state.chat_unread_count = unread
     st.session_state._chat_unread_prev = unread
-
-
-@st.fragment(run_every=timedelta(seconds=ESCALA_POLL_SECONDS))
-def _app_background_sync():
-    """Poll em segundo plano — roda após o conteúdo da página para não bloquear os menus."""
-    if not st.session_state.get("authenticated"):
-        return
-    _escalas_global_sync_body()
-    _feed_global_sync_body()
-    _chat_global_sync_body()
 
 
 def append_chat_message(
@@ -8272,6 +8262,9 @@ def _run_app() -> None:
         )
     except Exception:
         swap_alert_count = 0
+    _escalas_global_sync()
+    _feed_global_sync()
+    _chat_global_sync()
     render_sidebar_footer(
         chat_unread=chat_unread,
         sug_badge=sug_badge,
@@ -8377,9 +8370,9 @@ def _run_app() -> None:
         unsafe_allow_html=True,
     )
 
-    # Sync ao final: evita st.rerun() antes de renderizar Feed, Escalas, etc.
-    with st.sidebar:
-        _app_background_sync()
+    pending = st.session_state.pop("_pending_menu_refresh", None)
+    if pending and pending == menu:
+        st.rerun()
 
 
 def main() -> None:
