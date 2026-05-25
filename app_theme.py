@@ -45,15 +45,65 @@ def ibbj_theme_css() -> str:
 
         [data-testid="stAppViewContainer"] {
             background: var(--ig-bg) !important;
+            display: flex !important;
+            flex-direction: row !important;
+            width: 100% !important;
+            max-width: 100vw !important;
         }
         [data-testid="stHeader"] {
             background: transparent !important;
             border: none !important;
         }
-        .block-container {
+        section[data-testid="stSidebar"] {
+            flex: 0 0 auto !important;
+        }
+        section.main,
+        [data-testid="stMain"],
+        [data-testid="stMainBlockContainer"] {
+            flex: 1 1 auto !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            min-width: 0 !important;
+        }
+        .main .block-container,
+        [data-testid="stMain"] .block-container,
+        [data-testid="stMainBlockContainer"] .block-container {
             max-width: 1280px !important;
+            width: 100% !important;
             padding-top: 0.5rem !important;
             padding-bottom: 2.5rem !important;
+            padding-left: 1.25rem !important;
+            padding-right: 1.25rem !important;
+            margin-left: 0 !important;
+            margin-right: auto !important;
+        }
+        /* Scripts/badges (stHtml / iframe) fora do fluxo — evita faixa vazia à esquerda */
+        div[data-testid="stHtml"],
+        div[data-testid="element-container"]:has(iframe[height="0"]),
+        div[data-testid="element-container"]:has(iframe[height="1"]) {
+            height: 0 !important;
+            min-height: 0 !important;
+            max-height: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            overflow: hidden !important;
+            border: none !important;
+        }
+        div[data-testid="stHtml"] iframe {
+            position: fixed !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 1px !important;
+            height: 1px !important;
+            min-height: 0 !important;
+            border: none !important;
+            visibility: hidden !important;
+            pointer-events: none !important;
+            z-index: -1 !important;
+        }
+        [data-testid="stHorizontalBlock"] {
+            width: 100% !important;
+            max-width: 100% !important;
         }
 
         /* ========== Sidebar ========== */
@@ -61,6 +111,7 @@ def ibbj_theme_css() -> str:
             background: linear-gradient(180deg, #0f0f0f 0%, var(--ig-bg-elevated) 100%) !important;
             border-right: 1px solid var(--ig-border) !important;
             box-shadow: 4px 0 24px rgba(0, 0, 0, 0.35) !important;
+            flex: 0 0 auto !important;
         }
         section[data-testid="stSidebar"] > div {
             padding-top: 0.35rem !important;
