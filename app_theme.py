@@ -871,29 +871,47 @@ def ibbj_login_v2_css() -> str:
         [data-testid="stAppViewContainer"]:has(.login-page) .main .block-container,
         [data-testid="stAppViewContainer"]:has(.login-page) [data-testid="stMain"] .block-container {
             max-width: 100% !important;
-            padding: 1.5rem 1rem 2rem !important;
+            width: 100% !important;
+            padding: 1.25rem 0.75rem 2rem !important;
             display: flex !important;
             flex-direction: column !important;
             align-items: center !important;
             justify-content: center !important;
-            min-height: calc(100vh - 2rem) !important;
+            min-height: calc(100vh - 1.5rem) !important;
         }
-        .login-wrap {
-            width: 100%;
-            max-width: 440px;
-            margin: 0 auto;
+        /* Bloco central do login — largura fixa no desktop (card glass) */
+        [data-testid="stAppViewContainer"]:has(.login-page) [data-testid="stMain"] [data-testid="stHorizontalBlock"] {
+            max-width: 440px !important;
+            width: 100% !important;
+            margin-left: auto !important;
+            margin-right: auto !important;
+            gap: 0.5rem !important;
+            flex-wrap: nowrap !important;
         }
-        .login-glass-card {
-            width: 100%;
-            padding: 2rem 1.75rem 1.5rem;
-            border-radius: 22px;
-            background: rgba(15, 23, 42, 0.55);
-            border: 1px solid rgba(255, 255, 255, 0.1);
+        [data-testid="stAppViewContainer"]:has(.login-page) [data-testid="stMain"] [data-testid="stColumn"] {
+            min-width: 0 !important;
+        }
+        [data-testid="stAppViewContainer"]:has(.login-page) [data-testid="stMain"] [data-testid="stColumn"]:nth-child(2) {
+            background: rgba(15, 23, 42, 0.58) !important;
+            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+            border-radius: 22px !important;
             box-shadow:
                 0 24px 64px rgba(0, 0, 0, 0.55),
-                inset 0 1px 0 rgba(255, 255, 255, 0.06);
+                inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
             backdrop-filter: blur(18px);
             -webkit-backdrop-filter: blur(18px);
+            padding: 1.65rem 1.35rem 1.25rem !important;
+        }
+        [data-testid="stAppViewContainer"]:has(.login-page) [data-testid="stMain"] [data-testid="stColumn"]:first-child,
+        [data-testid="stAppViewContainer"]:has(.login-page) [data-testid="stMain"] [data-testid="stColumn"]:last-child {
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+            padding: 0 !important;
+        }
+        [data-testid="stAppViewContainer"]:has(.login-page) [data-testid="stMain"] [data-testid="element-container"] {
+            max-width: 100% !important;
+            width: 100% !important;
         }
         .login-v2-header { text-align: center; margin-bottom: 1.35rem; }
         .login-logo-stack {
@@ -967,43 +985,44 @@ def ibbj_login_v2_css() -> str:
             text-align: center;
             margin: 0 0 1rem;
         }
-        .login-glass-card [data-testid="stForm"] {
+        [data-testid="stAppViewContainer"]:has(.login-page) [data-testid="stMain"] [data-testid="stForm"] {
             border: none !important;
             padding: 0 !important;
             background: transparent !important;
+            max-width: 100% !important;
         }
-        .login-glass-card [data-testid="stTextInput"] label p,
-        .login-glass-card [data-testid="stWidgetLabel"] p {
+        [data-testid="stAppViewContainer"]:has(.login-page) [data-testid="stMain"] [data-testid="stTextInput"] label p,
+        [data-testid="stAppViewContainer"]:has(.login-page) [data-testid="stMain"] [data-testid="stWidgetLabel"] p {
             font-size: 0.78rem !important;
             font-weight: 500 !important;
             color: rgba(209, 213, 219, 0.9) !important;
             margin-bottom: 0.25rem !important;
         }
-        .login-glass-card [data-testid="stTextInput"] > div > div {
+        [data-testid="stAppViewContainer"]:has(.login-page) [data-testid="stMain"] [data-testid="stTextInput"] > div > div {
             background: rgba(255, 255, 255, 0.05) !important;
             border: 1px solid rgba(255, 255, 255, 0.12) !important;
             border-radius: 12px !important;
             min-height: 46px !important;
         }
-        .login-glass-card [data-testid="stTextInput"] input {
+        [data-testid="stAppViewContainer"]:has(.login-page) [data-testid="stMain"] [data-testid="stTextInput"] input {
             background: transparent !important;
             color: #f9fafb !important;
             font-size: 0.9rem !important;
             padding: 0.65rem 0.85rem !important;
         }
-        .login-glass-card [data-testid="stTextInput"] input::placeholder {
+        [data-testid="stAppViewContainer"]:has(.login-page) [data-testid="stMain"] [data-testid="stTextInput"] input::placeholder {
             color: #6b7280 !important;
         }
-        .login-glass-card [data-testid="stTextInput"]:focus-within > div > div {
+        [data-testid="stAppViewContainer"]:has(.login-page) [data-testid="stMain"] [data-testid="stTextInput"]:focus-within > div > div {
             border-color: rgba(212, 175, 55, 0.55) !important;
             box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.12) !important;
         }
-        .login-glass-card .stCheckbox label p {
+        [data-testid="stAppViewContainer"]:has(.login-page) [data-testid="stMain"] .stCheckbox label p {
             font-size: 0.75rem !important;
             color: rgba(156, 163, 175, 0.95) !important;
         }
-        .login-glass-card .stFormSubmitButton > button,
-        .login-glass-card .stButton > button[kind="primary"] {
+        [data-testid="stAppViewContainer"]:has(.login-page) [data-testid="stMain"] .stFormSubmitButton > button,
+        [data-testid="stAppViewContainer"]:has(.login-page) [data-testid="stMain"] .stButton > button[kind="primary"] {
             width: 100% !important;
             min-height: 48px !important;
             border: none !important;
@@ -1016,8 +1035,8 @@ def ibbj_login_v2_css() -> str:
             box-shadow: 0 8px 24px rgba(212, 175, 55, 0.28) !important;
             margin-top: 0.35rem !important;
         }
-        .login-glass-card .stFormSubmitButton > button:hover,
-        .login-glass-card .stButton > button[kind="primary"]:hover {
+        [data-testid="stAppViewContainer"]:has(.login-page) [data-testid="stMain"] .stFormSubmitButton > button:hover,
+        [data-testid="stAppViewContainer"]:has(.login-page) [data-testid="stMain"] .stButton > button[kind="primary"]:hover {
             filter: brightness(1.06) !important;
             box-shadow: 0 10px 28px rgba(212, 175, 55, 0.38) !important;
         }
@@ -1149,18 +1168,18 @@ def ibbj_login_v2_css() -> str:
             color: rgba(107, 114, 128, 0.9);
             margin: 0.85rem 0 0;
         }
-        .login-glass-card .stTabs [data-baseweb="tab-list"] {
+        [data-testid="stAppViewContainer"]:has(.login-page) [data-testid="stMain"] .stTabs [data-baseweb="tab-list"] {
             background: rgba(255, 255, 255, 0.04) !important;
             border-radius: 10px !important;
             padding: 0.2rem !important;
             gap: 0.25rem !important;
         }
-        .login-glass-card .stTabs [data-baseweb="tab"] {
+        [data-testid="stAppViewContainer"]:has(.login-page) [data-testid="stMain"] .stTabs [data-baseweb="tab"] {
             border-radius: 8px !important;
             color: rgba(156, 163, 175, 0.95) !important;
             font-size: 0.82rem !important;
         }
-        .login-glass-card .stTabs [aria-selected="true"] {
+        [data-testid="stAppViewContainer"]:has(.login-page) [data-testid="stMain"] .stTabs [aria-selected="true"] {
             background: rgba(212, 175, 55, 0.18) !important;
             color: #f5f5f5 !important;
         }
@@ -1170,8 +1189,23 @@ def ibbj_login_v2_css() -> str:
             color: #e5e7eb !important;
             border-radius: 10px !important;
         }
+        @media (max-width: 768px) {
+            [data-testid="stAppViewContainer"]:has(.login-page) [data-testid="stMain"] [data-testid="stHorizontalBlock"] {
+                max-width: 100% !important;
+            }
+            [data-testid="stAppViewContainer"]:has(.login-page) [data-testid="stMain"] [data-testid="stColumn"]:first-child,
+            [data-testid="stAppViewContainer"]:has(.login-page) [data-testid="stMain"] [data-testid="stColumn"]:last-child {
+                display: none !important;
+            }
+            [data-testid="stAppViewContainer"]:has(.login-page) [data-testid="stMain"] [data-testid="stColumn"]:nth-child(2) {
+                flex: 1 1 100% !important;
+                width: 100% !important;
+                max-width: 100% !important;
+                padding: 1.35rem 1rem 1rem !important;
+                border-radius: 18px !important;
+            }
+        }
         @media (max-width: 480px) {
-            .login-glass-card { padding: 1.5rem 1.15rem 1.25rem; border-radius: 18px; }
             .login-v2-title { font-size: 1.45rem; }
             .login-social-row { grid-template-columns: 1fr; }
         }
