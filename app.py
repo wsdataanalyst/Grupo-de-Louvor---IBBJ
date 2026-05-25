@@ -1267,6 +1267,39 @@ def prepare_sugestoes(df: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
+def count_sugestoes_news_for_user(sugestoes_df: pd.DataFrame, email: str) -> int:
+    """Sugestões do usuário com status novo desde a última visita à página."""
+    email = str(email or "").strip().lower()
+    if not email or sugestoes_df.empty:
+        return 0
+    seen: dict = st.session_state.get("sugestoes_seen_map") or {}
+    count = 0
+    mine = sugestoes_df[
+        sugestoes_df["suggester_email"].astype(str).str.strip().str.lower() == email
+    ]
+    for _, row in mine.iterrows():
+        sid = str(row.get("id", ""))
+        status = normalize_sugestao_status(str(row.get("status", "")))
+        if status == SUGESTAO_STATUS_PENDENTE:
+            continue
+        if seen.get(sid) != status:
+            count += 1
+    return count
+
+
+def mark_user_sugestoes_seen(sugestoes_df: pd.DataFrame, email: str) -> None:
+    email = str(email or "").strip().lower()
+    if not email or sugestoes_df.empty:
+        return
+    seen = dict(st.session_state.get("sugestoes_seen_map") or {})
+    mine = sugestoes_df[
+        sugestoes_df["suggester_email"].astype(str).str.strip().str.lower() == email
+    ]
+    for _, row in mine.iterrows():
+        seen[str(row.get("id", ""))] = normalize_sugestao_status(str(row.get("status", "")))
+    st.session_state["sugestoes_seen_map"] = seen
+
+
 def sugestao_status_badge_html(status: str) -> str:
     key = normalize_sugestao_status(status)
     label = SUGESTAO_STATUS_LABELS.get(key, key)
@@ -2904,7 +2937,8 @@ def apply_music_theme():
             padding: 0;
         }
         section[data-testid="stSidebar"] div[data-testid="stRadio"] > label {
-            padding: 0.55rem 0.75rem !important;
+            position: relative !important;
+            padding: 0.55rem 0.75rem 0.55rem 1.85rem !important;
             border-radius: var(--radius-md) !important;
             margin-bottom: 0.15rem !important;
             font-weight: 500 !important;
@@ -2912,6 +2946,58 @@ def apply_music_theme():
             color: var(--text-secondary) !important;
             border: 1px solid transparent !important;
             transition: background 0.15s, border-color 0.15s, color 0.15s !important;
+        }
+        /* Bolinha lateral do menu (cinza → vermelha quando há notificação) */
+        section[data-testid="stSidebar"] div[data-testid="stRadio"] > label > div:first-child {
+            position: absolute !important;
+            left: 0.55rem !important;
+            top: 50% !important;
+            transform: translateY(-50%) !important;
+            width: 11px !important;
+            height: 11px !important;
+            min-width: 11px !important;
+            margin: 0 !important;
+            border-radius: 50% !important;
+            background: rgba(148, 163, 184, 0.28) !important;
+            border: none !important;
+            box-shadow: none !important;
+        }
+        section[data-testid="stSidebar"] div[data-testid="stRadio"] > label > div:first-child > div {
+            display: none !important;
+        }
+        section[data-testid="stSidebar"] div[data-testid="stRadio"] > label[data-nav-alert="1"] > div:first-child {
+            background: #ff3b30 !important;
+            box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.92) !important;
+        }
+        /* Badge numérico estilo WhatsApp sobre o emoji do menu */
+        section[data-testid="stSidebar"] div[data-testid="stRadio"] label .nav-wa-badge {
+            position: absolute;
+            left: 2.35rem;
+            top: 0.2rem;
+            min-width: 1.2rem;
+            height: 1.2rem;
+            padding: 0 0.34rem;
+            border-radius: 999px;
+            background: #ff3b30;
+            color: #fff !important;
+            font-size: 0.62rem;
+            font-weight: 800;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            line-height: 1.1;
+            border: 2px solid #14111f;
+            box-shadow: 0 2px 6px rgba(255, 59, 48, 0.55);
+            z-index: 15;
+            pointer-events: none;
+        }
+        .quick-nav-btn {
+            position: relative;
+        }
+        .quick-nav-btn .nav-wa-badge {
+            left: auto;
+            right: 0.4rem;
+            top: 0.4rem;
         }
         section[data-testid="stSidebar"] div[data-testid="stRadio"] > label:hover {
             background: rgba(139, 92, 246, 0.12) !important;
@@ -9218,6 +9304,9 @@ def _render_gestao_sugestoes_lideranca(
 
 
 def show_sugestao_louvor(sugestoes_df: pd.DataFrame, louvores_df: pd.DataFrame):
+    mark_user_sugestoes_seen(
+        sugestoes_df, str(st.session_state.get("user_email", ""))
+    )
     st.markdown('<p class="music-panel-title">💡 Sugerir louvor</p>', unsafe_allow_html=True)
     st.write(
         "Envie o link do YouTube e o nome da música. "
@@ -9345,11 +9434,11 @@ def _run_app() -> None:
     _escalas_global_sync()
     _feed_global_sync()
     chat_unread = int(st.session_state.get("chat_unread_count", 0))
-    sug_badge = (
-        count_pending_sugestoes(sugestoes_df)
-        if is_scale_manager(st.session_state.user_roles)
-        else 0
-    )
+    user_email = str(st.session_state.get("user_email", ""))
+    if is_scale_manager(st.session_state.user_roles):
+        sug_badge = count_pending_sugestoes(sugestoes_df)
+    else:
+        sug_badge = count_sugestoes_news_for_user(sugestoes_df, user_email)
     try:
         escalas_b, _, equipe_b, trocas_alert_df = get_escalas_bundle()
         swap_alert_count = count_swap_alerts_for_user(

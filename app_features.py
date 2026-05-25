@@ -33,7 +33,7 @@ def inject_app_notification_badges(
     sugestoes_pending: int = 0,
     swap_pending: int = 0,
 ) -> None:
-    """Badge vermelho flutuante sobre o ícone do menu (não ao lado do texto)."""
+    """Badges estilo WhatsApp no emoji do menu + bolinha lateral vermelha."""
     from app import inject_page_html
 
     badges: dict[str, int] = {}
@@ -52,94 +52,97 @@ def inject_app_notification_badges(
     inject_page_html(
         f"""
         <style>
-        section[data-testid="stSidebar"] div[data-testid="stRadio"] label {{
-            position: relative !important;
-            display: flex !important;
-            align-items: center !important;
-            gap: 0.45rem !important;
-            padding-left: 0.15rem !important;
-        }}
-        section[data-testid="stSidebar"] div[data-testid="stRadio"] label .nav-icon-badge {{
-            position: absolute;
-            left: 0.95rem;
-            top: -0.05rem;
-            min-width: 1.05rem;
-            height: 1.05rem;
-            padding: 0 0.28rem;
-            border-radius: 999px;
-            background: #ef4444 !important;
-            color: #fff !important;
-            font-size: 0.58rem;
-            font-weight: 800;
-            display: none;
-            align-items: center;
-            justify-content: center;
-            line-height: 1;
-            box-shadow: 0 2px 8px rgba(239, 68, 68, 0.65);
-            z-index: 12;
-            pointer-events: none;
-            border: 1.5px solid rgba(18, 10, 30, 0.9);
-        }}
         #app-bell-notif {{
             position: fixed; top: 0.65rem; right: 0.75rem; z-index: 9999;
-            width: 2.25rem; height: 2.25rem; border-radius: 50%;
-            background: rgba(30,20,50,.92); border: 1px solid rgba(251,191,36,.5);
+            width: 2.5rem; height: 2.5rem; border-radius: 50%;
+            background: rgba(30, 20, 50, 0.94);
+            border: 1px solid rgba(251, 191, 36, 0.45);
             display: {show_bell}; align-items: center; justify-content: center;
-            font-size: 1.15rem; box-shadow: 0 4px 16px rgba(0,0,0,.35);
+            font-size: 1.2rem; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
             pointer-events: none;
         }}
-        #app-bell-notif span {{
-            position: absolute; top: -2px; right: -2px;
-            min-width: 1rem; height: 1rem; border-radius: 999px;
-            background: #ef4444; color: #fff; font-size: 0.58rem;
-            font-weight: 800; display: flex; align-items: center; justify-content: center;
+        #app-bell-notif .nav-wa-badge {{
+            position: absolute; top: -3px; right: -3px;
+            left: auto;
+            min-width: 1.2rem; height: 1.2rem;
+            padding: 0 0.34rem; border-radius: 999px;
+            background: #ff3b30; color: #fff;
+            font-size: 0.62rem; font-weight: 800;
+            display: flex; align-items: center; justify-content: center;
+            border: 2px solid #14111f;
+            box-shadow: 0 2px 6px rgba(255, 59, 48, 0.55);
         }}
         </style>
-        <div id="app-bell-notif" title="Novidades">🔔<span>{total_label}</span></div>
+        <div id="app-bell-notif" title="Novidades">
+          🔔<span class="nav-wa-badge">{html.escape(total_label)}</span>
+        </div>
         <script>
         (function () {{
           var badges = {badges_json};
           var doc = window.parent.document;
+
           function matchMenu(raw, menuName) {{
             if (!raw || raw.indexOf(menuName) < 0) return false;
             if (menuName === "Chat" && raw.toLowerCase().indexOf("ensaio") >= 0) return false;
             if (menuName === "Escalas" && raw.indexOf("Gerenciar") >= 0) return false;
             return true;
           }}
-          function attach() {{
+
+          function countForLabel(raw) {{
+            var total = 0;
+            Object.keys(badges).forEach(function (menuName) {{
+              if (matchMenu(raw, menuName)) total += badges[menuName];
+            }});
+            return total;
+          }}
+
+          function setWaBadge(host, n) {{
+            host.querySelectorAll(".nav-wa-badge").forEach(function (b) {{ b.remove(); }});
+            if (n <= 0) return;
+            var badge = doc.createElement("span");
+            badge.className = "nav-wa-badge";
+            badge.textContent = n > 99 ? "99+" : String(n);
+            badge.style.display = "flex";
+            host.appendChild(badge);
+          }}
+
+          function attachSidebar() {{
             var sidebar = doc.querySelector('[data-testid="stSidebar"]');
             if (!sidebar) return;
             sidebar.querySelectorAll('[data-testid="stRadio"] label').forEach(function (el) {{
-              el.querySelectorAll('.nav-icon-badge').forEach(function (b) {{ b.remove(); }});
               var raw = (el.innerText || "").trim();
-              Object.keys(badges).forEach(function (menuName) {{
-                if (!matchMenu(raw, menuName)) return;
-                var n = badges[menuName];
-                var badge = doc.createElement('span');
-                badge.className = 'nav-icon-badge';
-                badge.textContent = n > 99 ? '99+' : String(n);
-                badge.style.display = 'flex';
-                el.appendChild(badge);
-              }});
-            }});
-            doc.querySelectorAll('.quick-nav-btn').forEach(function (wrap) {{
-              wrap.querySelectorAll('.nav-icon-badge').forEach(function (b) {{ b.remove(); }});
-              var raw = (wrap.innerText || "").trim();
-              Object.keys(badges).forEach(function (menuName) {{
-                if (!matchMenu(raw, menuName)) return;
-                var n = badges[menuName];
-                var badge = doc.createElement('span');
-                badge.className = 'nav-icon-badge';
-                badge.textContent = n > 99 ? '99+' : String(n);
-                badge.style.display = 'flex';
-                wrap.style.position = 'relative';
-                wrap.appendChild(badge);
-              }});
+              var n = countForLabel(raw);
+              el.removeAttribute("data-nav-alert");
+              setWaBadge(el, 0);
+              if (n > 0) {{
+                el.setAttribute("data-nav-alert", "1");
+                setWaBadge(el, n);
+              }}
             }});
           }}
+
+          function attachQuickNav() {{
+            doc.querySelectorAll(".quick-nav-btn").forEach(function (wrap) {{
+              var raw = (wrap.innerText || "").trim();
+              var n = countForLabel(raw);
+              wrap.removeAttribute("data-nav-alert");
+              setWaBadge(wrap, 0);
+              if (n > 0) {{
+                wrap.setAttribute("data-nav-alert", "1");
+                wrap.style.position = "relative";
+                setWaBadge(wrap, n);
+              }}
+            }});
+          }}
+
+          function attach() {{
+            attachSidebar();
+            attachQuickNav();
+          }}
           attach();
-          setTimeout(attach, 300);
+          setTimeout(attach, 280);
           setTimeout(attach, 900);
+          setTimeout(attach, 1800);
         }})();
         </script>
         """,
@@ -149,23 +152,16 @@ def inject_app_notification_badges(
 
 def render_dashboard_section_start(
     title: str,
-    icon: str,
-    accent: str,
-    subtitle: str = "",
+    icon: str = "",
+    accent: str = "#a78bfa",
 ) -> None:
-    """Abre card de seção do Dashboard (título + conteúdo abaixo)."""
     import streamlit as st
 
-    sub_html = (
-        f'<p class="dash-section-sub">{html.escape(subtitle)}</p>' if subtitle else ""
-    )
+    icon_html = f'<span class="dash-section-icon">{icon}</span>' if icon else ""
     st.markdown(
-        f'<div class="dash-section">'
-        f'<div class="dash-section-header" style="--dash-accent:{html.escape(accent)}">'
-        f'<span class="dash-section-icon">{icon}</span>'
-        f"<div><h4>{html.escape(title)}</h4>{sub_html}</div>"
-        f"</div>"
-        f'<div class="dash-section-content">',
+        f'<div class="dash-section" style="--dash-accent:{accent}">'
+        f'<div class="dash-section-head">{icon_html}'
+        f'<h3 class="dash-section-title">{html.escape(title)}</h3></div>',
         unsafe_allow_html=True,
     )
 
@@ -173,21 +169,17 @@ def render_dashboard_section_start(
 def render_dashboard_section_end() -> None:
     import streamlit as st
 
-    st.markdown("</div></div>", unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
 
 
 def quick_nav_css_class(menu_name: str) -> str:
-    known = {
-        "Escalas": "escalas",
-        "Chat": "chat",
-        "Eventos": "eventos",
-        "Playlist": "playlist",
-        "Feed": "feed",
-        "Repertório": "repertorio",
-        "Perfil": "perfil",
+    extra = {
+        "Chat": "quick-nav--chat",
+        "Escalas": "quick-nav--escalas",
+        "Feed": "quick-nav--feed",
+        "Repertório": "quick-nav--repertorio",
     }
-    slug = known.get(menu_name) or re.sub(r"[^a-z0-9]+", "-", menu_name.lower()).strip("-")
-    return f"quick-nav--{slug or 'item'}"
+    return extra.get(menu_name, "")
 
 
 def user_future_escalas(
