@@ -28,14 +28,11 @@ def count_pending_sugestoes(sugestoes_df: pd.DataFrame) -> int:
     return int((status == "pendente").sum())
 
 
-def inject_app_notification_badges(
+def _notification_badges_map(
     chat_unread: int,
     sugestoes_pending: int = 0,
     swap_pending: int = 0,
-) -> None:
-    """Badges estilo WhatsApp no emoji do menu + bolinha lateral vermelha."""
-    from app import inject_page_html
-
+) -> dict[str, int]:
     badges: dict[str, int] = {}
     if chat_unread > 0:
         badges["Chat"] = min(99, int(chat_unread))
@@ -43,39 +40,32 @@ def inject_app_notification_badges(
         badges["Sugestão de louvor"] = min(99, int(sugestoes_pending))
     if swap_pending > 0:
         badges["Escalas"] = min(99, int(swap_pending))
+    return badges
 
-    total = sum(badges.values())
-    show_bell = "flex" if total > 0 else "none"
-    total_label = "99+" if total > 99 else str(total)
+
+def _notification_badges_script(badges: dict[str, int], *, update_bell: bool) -> str:
     badges_json = json.dumps(badges, ensure_ascii=False)
-
-    inject_page_html(
-        f"""
-        <style>
-        #app-bell-notif {{
-            position: fixed; top: 0.65rem; right: 0.75rem; z-index: 9999;
-            width: 2.5rem; height: 2.5rem; border-radius: 50%;
-            background: #1e1e1e;
-            border: 1px solid rgba(212, 175, 55, 0.45);
-            display: {show_bell}; align-items: center; justify-content: center;
-            font-size: 1.2rem; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
-            pointer-events: none;
-        }}
-        #app-bell-notif .nav-wa-badge {{
-            position: absolute; top: -3px; right: -3px;
-            left: auto;
-            min-width: 1.2rem; height: 1.2rem;
-            padding: 0 0.34rem; border-radius: 999px;
-            background: #ff453a; color: #fff;
-            font-size: 0.62rem; font-weight: 800;
-            display: flex; align-items: center; justify-content: center;
-            border: 2px solid #121212;
-            box-shadow: 0 2px 6px rgba(255, 69, 58, 0.45);
-        }}
-        </style>
-        <div id="app-bell-notif" title="Novidades">
-          🔔<span class="nav-wa-badge">{html.escape(total_label)}</span>
-        </div>
+    total = sum(badges.values())
+    bell_block = ""
+    if update_bell:
+        bell_block = f"""
+          var bell = doc.getElementById("app-bell-notif");
+          if (bell) {{
+            bell.style.display = {total} > 0 ? "flex" : "none";
+            var bspan = bell.querySelector(".nav-wa-badge");
+            if ({total} > 0) {{
+              if (!bspan) {{
+                bspan = doc.createElement("span");
+                bspan.className = "nav-wa-badge";
+                bell.appendChild(bspan);
+              }}
+              bspan.textContent = {total} > 99 ? "99+" : String({total});
+            }} else if (bspan) {{
+              bspan.remove();
+            }}
+          }}
+        """
+    return f"""
         <script>
         (function () {{
           var badges = {badges_json};
@@ -131,16 +121,69 @@ def inject_app_notification_badges(
           function attach() {{
             attachSidebar();
             attachQuickNav();
+            {bell_block}
           }}
           attach();
           setTimeout(attach, 280);
           setTimeout(attach, 900);
-          setTimeout(attach, 1800);
-          if (!window.__igbjBadgePoll) {{
-            window.__igbjBadgePoll = setInterval(attach, 3000);
-          }}
         }})();
         </script>
+        """
+
+
+def sync_app_notification_badges(
+    chat_unread: int,
+    sugestoes_pending: int = 0,
+    swap_pending: int = 0,
+) -> None:
+    """Atualiza badges no menu sem recarregar a página inteira (uso em fragment)."""
+    from app import inject_page_html
+
+    badges = _notification_badges_map(chat_unread, sugestoes_pending, swap_pending)
+    inject_page_html(_notification_badges_script(badges, update_bell=True), height=0)
+
+
+def inject_app_notification_badges(
+    chat_unread: int,
+    sugestoes_pending: int = 0,
+    swap_pending: int = 0,
+) -> None:
+    """Badges estilo WhatsApp no emoji do menu + bolinha lateral vermelha."""
+    from app import inject_page_html
+
+    badges = _notification_badges_map(chat_unread, sugestoes_pending, swap_pending)
+    total = sum(badges.values())
+    show_bell = "flex" if total > 0 else "none"
+    total_label = "99+" if total > 99 else str(total)
+
+    inject_page_html(
+        f"""
+        <style>
+        #app-bell-notif {{
+            position: fixed; top: 0.65rem; right: 0.75rem; z-index: 9999;
+            width: 2.5rem; height: 2.5rem; border-radius: 50%;
+            background: #1e1e1e;
+            border: 1px solid rgba(212, 175, 55, 0.45);
+            display: {show_bell}; align-items: center; justify-content: center;
+            font-size: 1.2rem; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+            pointer-events: none;
+        }}
+        #app-bell-notif .nav-wa-badge {{
+            position: absolute; top: -3px; right: -3px;
+            left: auto;
+            min-width: 1.2rem; height: 1.2rem;
+            padding: 0 0.34rem; border-radius: 999px;
+            background: #ff453a; color: #fff;
+            font-size: 0.62rem; font-weight: 800;
+            display: flex; align-items: center; justify-content: center;
+            border: 2px solid #121212;
+            box-shadow: 0 2px 6px rgba(255, 69, 58, 0.45);
+        }}
+        </style>
+        <div id="app-bell-notif" title="Novidades">
+          🔔<span class="nav-wa-badge">{html.escape(total_label)}</span>
+        </div>
+        {_notification_badges_script(badges, update_bell=False)}
         """,
         height=0,
     )

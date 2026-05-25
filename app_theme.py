@@ -658,18 +658,111 @@ def ibbj_theme_css() -> str:
         .main .stWarning { background: var(--ig-gold-soft) !important; color: #fde68a !important; }
         .main .stError { background: rgba(239, 68, 68, 0.12) !important; color: #fca5a5 !important; }
 
-        /* Login */
-        .login-hero {
-            background: linear-gradient(165deg, #0f0f0f, var(--ig-bg-elevated)) !important;
-            border: 1px solid var(--ig-border) !important;
+        /* Login — cabeçalho compacto + formulário no topo */
+        .login-page + div[data-testid="stVerticalBlock"],
+        .login-page ~ div[data-testid="stVerticalBlock"] {
+            max-width: 100% !important;
         }
-        .login-hero h1, .login-hero-quote { color: #fff !important; }
-        .login-hero-ref { color: var(--ig-gold) !important; }
+        .main:has(.login-page) .block-container {
+            padding-top: 0.35rem !important;
+            max-width: 560px !important;
+        }
+        .login-header {
+            max-width: 520px;
+            margin: 0 auto 0.85rem;
+            padding: 0.5rem 0 0.25rem;
+            text-align: left;
+        }
+        .login-header--compact {
+            margin-bottom: 0.65rem;
+        }
+        .login-brand-row {
+            display: flex;
+            align-items: center;
+            gap: 0.85rem;
+        }
+        .login-cross-wrap {
+            flex-shrink: 0;
+            width: 52px;
+            height: 52px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 12px;
+            background: linear-gradient(145deg, rgba(212, 175, 55, 0.18), rgba(212, 175, 55, 0.05));
+            border: 1px solid var(--ig-gold-border);
+            box-shadow: 0 4px 20px rgba(212, 175, 55, 0.12);
+        }
+        .login-cross {
+            width: 36px !important;
+            height: auto !important;
+            max-height: 44px !important;
+            display: block !important;
+            margin: 0 auto !important;
+            object-fit: contain !important;
+        }
+        .login-cross-fallback {
+            font-size: 1.75rem;
+            color: var(--ig-gold);
+            line-height: 1;
+        }
+        .login-church {
+            color: var(--ig-gold) !important;
+            font-size: 0.78rem !important;
+            font-weight: 600 !important;
+            margin: 0 0 0.15rem !important;
+            line-height: 1.25 !important;
+            letter-spacing: 0.02em !important;
+        }
+        .login-title {
+            color: #fff !important;
+            font-size: 1.2rem !important;
+            font-weight: 800 !important;
+            margin: 0 !important;
+            line-height: 1.2 !important;
+            letter-spacing: 0.01em !important;
+        }
+        .login-header--compact .login-title {
+            font-size: 1rem !important;
+            font-weight: 700 !important;
+        }
+        .login-tagline {
+            color: var(--ig-text-muted) !important;
+            font-size: 0.78rem !important;
+            margin: 0.2rem 0 0 !important;
+            line-height: 1.35 !important;
+        }
+        .login-verse {
+            color: rgba(255, 255, 255, 0.88) !important;
+            font-size: 0.8rem !important;
+            font-style: italic;
+            margin: 0.65rem 0 0.35rem !important;
+            line-height: 1.4 !important;
+        }
+        .login-verse-ref {
+            color: var(--ig-gold) !important;
+            font-style: normal;
+            font-weight: 600;
+            margin-left: 0.35rem;
+        }
+        .login-features {
+            color: var(--ig-text-dim) !important;
+            font-size: 0.72rem !important;
+            margin: 0 !important;
+            line-height: 1.45 !important;
+        }
         .login-form-card {
             background: var(--ig-bg-card) !important;
             border: 1px solid var(--ig-border) !important;
+            border-radius: var(--ig-radius) !important;
+            padding: 0.25rem 0.15rem 0.5rem !important;
+            box-shadow: var(--ig-shadow) !important;
         }
-        .login-panel-title { color: #fff !important; }
+        .login-panel-title {
+            color: #fff !important;
+            font-size: 1.05rem !important;
+            margin-top: 0 !important;
+        }
         .login-panel-sub { color: var(--ig-text-muted) !important; }
         .login-form-card label, .login-form-card [data-testid="stWidgetLabel"] p {
             color: #e5e7eb !important;
