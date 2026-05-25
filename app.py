@@ -3037,9 +3037,13 @@ def inject_mobile_app_shell():
         )
 
 
-def render_mobile_and_push_panel(*, expander_title: str = "📲 App no celular e notificações"):
+def render_mobile_and_push_panel(
+    *,
+    expander_title: str = "App no celular e notificações",
+    expander_key: str = "ig_tool_mobile",
+):
     """Instalação no celular + ativar notificações."""
-    with st.sidebar.expander(expander_title, expanded=False):
+    with st.sidebar.expander(expander_title, expanded=False, key=expander_key):
         st.markdown(
             """
             **Android:** abra no Chrome → menu **Instalar app** (ou use um **APK** gerado em
@@ -3098,10 +3102,10 @@ def render_push_admin_sidebar(members_df: pd.DataFrame | None = None):
         return
 
     if members_df is not None:
-        with st.sidebar.expander("🔑 Redefinir senhas (dev)", expanded=False):
+        with st.sidebar.expander("Redefinir senhas (dev)", expanded=False, key="ig_tool_lock"):
             render_password_reset_panel(members_df, form_key_prefix="dev_sidebar")
 
-    with st.sidebar.expander("🔔 Configurar push (admin)", expanded=False):
+    with st.sidebar.expander("Configurar push (admin)", expanded=False, key="ig_tool_bell"):
         status = push_config_status()
         if status["enabled"]:
             st.success("Push ativo no servidor")
@@ -3142,7 +3146,7 @@ def render_data_backup_sidebar():
         test_remote_connection,
     )
 
-    with st.sidebar.expander("💾 Dados na nuvem / backup", expanded=False):
+    with st.sidebar.expander("Dados na nuvem / backup", expanded=False, key="ig_tool_cloud"):
         status = remote_status_message()
         if "desconectado" in status.lower() or "desativada" in status.lower():
             st.warning(status)
@@ -3288,6 +3292,8 @@ def format_sidebar_role_display(roles: str) -> tuple[str, str]:
 
 
 def render_sidebar_profile(members_df: pd.DataFrame | None = None):
+    from sidebar_icons import sidebar_user_placeholder_svg
+
     cross_img = _login_cross_img_html()
     st.sidebar.markdown(
         f"""
@@ -3299,8 +3305,10 @@ def render_sidebar_profile(members_df: pd.DataFrame | None = None):
                     <span></span><span></span><span></span>
                 </div>
             </div>
-            <h2 class="ig-sb-app-name">{html.escape(LOGIN_DISPLAY_TITLE)}</h2>
-            <p class="ig-sb-app-sub">Gestão Ministerial</p>
+            <div class="ig-sb-brand-text">
+                <h2 class="ig-sb-app-name">{html.escape(LOGIN_DISPLAY_TITLE)}</h2>
+                <p class="ig-sb-app-sub">Gestão Ministerial</p>
+            </div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -3318,12 +3326,15 @@ def render_sidebar_profile(members_df: pd.DataFrame | None = None):
         or str(st.session_state.get("user_name", "")).strip()
         or "Integrante"
     )
-    initial = display_name[:1].upper() if display_name else "?"
     photo_uri = profile_photo_to_data_uri(email, stored_photo) if email else None
     if photo_uri:
         avatar_inner = f'<img src="{photo_uri}" alt="" />'
     else:
-        avatar_inner = f'<span class="ig-sb-avatar-letter">{html.escape(initial)}</span>'
+        ph_uri = sidebar_user_placeholder_svg()
+        avatar_inner = (
+            f'<span class="ig-sb-avatar-ph" style="background:center/58% no-repeat '
+            f'url({ph_uri})" aria-hidden="true"></span>'
+        )
 
     roles = str(st.session_state.get("user_roles", "")).strip()
     role_main, role_badge = format_sidebar_role_display(roles)
@@ -3357,7 +3368,6 @@ def render_sidebar_navigation() -> str:
     for _, section in groups:
         flat.extend(section)
     names = [name for name, _, _ in flat]
-    icons = {name: icon for name, icon, _ in flat}
 
     if "app_menu" not in st.session_state or st.session_state.app_menu not in names:
         st.session_state.app_menu = "Feed" if "Feed" in names else (names[0] if names else "Dashboard")
@@ -3369,11 +3379,10 @@ def render_sidebar_navigation() -> str:
             f'<p class="ig-sb-nav-group">{html.escape(group_label.upper())}</p>',
             unsafe_allow_html=True,
         )
-        for name, icon, _desc in section:
+        for name, _icon, _desc in section:
             is_active = name == current
-            label = f"{icon}  {name}"
             if st.sidebar.button(
-                label,
+                name,
                 key=nav_sidebar_button_key(name),
                 use_container_width=True,
                 type="primary" if is_active else "secondary",
@@ -3429,14 +3438,21 @@ def render_dashboard_quick_actions(roles: str):
 def render_sidebar_tools_panel(members_df: pd.DataFrame | None = None):
     """Ferramentas (dev/admin) + app no celular — card inferior da sidebar."""
     dev = is_current_developer()
+    st.sidebar.markdown('<div class="ig-sb-tools-sep" aria-hidden="true"></div>', unsafe_allow_html=True)
     st.sidebar.markdown('<div class="ig-sb-tools-card">', unsafe_allow_html=True)
     if dev:
         st.sidebar.markdown('<p class="ig-sb-tools-title">Ferramentas</p>', unsafe_allow_html=True)
         if members_df is not None:
             render_push_admin_sidebar(members_df)
-        render_mobile_and_push_panel(expander_title="⚙️ Configurações")
+        render_mobile_and_push_panel(
+            expander_title="Configurações",
+            expander_key="ig_tool_settings",
+        )
     else:
-        render_mobile_and_push_panel(expander_title="📲 App no celular e notificações")
+        render_mobile_and_push_panel(
+            expander_title="App no celular e notificações",
+            expander_key="ig_tool_mobile",
+        )
     st.sidebar.markdown("</div>", unsafe_allow_html=True)
 
 
@@ -3450,7 +3466,7 @@ def render_sidebar_footer(
     inject_app_resume_listener()
     inject_app_notification_badges(chat_unread, sug_badge, swap_alert_count)
     render_sidebar_tools_panel(members_df)
-    if st.sidebar.button("🚪  Sair", key="ig_sidebar_logout", use_container_width=True, type="secondary"):
+    if st.sidebar.button("Sair", key="ig_sidebar_logout", use_container_width=True, type="secondary"):
         session_logout(st.session_state)
         st.rerun()
     st.sidebar.markdown(

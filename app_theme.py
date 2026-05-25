@@ -187,12 +187,20 @@ def ibbj_theme_css() -> str:
 
         /* ========== Sidebar premium v2 (IBBJ Louvor) ========== */
         section[data-testid="stSidebar"] {
+            font-family: 'Inter', 'Segoe UI', system-ui, sans-serif !important;
             background: linear-gradient(180deg, #030712 0%, #0a0f1a 55%, #030712 100%) !important;
             border-right: 1px solid rgba(37, 99, 235, 0.12) !important;
             box-shadow: 4px 0 32px rgba(0, 0, 0, 0.45), inset -1px 0 0 rgba(37, 99, 235, 0.08) !important;
         }
         section[data-testid="stSidebar"] > div {
-            padding: 0.65rem 0.55rem 1rem !important;
+            padding: 0.5rem 0.45rem 1rem !important;
+            margin: 0.35rem 0.25rem 0.35rem 0.35rem !important;
+            border-radius: 24px !important;
+            background: rgba(3, 7, 18, 0.88) !important;
+            border: 1px solid rgba(37, 99, 235, 0.14) !important;
+            box-shadow:
+                0 0 48px rgba(37, 99, 235, 0.07),
+                inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
         }
         section[data-testid="stSidebar"] .stCaption {
             color: #94a3b8 !important;
@@ -200,25 +208,35 @@ def ibbj_theme_css() -> str:
         }
 
         .ig-sb-brand {
-            text-align: center;
-            padding: 0.35rem 0.25rem 0.85rem;
-            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.7rem;
+            text-align: left;
+            padding: 0.4rem 0.35rem 0.85rem;
+            margin-bottom: 0.45rem;
         }
-        .ig-sb-logo-stack { display: flex; flex-direction: column; align-items: center; }
-        .ig-sb-brand .login-cross { width: 44px; height: auto; }
-        .ig-sb-brand .login-eq { height: 26px; margin-top: 4px; }
+        .ig-sb-logo-stack {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            flex-shrink: 0;
+        }
+        .ig-sb-brand .login-cross { width: 38px; height: auto; }
+        .ig-sb-brand .login-eq { height: 22px; margin-top: 3px; }
+        .ig-sb-brand-text { min-width: 0; flex: 1; }
         .ig-sb-app-name {
-            margin: 0.55rem 0 0.2rem;
-            font-size: 1.12rem;
+            margin: 0 0 0.15rem;
+            font-size: 1.05rem;
             font-weight: 700;
             color: #f8fafc !important;
             letter-spacing: -0.02em;
+            line-height: 1.2;
         }
         .ig-sb-app-sub {
             margin: 0;
-            font-size: 0.62rem;
+            font-size: 0.58rem;
             font-weight: 700;
-            letter-spacing: 0.18em;
+            letter-spacing: 0.16em;
             text-transform: uppercase;
             color: #d4a017 !important;
         }
@@ -259,6 +277,12 @@ def ibbj_theme_css() -> str:
             font-size: 1.1rem;
             font-weight: 700;
             color: #93c5fd;
+        }
+        .ig-sb-avatar-ph {
+            display: block;
+            width: 100%;
+            height: 100%;
+            opacity: 0.85;
         }
         .ig-sb-profile-text { min-width: 0; flex: 1; }
         .ig-sb-user-name {
@@ -304,9 +328,11 @@ def ibbj_theme_css() -> str:
         section[data-testid="stSidebar"] [class*="st-key-ig_nav_"] .stButton > button {
             width: 100% !important;
             min-height: 2.55rem !important;
+            display: inline-flex !important;
+            align-items: center !important;
             justify-content: flex-start !important;
             text-align: left !important;
-            padding: 0.55rem 2.1rem 0.55rem 0.85rem !important;
+            padding: 0.55rem 2.1rem 0.55rem 0.65rem !important;
             border-radius: 12px !important;
             font-size: 0.84rem !important;
             font-weight: 500 !important;
@@ -327,13 +353,23 @@ def ibbj_theme_css() -> str:
         section[data-testid="stSidebar"] [class*="st-key-ig_nav_"] .stButton > button[kind="primary"] {
             background: linear-gradient(
                 135deg,
-                rgba(37, 99, 235, 0.92) 0%,
-                rgba(37, 99, 235, 0.45) 100%
+                rgba(37, 99, 235, 0.55) 0%,
+                rgba(37, 99, 235, 0.18) 100%
             ) !important;
-            color: #f8fafc !important;
-            border: 1px solid rgba(37, 99, 235, 0.65) !important;
-            box-shadow: 0 4px 18px rgba(37, 99, 235, 0.35), inset 0 1px 0 rgba(212, 160, 23, 0.25) !important;
+            color: #93c5fd !important;
+            border: 1px solid rgba(37, 99, 235, 0.45) !important;
+            box-shadow: 0 4px 20px rgba(37, 99, 235, 0.28), inset 0 1px 0 rgba(96, 165, 250, 0.2) !important;
             font-weight: 600 !important;
+        }
+        .ig-sb-tools-sep {
+            height: 1px;
+            margin: 0.75rem 0.5rem 0.55rem;
+            background: linear-gradient(
+                90deg,
+                transparent 0%,
+                rgba(37, 99, 235, 0.35) 50%,
+                transparent 100%
+            );
         }
         section[data-testid="stSidebar"] [class*="st-key-ig_nav_"] .nav-wa-badge {
             position: absolute !important;
@@ -378,6 +414,9 @@ def ibbj_theme_css() -> str:
         }
 
         section[data-testid="stSidebar"] [class*="st-key-ig_sidebar_logout"] .stButton > button {
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
             min-height: 2.6rem !important;
             border-radius: 12px !important;
             background: rgba(127, 29, 29, 0.35) !important;
@@ -1267,11 +1306,14 @@ def inject_login_v2_theme() -> None:
 def inject_ibbj_theme() -> None:
     import streamlit as st
 
+    from sidebar_icons import sidebar_nav_icons_css, sidebar_tool_icons_css
+
     st.markdown(
         '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">',
         unsafe_allow_html=True,
     )
-    st.markdown(f"<style>{ibbj_theme_css()}</style>", unsafe_allow_html=True)
+    extra = sidebar_nav_icons_css() + sidebar_tool_icons_css()
+    st.markdown(f"<style>{ibbj_theme_css()}{extra}</style>", unsafe_allow_html=True)
 
 
 def inject_worship_theme() -> None:
