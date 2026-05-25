@@ -1115,6 +1115,40 @@ def feed_data_revision() -> str:
     return "local:" + "|".join(parts)
 
 
+def chat_data_revision() -> str:
+    """Fingerprint do chat.csv (local + nuvem) para detectar mensagens novas."""
+    from remote_store import fetch_sync_revisions, is_remote_enabled
+
+    if is_remote_enabled():
+        try:
+            remote = fetch_sync_revisions(CHAT_LIVE_FILE_NAMES)
+            if remote:
+                return f"remote:{remote}"
+        except Exception:
+            pass
+    try:
+        stat = CHAT_FILE.stat()
+        return f"local:{stat.st_mtime_ns}:{stat.st_size}"
+    except OSError:
+        return "local:missing"
+
+
+def refresh_chat_live() -> pd.DataFrame:
+    """Recarrega chat do disco/nuvem e atualiza cache da sessão."""
+    from remote_store import is_remote_enabled, pull_file_to_disk
+
+    if is_remote_enabled():
+        try:
+            pull_file_to_disk(CHAT_FILE)
+        except Exception:
+            pass
+    chat_df = load_chat_df()
+    st.session_state["_chat_df_cache"] = chat_df
+    st.session_state._chat_rev = chat_data_revision()
+    update_chat_latest_ts(chat_df)
+    return chat_df
+
+
 def sync_member_name_in_records(
     email: str,
     full_name: str,
@@ -2551,6 +2585,7 @@ def mark_chat_seen(chat_df: pd.DataFrame) -> None:
     else:
         st.session_state.chat_seen_at = str(chat_df["timestamp"].max())
     st.session_state.chat_unread_count = 0
+    st.session_state._chat_unread_prev = 0
     st.session_state.pop("_chat_has_new", None)
 
 
@@ -3199,7 +3234,10 @@ def render_sidebar_navigation() -> str:
         unsafe_allow_html=True,
     )
     group_legend = " · ".join(g for g, _ in groups)
-    st.sidebar.caption(group_legend)
+    st.sidebar.markdown(
+        f'<p class="sidebar-nav-legend">{html.escape(group_legend)}</p>',
+        unsafe_allow_html=True,
+    )
 
     try:
         idx = names.index(st.session_state.app_menu)
@@ -3637,6 +3675,9 @@ MENUS_AUTO_REFRESH_ESCALA = frozenset(
     }
 )
 ESCALA_POLL_SECONDS = 8
+CHAT_POLL_SECONDS = 4
+CHAT_FORCE_RELOAD_EVERY_POLLS = 2
+CHAT_LIVE_FILE_NAMES = frozenset({"chat.csv"})
 FEED_LIVE_FILE_NAMES = frozenset(
     {"feed_posts.csv", "feed_likes.csv", "feed_comments.csv"}
 )
@@ -3746,6 +3787,45 @@ def _feed_global_sync():
         st.session_state._feed_rev = feed_data_revision()
     except Exception:
         pass
+
+
+@st.fragment(run_every=timedelta(seconds=CHAT_POLL_SECONDS))
+def _chat_global_sync():
+    """Atualiza contagem de não lidas e badge do menu Chat em tempo quase real."""
+    if not st.session_state.get("authenticated"):
+        return
+
+    poll = int(st.session_state.get("_chat_poll_count", 0)) + 1
+    st.session_state._chat_poll_count = poll
+    force_reload = poll % CHAT_FORCE_RELOAD_EVERY_POLLS == 0
+
+    try:
+        new_rev = chat_data_revision()
+    except Exception:
+        return
+
+    old_rev = st.session_state.get("_chat_rev")
+    rev_changed = old_rev is not None and new_rev != old_rev
+
+    if force_reload or rev_changed or st.session_state.get("_chat_df_cache") is None:
+        refresh_chat_live()
+    else:
+        st.session_state._chat_rev = new_rev
+
+    menu = str(st.session_state.get("app_menu", ""))
+    if menu == "Chat":
+        st.session_state.chat_unread_count = 0
+        st.session_state._chat_unread_prev = 0
+        return
+
+    unread = count_unread_chat_messages(st.session_state.get("_chat_df_cache"))
+    prev = st.session_state.get("_chat_unread_prev")
+    st.session_state.chat_unread_count = unread
+
+    if prev is not None and int(prev) != unread:
+        st.session_state._chat_unread_prev = unread
+        st.rerun()
+    st.session_state._chat_unread_prev = unread
 
 
 def append_chat_message(
@@ -8026,7 +8106,9 @@ def _run_app() -> None:
     ensure_media_dirs()
     update_chat_latest_ts(chat_df)
     st.session_state["_chat_df_cache"] = chat_df
-    st.session_state.chat_unread_count = count_unread_chat_messages(chat_df)
+    _initial_unread = count_unread_chat_messages(chat_df)
+    st.session_state.chat_unread_count = _initial_unread
+    st.session_state._chat_unread_prev = _initial_unread
 
     if not st.session_state.authenticated:
         show_login_page(members_df)
@@ -8053,6 +8135,7 @@ def _run_app() -> None:
     menu = render_sidebar_navigation()
     _escalas_global_sync()
     _feed_global_sync()
+    _chat_global_sync()
     chat_unread = int(st.session_state.get("chat_unread_count", 0))
     user_email = str(st.session_state.get("user_email", ""))
     if is_scale_manager(st.session_state.user_roles):

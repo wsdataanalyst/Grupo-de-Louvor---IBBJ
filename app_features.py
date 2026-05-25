@@ -115,7 +115,6 @@ def inject_app_notification_badges(
               el.removeAttribute("data-nav-alert");
               setWaBadge(el, 0);
               if (n > 0) {{
-                el.setAttribute("data-nav-alert", "1");
                 setWaBadge(el, n);
               }}
             }});
@@ -143,6 +142,9 @@ def inject_app_notification_badges(
           setTimeout(attach, 280);
           setTimeout(attach, 900);
           setTimeout(attach, 1800);
+          if (!window.__igbjBadgePoll) {{
+            window.__igbjBadgePoll = setInterval(attach, 3000);
+          }}
         }})();
         </script>
         """,
