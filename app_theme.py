@@ -303,28 +303,28 @@ def ibbj_theme_css() -> str:
         }
         .ig-sb-avatar-glow {
             position: absolute;
-            inset: -14px;
+            inset: -18px;
             border-radius: 50%;
             background: radial-gradient(
                 circle,
-                rgba(56, 189, 248, 0.55) 0%,
-                rgba(37, 99, 235, 0.28) 42%,
-                transparent 68%
+                rgba(56, 189, 248, 0.7) 0%,
+                rgba(37, 99, 235, 0.4) 40%,
+                transparent 70%
             );
-            filter: blur(10px);
+            filter: blur(12px);
             opacity: 1;
             z-index: 0;
         }
         .ig-sb-avatar-ring {
             position: absolute;
-            inset: 0;
+            inset: -2px;
             border-radius: 50%;
-            border: 2px solid rgba(125, 211, 252, 0.95);
+            border: 2.5px solid rgba(125, 211, 252, 1);
             box-shadow:
-                0 0 0 1px rgba(186, 230, 253, 0.45),
-                0 0 10px 3px rgba(56, 189, 248, 0.65),
-                0 0 22px 7px rgba(37, 99, 235, 0.45),
-                0 0 36px 12px rgba(37, 99, 235, 0.22);
+                0 0 0 1px rgba(224, 242, 254, 0.55),
+                0 0 14px 4px rgba(56, 189, 248, 0.75),
+                0 0 28px 10px rgba(37, 99, 235, 0.5),
+                0 0 44px 16px rgba(37, 99, 235, 0.28);
             z-index: 2;
             pointer-events: none;
         }
@@ -1377,13 +1377,14 @@ def inject_login_v2_theme() -> None:
 def inject_ibbj_theme() -> None:
     import streamlit as st
 
+    from app_theme_v3 import ibbj_v3_css
     from sidebar_icons import sidebar_nav_icons_css, sidebar_tool_icons_css
 
     st.markdown(
         '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">',
         unsafe_allow_html=True,
     )
-    extra = sidebar_nav_icons_css() + sidebar_tool_icons_css()
+    extra = sidebar_nav_icons_css() + sidebar_tool_icons_css() + ibbj_v3_css()
     st.markdown(f"<style>{ibbj_theme_css()}{extra}</style>", unsafe_allow_html=True)
 
 

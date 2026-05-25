@@ -176,6 +176,7 @@ def quick_nav_css_class(menu_name: str) -> str:
         "Feed": "feed",
         "Repertório": "repertorio",
         "Perfil": "perfil",
+        "Sugestão de louvor": "sugestao",
     }
     slug = known.get(menu_name) or re.sub(r"[^a-z0-9]+", "-", menu_name.lower()).strip("-")
     return f"quick-nav--{slug or 'item'}"

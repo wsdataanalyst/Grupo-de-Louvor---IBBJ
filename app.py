@@ -348,6 +348,7 @@ MENU_HEADERS = {
     "Chat": "Chat do grupo",
     "Membros": "Integrantes do grupo",
     "Perfil": "Sua foto e dados cadastrais",
+    "Avisos": "Comunicados e avisos do ministério",
 }
 MENU_ACCENTS = {
     "Dashboard": "#20b2aa",
@@ -370,7 +371,7 @@ NAV_GROUP_ORDER = (
         "Ministério",
         ("Escalas", "Gerenciar Escalas", "Repertório", "Playlist", "Sugestão de louvor"),
     ),
-    ("Comunicação", ("Chat", "Eventos")),
+    ("Comunicação", ("Chat", "Eventos", "Avisos")),
     ("Pessoas", ("Membros", "Perfil")),
 )
 
@@ -381,8 +382,11 @@ DASHBOARD_QUICK_LINKS = (
     "Playlist",
     "Feed",
     "Repertório",
+    "Sugestão de louvor",
     "Perfil",
 )
+
+AVISOS_NAV_ITEM = ("Avisos", "🔔", "Comunicados e avisos do ministério")
 
 ROLE_LIDER = "Líder"
 ROLE_ORG_MUSICAL = "Organizador Musical"
@@ -501,7 +505,14 @@ def build_nav_groups_for_user(roles: str) -> list[tuple[str, list[tuple[str, str
     by_name = {name: (name, icon, desc) for name, icon, desc in items}
     groups: list[tuple[str, list[tuple[str, str, str]]]] = []
     for group_label, names in NAV_GROUP_ORDER:
-        section = [by_name[n] for n in names if n in by_name]
+        section: list[tuple[str, str, str]] = []
+        for n in names:
+            if n == "Avisos":
+                if "Feed" in by_name:
+                    section.append(AVISOS_NAV_ITEM)
+                continue
+            if n in by_name:
+                section.append(by_name[n])
         if section:
             groups.append((group_label, section))
     placed = {n for _, section in groups for n, _, _ in section}
@@ -3257,6 +3268,7 @@ def nav_sidebar_button_key(menu_name: str) -> str:
         "Eventos": "eventos",
         "Membros": "membros",
         "Perfil": "perfil",
+        "Avisos": "avisos",
     }
     slug = slug_map.get(menu_name) or re.sub(r"[^a-z0-9]+", "_", menu_name.lower()).strip("_")
     return f"ig_nav_{slug or 'item'}"
@@ -3306,6 +3318,7 @@ def render_sidebar_profile(members_df: pd.DataFrame | None = None):
                 <p class="ig-sb-app-sub">Gestão Ministerial</p>
             </div>
         </div>
+        <div class="ig-sb-divider" aria-hidden="true"></div>
         """,
         unsafe_allow_html=True,
     )
@@ -3366,8 +3379,13 @@ def render_sidebar_navigation() -> str:
         flat.extend(section)
     names = [name for name, _, _ in flat]
 
-    if "app_menu" not in st.session_state or st.session_state.app_menu not in names:
-        st.session_state.app_menu = "Feed" if "Feed" in names else (names[0] if names else "Dashboard")
+    nav_names = list(names)
+    if "Feed" in nav_names:
+        nav_names.append("Avisos")
+    if "app_menu" not in st.session_state or st.session_state.app_menu not in nav_names:
+        st.session_state.app_menu = (
+            "Dashboard" if "Dashboard" in names else ("Feed" if "Feed" in names else (names[0] if names else "Dashboard"))
+        )
 
     current = str(st.session_state.app_menu)
     st.sidebar.markdown('<nav class="ig-sb-nav" aria-label="Menu principal">', unsafe_allow_html=True)
@@ -3377,7 +3395,7 @@ def render_sidebar_navigation() -> str:
             unsafe_allow_html=True,
         )
         for name, _icon, _desc in section:
-            is_active = name == current
+            is_active = name == current or (name == "Avisos" and current == "Feed")
             if st.sidebar.button(
                 name,
                 key=nav_sidebar_button_key(name),
@@ -3385,7 +3403,7 @@ def render_sidebar_navigation() -> str:
                 type="primary" if is_active else "secondary",
             ):
                 if not is_active:
-                    st.session_state.app_menu = name
+                    st.session_state.app_menu = "Feed" if name == "Avisos" else name
                     st.rerun()
     st.sidebar.markdown("</nav>", unsafe_allow_html=True)
     return current
@@ -3463,14 +3481,19 @@ def render_sidebar_footer(
     inject_app_resume_listener()
     inject_app_notification_badges(chat_unread, sug_badge, swap_alert_count)
     render_sidebar_tools_panel(members_df)
-    if st.sidebar.button("Sair", key="ig_sidebar_logout", use_container_width=True, type="secondary"):
+    if st.sidebar.button(
+        "Sair do sistema",
+        key="ig_sidebar_logout",
+        use_container_width=True,
+        type="secondary",
+    ):
         session_logout(st.session_state)
         st.rerun()
     st.sidebar.markdown(
         """
         <div class="ig-sb-footer-verse">
             <span class="ig-sb-footer-heart" aria-hidden="true">♥</span>
-            <p class="ig-sb-footer-text">Tudo quanto tem fôlego louve ao Senhor.</p>
+            <p class="ig-sb-footer-text">Tudo quanto tem fôlego louve ao Senhor!</p>
             <p class="ig-sb-footer-ref">Salmos 150:6</p>
         </div>
         """,
@@ -5106,135 +5129,138 @@ def show_dashboard(
     playlist_df: pd.DataFrame,
     trocas_df: pd.DataFrame,
     eventos_df: pd.DataFrame,
+    feed_posts_df: pd.DataFrame | None = None,
 ):
-    escalas_df, programa_df, equipe_df, trocas_df = get_escalas_bundle()
-
-    nome = st.session_state.user_name
-    st.markdown(
-        f"""
-        <div class="welcome-card">
-            <h3>Olá, {nome}! 👋</h3>
-            <p>Bem-vindo(a) ao painel do {GROUP_NAME}. Aqui você acompanha sua escala e o ministério.</p>
-        </div>
-        """,
-        unsafe_allow_html=True,
+    from dashboard_ui import (
+        inject_dashboard_ambient,
+        render_dashboard_hero,
+        render_ministry_tip,
+        render_premium_metrics,
+        render_quick_access_v3,
+        render_right_panel,
+        render_warning_card,
+        render_week_culto_cards,
     )
+
+    escalas_df, programa_df, equipe_df, trocas_df = get_escalas_bundle()
+    feed_posts_df = feed_posts_df if feed_posts_df is not None else pd.DataFrame()
+
+    inject_dashboard_ambient()
 
     if "week_offset" not in st.session_state:
         st.session_state.week_offset = 0
 
+    nome = (
+        str(st.session_state.get("user_full_name", "")).strip()
+        or str(st.session_state.user_name)
+    )
     is_mgr = is_scale_manager(st.session_state.user_roles)
-    if is_mgr:
-        render_music_stats(
-            [
-                ("👥", "Integrantes", len(members_visible_to_group(members_df))),
-                ("🎶", "Louvores", len(louvores_df)),
-                ("📅", "Escalas", len(escalas_df)),
-            ]
-        )
     start, end = week_bounds(st.session_state.week_offset)
     my_email = st.session_state.user_email.strip().lower()
     minhas = user_on_escala_semana(escalas_df, equipe_df, my_email, start, end)
 
-    if minhas:
-        blocos = []
-        for item in minhas:
-            row = item["escala"]
-            ev = str(row.get("event", "Culto"))
-            dt = str(row.get("date", ""))
-            try:
-                dtf = pd.to_datetime(dt).strftime("%d/%m/%Y")
-            except (ValueError, TypeError):
-                dtf = dt
-            funcao = html.escape(str(item.get("funcao", "")))
-            ev_esc = html.escape(ev)
-            blocos.append(
-                '<p class="escala-linha">'
-                f'<span class="escala-evento">{ev_esc}</span> '
-                f'<span class="escala-data">({html.escape(dtf)})</span> '
-                f'<span class="escala-funcao">— {funcao}</span>'
-                "</p>"
-                + ensaio_reminder_html(row, is_manager=is_mgr)
+    col_main, col_right = st.columns([2.2, 1], gap="large")
+
+    with col_main:
+        render_dashboard_hero(user_name=nome, group_name=GROUP_NAME)
+
+        n_members = len(members_visible_to_group(members_df))
+        render_premium_metrics(
+            [
+                ("members", "Integrantes", n_members, "Ver todos"),
+                ("louvores", "Louvores", len(louvores_df), "Ver repertório"),
+                ("escalas", "Escalas", len(escalas_df), "Ver escalas"),
+            ]
+        )
+
+        if minhas:
+            blocos = []
+            for item in minhas:
+                row = item["escala"]
+                ev = str(row.get("event", "Culto"))
+                dt = str(row.get("date", ""))
+                try:
+                    dtf = pd.to_datetime(dt).strftime("%d/%m/%Y")
+                except (ValueError, TypeError):
+                    dtf = dt
+                funcao = html.escape(str(item.get("funcao", "")))
+                ev_esc = html.escape(ev)
+                blocos.append(
+                    '<p class="escala-linha">'
+                    f'<span class="escala-evento">{ev_esc}</span> '
+                    f'<span class="escala-data">({html.escape(dtf)})</span> '
+                    f'<span class="escala-funcao">— {funcao}</span>'
+                    "</p>"
+                    + ensaio_reminder_html(row, is_manager=is_mgr)
+                )
+            st.markdown(
+                '<div class="status-escalado"><p>✅ <strong>Você está escalado(a) esta semana!</strong></p>'
+                + "".join(blocos)
+                + "</div>",
+                unsafe_allow_html=True,
             )
+        else:
+            render_warning_card(escalado=False)
+
+        items, _, icons = get_menu_items_for_user(st.session_state.user_roles)
+        available = {name for name, _, _ in items}
+        quick = [
+            (n, icons.get(n, "🎵"))
+            for n in DASHBOARD_QUICK_LINKS
+            if n in available and n != "Dashboard"
+        ]
+        render_quick_access_v3(quick)
+
+        week_label = f"Semana {start.strftime('%d/%m')} — {end.strftime('%d/%m/%Y')}"
         st.markdown(
-            '<div class="status-escalado"><p>✅ <strong>Você está escalado(a) esta semana!</strong></p>'
-            + "".join(blocos)
-            + "</div>",
+            f'<h3 class="ig-section-title">Cultos da semana</h3>'
+            f'<p class="ig-week-sub">{html.escape(week_label)}</p>',
             unsafe_allow_html=True,
         )
-    else:
-        st.markdown(
-            '<div class="status-nao-escalado">ℹ️ <strong>Você não está escalado(a) nesta semana.</strong> '
-            "Quando for escalado, a informação aparecerá aqui no início do painel.</div>",
-            unsafe_allow_html=True,
+        w1, w2, w3 = st.columns([1, 1, 1])
+        with w1:
+            if st.button("◀ Semana anterior", key="ig_wk_prev", use_container_width=True):
+                st.session_state.week_offset -= 1
+                st.rerun()
+        with w2:
+            if st.button("Próxima semana ▶", key="ig_wk_next", use_container_width=True):
+                st.session_state.week_offset += 1
+                st.rerun()
+        with w3:
+            if st.session_state.week_offset != 0 and st.button(
+                "Semana atual", key="ig_wk_now", use_container_width=True
+            ):
+                st.session_state.week_offset = 0
+                st.rerun()
+
+        semana = escalas_na_semana(escalas_df, start, end)
+        minhas_ids = {
+            str(item["escala"]["id"])
+            for item in user_on_escala_semana(escalas_df, equipe_df, my_email, start, end)
+        }
+        render_week_culto_cards(
+            semana,
+            programa_df=programa_df,
+            equipe_df=equipe_df,
+            members_df=members_df,
+            louvores_df=louvores_df,
+            my_email=my_email,
+            escalas_df=escalas_df,
+            equipe_full=equipe_df,
+            minhas_ids=minhas_ids,
         )
 
-    render_dashboard_future_escalas(my_email, escalas_df, equipe_df)
-    render_feed_preview(limit=3)
-    render_events_feed(eventos_df)
-    render_dashboard_quick_actions(st.session_state.user_roles)
+        render_ministry_tip()
 
-    week_label = f"Semana {start.strftime('%d/%m')} — {end.strftime('%d/%m/%Y')}"
-    render_dashboard_section_start(
-        "Cultos da semana",
-        "📅",
-        MENU_ACCENTS.get("Escalas", "#60a5fa"),
-        subtitle=week_label,
-    )
-    w1, w2 = st.columns(2)
-    with w1:
-        if st.button("◀ Semana anterior", use_container_width=True):
-            st.session_state.week_offset -= 1
-            st.rerun()
-    with w2:
-        if st.button("Próxima semana ▶", use_container_width=True):
-            st.session_state.week_offset += 1
-            st.rerun()
-
-    if st.session_state.week_offset != 0 and st.button("📍 Voltar para semana atual", use_container_width=True):
-        st.session_state.week_offset = 0
-        st.rerun()
-
-    semana = escalas_na_semana(escalas_df, start, end)
-
-    if is_mgr:
-        render_music_stats(
-            [
-                ("🎤", "Cultos na semana", len(semana)),
-                ("🎹", "Integrantes", len(members_visible_to_group(members_df))),
-                ("🎶", "Louvores no repertório", len(louvores_df)),
-            ]
+    with col_right:
+        render_right_panel(
+            escalas_df=escalas_df,
+            programa_df=programa_df,
+            louvores_df=louvores_df,
+            feed_posts_df=feed_posts_df,
+            my_email=my_email,
+            equipe_df=equipe_df,
         )
-    else:
-        render_music_stats(
-            [
-                ("🎧", "Playlist", len(playlist_df)),
-            ]
-        )
-
-    if semana.empty:
-        st.info(
-            "Nenhum culto nesta semana por enquanto. Quando houver escala, ela aparecerá aqui para todos."
-        )
-        render_dashboard_section_end()
-        return
-
-    minhas_ids = {
-        str(item["escala"]["id"])
-        for item in user_on_escala_semana(escalas_df, equipe_df, my_email, start, end)
-    }
-    for _, escala in semana.iterrows():
-        eid = str(escala.get("id", ""))
-        render_culto_programa(
-            escala,
-            programa_df,
-            equipe_df,
-            members_df,
-            louvores_df,
-            ensaio_notice=eid in minhas_ids,
-            widget_key_prefix=f"dash_{eid}",
-        )
-    render_dashboard_section_end()
 
 
 def show_user_profile(
@@ -8389,7 +8415,22 @@ def _run_app() -> None:
     )
     render_data_loss_warning(members_df)
 
-    page_header(menu)
+    email_hdr = str(st.session_state.get("user_email", "")).strip().lower()
+    photo_hdr = profile_photo_to_data_uri(
+        email_hdr, str(st.session_state.get("user_profile_photo", "")).strip()
+    )
+    notif_hdr = int(chat_unread) + int(sug_badge) + int(swap_alert_count)
+    from dashboard_ui import render_global_header
+
+    render_global_header(
+        user_name=str(st.session_state.get("user_full_name", "")).strip()
+        or str(st.session_state.user_name),
+        photo_uri=photo_hdr,
+        notif_count=notif_hdr,
+    )
+
+    if menu != "Dashboard":
+        page_header(menu)
 
     wa_open = st.session_state.pop("wa_auto_open_url", None)
     if wa_open:
@@ -8428,7 +8469,11 @@ def _run_app() -> None:
             playlist_df,
             trocas_df,
             eventos_df,
+            feed_posts_df=feed_posts_df,
         )
+
+    elif menu == "Avisos":
+        show_feed_page(feed_posts_df, feed_likes_df, feed_comments_df)
 
     elif menu == "Repertório":
         show_louvores_catalog(louvores_df)
