@@ -347,17 +347,17 @@ MENU_HEADERS = {
     "Perfil": "Sua foto e dados cadastrais",
 }
 MENU_ACCENTS = {
-    "Dashboard": "#a78bfa",
-    "Gerenciar Escalas": "#f59e0b",
-    "Repertório": "#fbbf24",
-    "Escalas": "#60a5fa",
-    "Feed": "#f472b6",
-    "Eventos": "#38bdf8",
-    "Sugestão de louvor": "#4ade80",
-    "Playlist": "#f472b6",
-    "Chat": "#34d399",
-    "Membros": "#fb923c",
-    "Perfil": "#c084fc",
+    "Dashboard": "#d4a056",
+    "Gerenciar Escalas": "#b07d3e",
+    "Repertório": "#d4a056",
+    "Escalas": "#101d33",
+    "Feed": "#c17a3a",
+    "Eventos": "#5c6b7f",
+    "Sugestão de louvor": "#b07d3e",
+    "Playlist": "#d4a056",
+    "Chat": "#101d33",
+    "Membros": "#8b6914",
+    "Perfil": "#b07d3e",
 }
 
 # Organização do menu por áreas (sidebar)
@@ -4328,6 +4328,9 @@ def apply_music_theme():
         """,
         unsafe_allow_html=True,
     )
+    from app_theme import inject_worship_theme
+
+    inject_worship_theme()
 
 
 def inject_page_html(html_fragment: str, height: int = 0):
@@ -4594,8 +4597,13 @@ def render_sidebar_profile():
     st.sidebar.markdown(
         f"""
         <div class="sidebar-brand">
-            <h3>🎵 {GROUP_NAME}</h3>
-            <p>Ministério de louvor · IBBJ</p>
+            <div class="sidebar-brand-mark">
+                <span class="sidebar-brand-icon">✝</span>
+                <div>
+                    <h3>{GROUP_NAME}</h3>
+                    <p>Ministério de louvor · IBBJ</p>
+                </div>
+            </div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -4819,6 +4827,9 @@ def render_login_brand():
         f"""
         <div class="login-hero">
             {cross_img}
+            <p class="login-hero-quote">Cantai ao Senhor um cântico novo.</p>
+            <p class="login-hero-ref">Salmos 96:1</p>
+            <span class="login-hero-pill">É por isso que fazemos o que fazemos</span>
             <h1>{GROUP_NAME}</h1>
             <p class="tagline">Sistema de organização do ministério de louvor</p>
             <p class="features">
@@ -4942,9 +4953,20 @@ def show_login_page(members_df: pd.DataFrame):
     apply_music_theme()
     st.markdown('<div class="login-wrap">', unsafe_allow_html=True)
 
-    render_login_brand()
+    special_flow = (
+        is_reset_password_page() or is_forgot_password_page() or is_register_page()
+    )
 
-    st.markdown("---")
+    if special_flow:
+        col_pad, col_main, col_pad2 = st.columns([0.15, 0.7, 0.15])
+        with col_main:
+            st.markdown('<div class="login-form-card">', unsafe_allow_html=True)
+    else:
+        col_brand, col_form = st.columns([1, 1], gap="large")
+        with col_brand:
+            render_login_brand()
+        with col_form:
+            st.markdown('<div class="login-form-card">', unsafe_allow_html=True)
 
     if is_reset_password_page():
         render_reset_password_form(members_df)
@@ -5021,6 +5043,7 @@ def show_login_page(members_df: pd.DataFrame):
         with tab_register:
             render_register_form(members_df)
 
+    st.markdown("</div>", unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
 
