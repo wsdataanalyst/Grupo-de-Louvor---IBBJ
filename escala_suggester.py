@@ -361,7 +361,7 @@ def pick_equipe_for_culto(
     team_size: int = 6,
 ) -> tuple[EquipeSlot, list[EquipeSlot], list[str]]:
     notes: list[str] = []
-    picked_emails: set[str] = []
+    picked_emails: set[str] = set()
 
     minist_scores = [
         (
