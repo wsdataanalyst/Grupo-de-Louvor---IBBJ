@@ -272,6 +272,13 @@ def ibbj_v3_css() -> str:
         }
         [data-testid="stHtml"] iframe {
             background: transparent !important;
+            border: none !important;
+        }
+        section[data-testid="stSidebar"] [data-testid="stHtml"] {
+            width: 100% !important;
+        }
+        section[data-testid="stSidebar"] [data-testid="stHtml"] > div {
+            width: 100% !important;
         }
 
         /* Warning */

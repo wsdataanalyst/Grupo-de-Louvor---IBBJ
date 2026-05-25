@@ -150,12 +150,13 @@ def next_upcoming_escala(
 
 
 def inject_dashboard_ambient() -> None:
-    st.markdown(
+    from ui_html import inject_ui_html
+
+    inject_ui_html(
         """
         <div class="ig-ambient ig-ambient--blue" aria-hidden="true"></div>
         <div class="ig-ambient ig-ambient--gold" aria-hidden="true"></div>
-        """,
-        unsafe_allow_html=True,
+        """
     )
 
 
@@ -221,7 +222,9 @@ def render_global_header(
 def render_dashboard_hero(*, user_name: str, group_name: str) -> None:
     nome = _esc_html(user_name)
     grupo = _esc_html(group_name)
-    st.markdown(
+    from ui_html import inject_ui_html
+
+    inject_ui_html(
         f"""
         <div class="ig-hero-card">
             <div class="ig-hero-left">
@@ -233,16 +236,14 @@ def render_dashboard_hero(*, user_name: str, group_name: str) -> None:
                 Cantai ao Senhor um <em>novo cântico</em>; cantai ao Senhor, toda a terra.
             </blockquote>
         </div>
-        """,
-        unsafe_allow_html=True,
+        """
     )
 
 
 def _inject_metric_html(fragment: str) -> None:
-    try:
-        st.html(fragment)
-    except Exception:
-        st.markdown(fragment, unsafe_allow_html=True)
+    from ui_html import inject_ui_html
+
+    inject_ui_html(fragment)
 
 
 def render_premium_metrics(stats: list[tuple[str, str, int, str]]) -> None:

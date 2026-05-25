@@ -3307,9 +3307,11 @@ def render_sidebar_profile(members_df: pd.DataFrame | None = None):
     from sidebar_brand import sidebar_brand_mark_html
     from sidebar_icons import sidebar_user_placeholder_svg
 
+    from ui_html import inject_ui_html
+
     cross_img = _login_cross_img_html()
     mark_html = sidebar_brand_mark_html(cross_img)
-    st.sidebar.markdown(
+    inject_ui_html(
         f"""
         <div class="ig-sb-brand">
             {mark_html}
@@ -3320,7 +3322,7 @@ def render_sidebar_profile(members_df: pd.DataFrame | None = None):
         </div>
         <div class="ig-sb-divider" aria-hidden="true"></div>
         """,
-        unsafe_allow_html=True,
+        sidebar=True,
     )
 
     email = str(st.session_state.get("user_email", "")).strip().lower()
@@ -3352,7 +3354,7 @@ def render_sidebar_profile(members_df: pd.DataFrame | None = None):
         if role_badge
         else ""
     )
-    st.sidebar.markdown(
+    inject_ui_html(
         f"""
         <div class="ig-sb-profile-card">
             <div class="ig-sb-avatar-wrap">
@@ -3367,7 +3369,7 @@ def render_sidebar_profile(members_df: pd.DataFrame | None = None):
             </div>
         </div>
         """,
-        unsafe_allow_html=True,
+        sidebar=True,
     )
 
 
@@ -3453,10 +3455,12 @@ def render_dashboard_quick_actions(roles: str):
 def render_sidebar_tools_panel(members_df: pd.DataFrame | None = None):
     """Ferramentas (dev/admin) + app no celular — card inferior da sidebar."""
     dev = is_current_developer()
-    st.sidebar.markdown('<div class="ig-sb-tools-sep" aria-hidden="true"></div>', unsafe_allow_html=True)
-    st.sidebar.markdown('<div class="ig-sb-tools-card">', unsafe_allow_html=True)
+    from ui_html import inject_ui_html
+
+    inject_ui_html('<div class="ig-sb-tools-sep" aria-hidden="true"></div>', sidebar=True)
+    inject_ui_html('<div class="ig-sb-tools-card">', sidebar=True)
     if dev:
-        st.sidebar.markdown('<p class="ig-sb-tools-title">Ferramentas</p>', unsafe_allow_html=True)
+        inject_ui_html('<p class="ig-sb-tools-title">Ferramentas</p>', sidebar=True)
         if members_df is not None:
             render_push_admin_sidebar(members_df)
         render_mobile_and_push_panel(
@@ -3468,7 +3472,7 @@ def render_sidebar_tools_panel(members_df: pd.DataFrame | None = None):
             expander_title="App no celular e notificações",
             expander_key="ig_tool_mobile",
         )
-    st.sidebar.markdown("</div>", unsafe_allow_html=True)
+    inject_ui_html("</div>", sidebar=True)
 
 
 def render_sidebar_footer(
@@ -3489,7 +3493,9 @@ def render_sidebar_footer(
     ):
         session_logout(st.session_state)
         st.rerun()
-    st.sidebar.markdown(
+    from ui_html import inject_ui_html
+
+    inject_ui_html(
         """
         <div class="ig-sb-footer-verse">
             <span class="ig-sb-footer-heart" aria-hidden="true">♥</span>
@@ -3497,7 +3503,7 @@ def render_sidebar_footer(
             <p class="ig-sb-footer-ref">Salmos 150:6</p>
         </div>
         """,
-        unsafe_allow_html=True,
+        sidebar=True,
     )
 
 
