@@ -45,42 +45,36 @@ def ibbj_theme_css() -> str:
 
         [data-testid="stAppViewContainer"] {
             background: var(--ig-bg) !important;
-            display: flex !important;
-            flex-direction: row !important;
-            width: 100% !important;
-            max-width: 100vw !important;
         }
         [data-testid="stHeader"] {
             background: transparent !important;
             border: none !important;
         }
-        section[data-testid="stSidebar"] {
-            flex: 0 0 auto !important;
-        }
-        section.main,
-        [data-testid="stMain"],
-        [data-testid="stMainBlockContainer"] {
-            flex: 1 1 auto !important;
-            width: 100% !important;
-            max-width: 100% !important;
-            min-width: 0 !important;
-        }
         .main .block-container,
         [data-testid="stMain"] .block-container,
         [data-testid="stMainBlockContainer"] .block-container {
-            max-width: 1280px !important;
+            max-width: none !important;
             width: 100% !important;
             padding-top: 0.5rem !important;
             padding-bottom: 2.5rem !important;
             padding-left: 1.25rem !important;
             padding-right: 1.25rem !important;
-            margin-left: 0 !important;
+            margin-left: auto !important;
             margin-right: auto !important;
         }
-        /* Scripts/badges (stHtml / iframe) fora do fluxo — evita faixa vazia à esquerda */
-        div[data-testid="stHtml"],
-        div[data-testid="element-container"]:has(iframe[height="0"]),
-        div[data-testid="element-container"]:has(iframe[height="1"]) {
+        @media (min-width: 769px) {
+            .main .block-container,
+            [data-testid="stMain"] .block-container,
+            [data-testid="stMainBlockContainer"] .block-container {
+                padding-left: 2.5rem !important;
+                padding-right: 2.5rem !important;
+            }
+        }
+        /* Injeções invisíveis (scripts) não reservam coluna na área principal */
+        section.main div[data-testid="stHtml"],
+        [data-testid="stMain"] div[data-testid="stHtml"],
+        section.main div[data-testid="element-container"]:has(iframe[height="0"]),
+        section.main div[data-testid="element-container"]:has(iframe[height="1"]) {
             height: 0 !important;
             min-height: 0 !important;
             max-height: 0 !important;
@@ -89,13 +83,21 @@ def ibbj_theme_css() -> str:
             overflow: hidden !important;
             border: none !important;
         }
-        div[data-testid="stHtml"] iframe {
+        section[data-testid="stSidebar"] div[data-testid="stHtml"] {
+            height: 0 !important;
+            min-height: 0 !important;
+            max-height: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            overflow: hidden !important;
+        }
+        section.main div[data-testid="stHtml"] iframe,
+        [data-testid="stMain"] div[data-testid="stHtml"] iframe {
             position: fixed !important;
             left: 0 !important;
             top: 0 !important;
             width: 1px !important;
             height: 1px !important;
-            min-height: 0 !important;
             border: none !important;
             visibility: hidden !important;
             pointer-events: none !important;
@@ -105,13 +107,32 @@ def ibbj_theme_css() -> str:
             width: 100% !important;
             max-width: 100% !important;
         }
+        #app-bell-notif {
+            position: fixed; top: 0.65rem; right: 0.75rem; z-index: 9999;
+            width: 2.5rem; height: 2.5rem; border-radius: 50%;
+            background: #1e1e1e;
+            border: 1px solid rgba(212, 175, 55, 0.45);
+            align-items: center; justify-content: center;
+            font-size: 1.2rem; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+            pointer-events: none;
+        }
+        .nav-wa-badge {
+            position: absolute; top: -3px; right: -3px;
+            left: auto;
+            min-width: 1.2rem; height: 1.2rem;
+            padding: 0 0.34rem; border-radius: 999px;
+            background: #ff453a; color: #fff;
+            font-size: 0.62rem; font-weight: 800;
+            display: flex; align-items: center; justify-content: center;
+            border: 2px solid #121212;
+            box-shadow: 0 2px 6px rgba(255, 69, 58, 0.45);
+        }
 
         /* ========== Sidebar ========== */
         section[data-testid="stSidebar"] {
             background: linear-gradient(180deg, #0f0f0f 0%, var(--ig-bg-elevated) 100%) !important;
             border-right: 1px solid var(--ig-border) !important;
             box-shadow: 4px 0 24px rgba(0, 0, 0, 0.35) !important;
-            flex: 0 0 auto !important;
         }
         section[data-testid="stSidebar"] > div {
             padding-top: 0.35rem !important;
@@ -758,6 +779,339 @@ def ibbj_theme_css() -> str:
             input, textarea, select { font-size: 16px !important; }
         }
     """
+
+
+def ibbj_login_v2_css() -> str:
+    """Login glassmorphism — IBBJ Louvor (repaginação fase 1)."""
+    return """
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Great+Vibes&display=swap');
+
+        [data-testid="stAppViewContainer"]:has(.login-page) section[data-testid="stSidebar"],
+        [data-testid="stAppViewContainer"]:has(.login-page) [data-testid="stSidebarCollapsedControl"],
+        [data-testid="stAppViewContainer"]:has(.login-page) [data-testid="stHeader"] {
+            display: none !important;
+        }
+        [data-testid="stAppViewContainer"]:has(.login-page) {
+            background:
+                linear-gradient(165deg, rgba(8, 12, 22, 0.94) 0%, rgba(11, 14, 20, 0.97) 45%, rgba(6, 10, 18, 0.98) 100%),
+                radial-gradient(ellipse 80% 50% at 50% -10%, rgba(32, 178, 170, 0.18), transparent 55%),
+                radial-gradient(ellipse 60% 40% at 80% 100%, rgba(212, 175, 55, 0.08), transparent 50%),
+                #0b0e14 !important;
+        }
+        [data-testid="stAppViewContainer"]:has(.login-page) .main .block-container,
+        [data-testid="stAppViewContainer"]:has(.login-page) [data-testid="stMain"] .block-container {
+            max-width: 100% !important;
+            padding: 1.5rem 1rem 2rem !important;
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: center !important;
+            justify-content: center !important;
+            min-height: calc(100vh - 2rem) !important;
+        }
+        .login-wrap {
+            width: 100%;
+            max-width: 440px;
+            margin: 0 auto;
+        }
+        .login-glass-card {
+            width: 100%;
+            padding: 2rem 1.75rem 1.5rem;
+            border-radius: 22px;
+            background: rgba(15, 23, 42, 0.55);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow:
+                0 24px 64px rgba(0, 0, 0, 0.55),
+                inset 0 1px 0 rgba(255, 255, 255, 0.06);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+        }
+        .login-v2-header { text-align: center; margin-bottom: 1.35rem; }
+        .login-logo-stack {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.35rem;
+        }
+        .login-logo-stack img.login-cross {
+            width: 52px;
+            height: auto;
+            filter: drop-shadow(0 4px 14px rgba(212, 175, 55, 0.35));
+        }
+        .login-eq {
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            gap: 5px;
+            height: 32px;
+            margin-top: 2px;
+        }
+        .login-eq span {
+            display: block;
+            width: 5px;
+            border-radius: 3px;
+            background: linear-gradient(180deg, #f7e7b6 0%, #d4af37 55%, rgba(212, 175, 55, 0.45) 100%);
+            animation: loginEqPulse 1.4s ease-in-out infinite;
+        }
+        .login-eq span:nth-child(1) { height: 10px; animation-delay: 0s; }
+        .login-eq span:nth-child(2) { height: 18px; animation-delay: 0.12s; }
+        .login-eq span:nth-child(3) { height: 26px; animation-delay: 0.24s; }
+        .login-eq span:nth-child(4) { height: 14px; animation-delay: 0.08s; }
+        .login-eq span:nth-child(5) { height: 22px; animation-delay: 0.2s; }
+        .login-eq span:nth-child(6) { height: 16px; animation-delay: 0.16s; }
+        .login-eq span:nth-child(7) { height: 12px; animation-delay: 0.28s; }
+        @keyframes loginEqPulse {
+            0%, 100% { transform: scaleY(0.75); opacity: 0.75; }
+            50% { transform: scaleY(1); opacity: 1; }
+        }
+        .login-v2-title {
+            margin: 0.85rem 0 0.35rem;
+            font-size: 1.65rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            color: #fff !important;
+            line-height: 1.2;
+        }
+        .login-v2-tagline {
+            margin: 0;
+            font-size: 0.92rem;
+            color: rgba(255, 255, 255, 0.82) !important;
+            line-height: 1.45;
+        }
+        .login-v2-script {
+            font-family: 'Great Vibes', cursive;
+            font-size: 1.35rem;
+            color: #d4af37 !important;
+            display: inline-block;
+            margin-left: 0.15rem;
+        }
+        .login-panel-title {
+            color: #fff !important;
+            font-size: 1.05rem;
+            font-weight: 600;
+            margin: 0 0 0.25rem;
+            text-align: center;
+        }
+        .login-panel-sub {
+            color: rgba(156, 163, 175, 0.95) !important;
+            font-size: 0.82rem;
+            text-align: center;
+            margin: 0 0 1rem;
+        }
+        .login-glass-card [data-testid="stForm"] {
+            border: none !important;
+            padding: 0 !important;
+            background: transparent !important;
+        }
+        .login-glass-card [data-testid="stTextInput"] label p,
+        .login-glass-card [data-testid="stWidgetLabel"] p {
+            font-size: 0.78rem !important;
+            font-weight: 500 !important;
+            color: rgba(209, 213, 219, 0.9) !important;
+            margin-bottom: 0.25rem !important;
+        }
+        .login-glass-card [data-testid="stTextInput"] > div > div {
+            background: rgba(255, 255, 255, 0.05) !important;
+            border: 1px solid rgba(255, 255, 255, 0.12) !important;
+            border-radius: 12px !important;
+            min-height: 46px !important;
+        }
+        .login-glass-card [data-testid="stTextInput"] input {
+            background: transparent !important;
+            color: #f9fafb !important;
+            font-size: 0.9rem !important;
+            padding: 0.65rem 0.85rem !important;
+        }
+        .login-glass-card [data-testid="stTextInput"] input::placeholder {
+            color: #6b7280 !important;
+        }
+        .login-glass-card [data-testid="stTextInput"]:focus-within > div > div {
+            border-color: rgba(212, 175, 55, 0.55) !important;
+            box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.12) !important;
+        }
+        .login-glass-card .stCheckbox label p {
+            font-size: 0.75rem !important;
+            color: rgba(156, 163, 175, 0.95) !important;
+        }
+        .login-glass-card .stFormSubmitButton > button,
+        .login-glass-card .stButton > button[kind="primary"] {
+            width: 100% !important;
+            min-height: 48px !important;
+            border: none !important;
+            border-radius: 12px !important;
+            background: linear-gradient(90deg, #9a7b1a 0%, #d4af37 42%, #f0d78c 100%) !important;
+            color: #1a1208 !important;
+            font-weight: 700 !important;
+            font-size: 0.95rem !important;
+            letter-spacing: 0.02em !important;
+            box-shadow: 0 8px 24px rgba(212, 175, 55, 0.28) !important;
+            margin-top: 0.35rem !important;
+        }
+        .login-glass-card .stFormSubmitButton > button:hover,
+        .login-glass-card .stButton > button[kind="primary"]:hover {
+            filter: brightness(1.06) !important;
+            box-shadow: 0 10px 28px rgba(212, 175, 55, 0.38) !important;
+        }
+        .login-forgot-row {
+            display: flex;
+            justify-content: flex-end;
+            margin: -0.35rem 0 0.15rem;
+        }
+        .login-forgot-row .stButton > button {
+            background: transparent !important;
+            border: none !important;
+            color: #60a5fa !important;
+            font-size: 0.78rem !important;
+            font-weight: 500 !important;
+            padding: 0.2rem 0 !important;
+            min-height: auto !important;
+            box-shadow: none !important;
+            width: auto !important;
+        }
+        .login-forgot-row .stButton > button:hover {
+            color: #93c5fd !important;
+            text-decoration: underline !important;
+        }
+        .login-divider {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin: 1.15rem 0 0.85rem;
+            color: rgba(156, 163, 175, 0.85);
+            font-size: 0.78rem;
+        }
+        .login-divider::before,
+        .login-divider::after {
+            content: "";
+            flex: 1;
+            height: 1px;
+            background: rgba(255, 255, 255, 0.1);
+        }
+        .login-social-row {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+        .login-social-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.35rem;
+            padding: 0.55rem 0.35rem;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #e5e7eb;
+            font-size: 0.72rem;
+            font-weight: 500;
+            cursor: default;
+            user-select: none;
+        }
+        .login-social-icon {
+            width: 1.1rem;
+            height: 1.1rem;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.62rem;
+            font-weight: 700;
+        }
+        .login-social-g {
+            background: #fff;
+            color: #4285f4;
+        }
+        .login-social-f {
+            background: #1877f2;
+            color: #fff;
+        }
+        .login-social-a {
+            background: #fff;
+            color: #000;
+        }
+        .login-social-hint {
+            text-align: center;
+            font-size: 0.68rem;
+            color: rgba(107, 114, 128, 0.95);
+            margin: 0 0 0.75rem;
+            line-height: 1.35;
+        }
+        .login-register-cta {
+            text-align: center;
+            font-size: 0.8rem;
+            color: rgba(156, 163, 175, 0.95);
+            margin: 0 0 1rem;
+        }
+        .login-register-cta a {
+            color: #d4af37;
+            text-decoration: none;
+            font-weight: 600;
+        }
+        .login-register-cta a:hover { text-decoration: underline; }
+        .login-v2-quote {
+            text-align: center;
+            margin: 0.5rem 0 0.35rem;
+            padding-top: 0.75rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .login-v2-quote-mark {
+            color: #d4af37;
+            font-size: 1.5rem;
+            line-height: 1;
+            font-family: Georgia, serif;
+        }
+        .login-v2-quote-text {
+            margin: 0.35rem 0 0.25rem;
+            font-size: 0.78rem;
+            line-height: 1.5;
+            color: rgba(229, 231, 235, 0.88) !important;
+            font-style: italic;
+        }
+        .login-v2-quote-ref {
+            margin: 0;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: #d4af37 !important;
+        }
+        .login-v2-copy {
+            text-align: center;
+            font-size: 0.65rem;
+            color: rgba(107, 114, 128, 0.9);
+            margin: 0.85rem 0 0;
+        }
+        .login-glass-card .stTabs [data-baseweb="tab-list"] {
+            background: rgba(255, 255, 255, 0.04) !important;
+            border-radius: 10px !important;
+            padding: 0.2rem !important;
+            gap: 0.25rem !important;
+        }
+        .login-glass-card .stTabs [data-baseweb="tab"] {
+            border-radius: 8px !important;
+            color: rgba(156, 163, 175, 0.95) !important;
+            font-size: 0.82rem !important;
+        }
+        .login-glass-card .stTabs [aria-selected="true"] {
+            background: rgba(212, 175, 55, 0.18) !important;
+            color: #f5f5f5 !important;
+        }
+        .login-back-row .stButton > button {
+            background: rgba(255, 255, 255, 0.06) !important;
+            border: 1px solid rgba(255, 255, 255, 0.12) !important;
+            color: #e5e7eb !important;
+            border-radius: 10px !important;
+        }
+        @media (max-width: 480px) {
+            .login-glass-card { padding: 1.5rem 1.15rem 1.25rem; border-radius: 18px; }
+            .login-v2-title { font-size: 1.45rem; }
+            .login-social-row { grid-template-columns: 1fr; }
+        }
+    """
+
+
+def inject_login_v2_theme() -> None:
+    import streamlit as st
+
+    st.markdown(f"<style>{ibbj_login_v2_css()}</style>", unsafe_allow_html=True)
 
 
 def inject_ibbj_theme() -> None:

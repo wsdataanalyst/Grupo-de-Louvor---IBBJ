@@ -17,6 +17,27 @@ from louvor_meta import (
 )
 
 
+def inject_hidden_sidebar_script(html_fragment: str) -> None:
+    """HTML/JS na sidebar — não ocupa colunas na área principal (layout desktop)."""
+    import streamlit as st
+
+    body = html_fragment.strip()
+    if not body:
+        return
+    with st.sidebar:
+        try:
+            st.html(body, unsafe_allow_javascript=True)
+        except Exception:
+            import streamlit.components.v1 as components
+
+            wrapped = (
+                '<div aria-hidden="true" style="position:fixed;left:0;top:0;'
+                'width:1px;height:1px;overflow:hidden;opacity:0;pointer-events:none;">'
+                f"{body}</div>"
+            )
+            components.html(wrapped, height=0, scrolling=False)
+
+
 def count_pending_sugestoes(sugestoes_df: pd.DataFrame) -> int:
     """Sugestões novas (pendente) para a liderança receber."""
     if sugestoes_df.empty:
@@ -34,8 +55,6 @@ def inject_app_notification_badges(
     swap_pending: int = 0,
 ) -> None:
     """Badges estilo WhatsApp no emoji do menu + bolinha lateral vermelha."""
-    from app import inject_page_html
-
     badges: dict[str, int] = {}
     if chat_unread > 0:
         badges["Chat"] = min(99, int(chat_unread))
@@ -49,31 +68,9 @@ def inject_app_notification_badges(
     total_label = "99+" if total > 99 else str(total)
     badges_json = json.dumps(badges, ensure_ascii=False)
 
-    inject_page_html(
+    inject_hidden_sidebar_script(
         f"""
-        <style>
-        #app-bell-notif {{
-            position: fixed; top: 0.65rem; right: 0.75rem; z-index: 9999;
-            width: 2.5rem; height: 2.5rem; border-radius: 50%;
-            background: #1e1e1e;
-            border: 1px solid rgba(212, 175, 55, 0.45);
-            display: {show_bell}; align-items: center; justify-content: center;
-            font-size: 1.2rem; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
-            pointer-events: none;
-        }}
-        #app-bell-notif .nav-wa-badge {{
-            position: absolute; top: -3px; right: -3px;
-            left: auto;
-            min-width: 1.2rem; height: 1.2rem;
-            padding: 0 0.34rem; border-radius: 999px;
-            background: #ff453a; color: #fff;
-            font-size: 0.62rem; font-weight: 800;
-            display: flex; align-items: center; justify-content: center;
-            border: 2px solid #121212;
-            box-shadow: 0 2px 6px rgba(255, 69, 58, 0.45);
-        }}
-        </style>
-        <div id="app-bell-notif" title="Novidades">
+        <div id="app-bell-notif" style="display:{show_bell}" title="Novidades">
           🔔<span class="nav-wa-badge">{html.escape(total_label)}</span>
         </div>
         <script>

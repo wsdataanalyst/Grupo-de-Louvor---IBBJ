@@ -56,6 +56,7 @@ from app_features import (
     count_pending_sugestoes,
     feed_image_display_path,
     inject_app_notification_badges,
+    inject_hidden_sidebar_script,
     lookup_louvor_meta,
     member_escala_option_label,
     programa_duracao_total,
@@ -147,6 +148,7 @@ ASSETS_DIR = APP_ROOT / "assets"
 _TEXT_INPUT_HAS_BIND = "bind" in inspect.signature(st.text_input).parameters
 CROSS_IMAGE = ASSETS_DIR / "cruz.svg"
 GROUP_NAME = "Grupo de Louvor - IBBJ"
+LOGIN_DISPLAY_TITLE = "IBBJ - Louvor"
 CADASTRO_QUERY_PARAM = "cadastro"
 FORGOT_PASSWORD_QUERY_PARAM = "esqueci"
 RESET_PASSWORD_QUERY_PARAM = "redefinir"
@@ -2880,7 +2882,7 @@ def inject_auto_login_submit():
 
 def inject_app_resume_listener():
     """Ao voltar ao app (aba visível), força atualização dos dados na nuvem."""
-    inject_page_html(
+    inject_hidden_sidebar_script(
         """
         <script>
         (function () {
@@ -2899,8 +2901,7 @@ def inject_app_resume_listener():
           });
         })();
         </script>
-        """,
-        height=0,
+        """
     )
 
 
@@ -3005,19 +3006,18 @@ def inject_mobile_app_shell():
         """,
         unsafe_allow_html=True,
     )
-    inject_page_html(
+    inject_hidden_sidebar_script(
         """
         <script>
         if ("serviceWorker" in navigator) {
           navigator.serviceWorker.register("/sw.js").catch(function () {});
         }
         </script>
-        """,
-        height=0,
+        """
     )
     app_id = onesignal_app_id()
     if push_is_enabled() and app_id:
-        inject_page_html(
+        inject_hidden_sidebar_script(
             f"""
             <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
             <script>
@@ -3031,8 +3031,7 @@ def inject_mobile_app_shell():
               }});
             }});
             </script>
-            """,
-            height=0,
+            """
         )
 
 
@@ -3345,7 +3344,16 @@ def render_dashboard_quick_actions(roles: str):
     render_dashboard_section_end()
 
 
-def render_sidebar_footer():
+def render_sidebar_footer(
+    *,
+    chat_unread: int = 0,
+    sug_badge: int = 0,
+    swap_alert_count: int = 0,
+):
+    inject_app_resume_listener()
+    inject_app_notification_badges(chat_unread, sug_badge, swap_alert_count)
+    with st.sidebar:
+        _app_background_sync()
     render_mobile_and_push_panel()
     if st.sidebar.button("🚪  Sair", use_container_width=True, type="secondary"):
         session_logout(st.session_state)
@@ -3464,30 +3472,138 @@ def paginate_dataframe(df: pd.DataFrame, page_size: int, key: str) -> pd.DataFra
     return df.iloc[start : start + page_size]
 
 
-def render_login_brand():
+def _login_cross_img_html() -> str:
     if CROSS_IMAGE.exists():
         cross_b64 = base64.b64encode(CROSS_IMAGE.read_bytes()).decode()
-        cross_img = f'<img src="data:image/svg+xml;base64,{cross_b64}" alt="Cruz"/>'
-    else:
-        cross_img = '<div style="font-size:4rem;color:#d4af37;">✝</div>'
+        return (
+            f'<img class="login-cross" src="data:image/svg+xml;base64,{cross_b64}" '
+            f'alt="Cruz" />'
+        )
+    return '<div class="login-cross" style="font-size:3rem;color:#d4af37;">✝</div>'
 
+
+def render_login_v2_header():
+    cross_img = _login_cross_img_html()
     st.markdown(
         f"""
-        <div class="login-hero">
-            {cross_img}
-            <p class="login-hero-quote">Cantai ao Senhor um cântico novo.</p>
-            <p class="login-hero-ref">Salmos 96:1</p>
-            <span class="login-hero-pill">É por isso que fazemos o que fazemos</span>
-            <h1>{GROUP_NAME}</h1>
-            <p class="tagline">Sistema de organização do ministério de louvor</p>
-            <p class="features">
-                🎶 Repertório &nbsp;·&nbsp; 🎧 Playlist &nbsp;·&nbsp; 📰 Feed<br>
-                🎤 Escalas &nbsp;·&nbsp; 🎼 Painel do ministério
+        <div class="login-v2-header">
+            <div class="login-logo-stack">
+                {cross_img}
+                <div class="login-eq" aria-hidden="true">
+                    <span></span><span></span><span></span><span></span>
+                    <span></span><span></span><span></span>
+                </div>
+            </div>
+            <h1 class="login-v2-title">{html.escape(LOGIN_DISPLAY_TITLE)}</h1>
+            <p class="login-v2-tagline">
+                Conectando corações para
+                <span class="login-v2-script">adorar juntos.</span>
             </p>
         </div>
         """,
         unsafe_allow_html=True,
     )
+
+
+def render_login_v2_social_section():
+    st.markdown(
+        """
+        <div class="login-divider"><span>ou entre com</span></div>
+        <div class="login-social-row" aria-hidden="true">
+            <div class="login-social-btn">
+                <span class="login-social-icon login-social-g">G</span> Google
+            </div>
+            <div class="login-social-btn">
+                <span class="login-social-icon login-social-f">f</span> Facebook
+            </div>
+            <div class="login-social-btn">
+                <span class="login-social-icon login-social-a">A</span> Apple
+            </div>
+        </div>
+        <p class="login-social-hint">
+            O acesso do ministério é feito com e-mail e senha cadastrados pela liderança.
+        </p>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_login_v2_register_link():
+    reg_url = html.escape(get_registration_url())
+    st.markdown(
+        f'<p class="login-register-cta">Novo no ministério? '
+        f'<a href="{reg_url}">Cadastre-se</a></p>',
+        unsafe_allow_html=True,
+    )
+
+
+def render_login_v2_footer():
+    year = date.today().year
+    st.markdown(
+        f"""
+        <div class="login-v2-quote">
+            <div class="login-v2-quote-mark">"</div>
+            <p class="login-v2-quote-text">
+                Cantem ao Senhor um cântico novo; cantem ao Senhor,
+                todos os moradores da terra.
+            </p>
+            <p class="login-v2-quote-ref">Salmos 96:1</p>
+        </div>
+        <p class="login-v2-copy">
+            © {year} {html.escape(LOGIN_DISPLAY_TITLE)}. Todos os direitos reservados.
+        </p>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_login_v2_form(members_df: pd.DataFrame):
+    inject_login_restore_fields()
+    inject_auto_login_submit()
+    with st.form(key="login_form"):
+        login_email = st.text_input("E-mail", placeholder="seu@email.com")
+        login_password = st.text_input("Senha", type="password", placeholder="••••••••")
+        remember_me = st.checkbox(
+            "Lembrar login neste dispositivo (até 30 dias)",
+            help=(
+                f"Mantém você logado por até {SESSION_REMEMBER_DAYS} dias neste aparelho "
+                "e preenche email/senha ao voltar. Use só em dispositivo pessoal."
+            ),
+        )
+        login_button = st.form_submit_button("Entrar", type="primary", use_container_width=True)
+
+    st.markdown('<div class="login-forgot-row">', unsafe_allow_html=True)
+    if st.button("Esqueci minha senha", key="login_forgot_pw"):
+        st.query_params.clear()
+        st.query_params[FORGOT_PASSWORD_QUERY_PARAM] = "1"
+        st.rerun()
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    if login_button:
+        user = authenticate(login_email, login_password, members_df)
+        if user is not None:
+            members_df = sync_recognized_member_roles(members_df)
+            email = user["email"]
+            refreshed = members_df[
+                members_df["email"].astype(str).str.lower() == email
+            ]
+            if not refreshed.empty:
+                user = refreshed.iloc[0]
+            set_user_session(user, remember_me=remember_me)
+            inject_login_remember(
+                remember_me,
+                login_email.strip(),
+                login_password,
+            )
+            special = recognized_leadership_role(user["first_name"])
+            if special:
+                st.success(f"Bem-vindo! Você está como **{special}**.")
+            st.rerun()
+        else:
+            show_form_error("Email ou senha incorretos.")
+
+    render_login_v2_social_section()
+    render_login_v2_register_link()
 
 
 def render_forgot_password_form(members_df: pd.DataFrame):
@@ -3538,9 +3654,11 @@ def render_forgot_password_form(members_df: pd.DataFrame):
             "Use o caminho com o líder acima — funciona sempre."
         )
 
+    st.markdown('<div class="login-back-row">', unsafe_allow_html=True)
     if st.button("← Voltar ao login", use_container_width=True):
         st.query_params.clear()
         st.rerun()
+    st.markdown("</div>", unsafe_allow_html=True)
 
 
 def render_reset_password_form(members_df: pd.DataFrame):
@@ -3592,29 +3710,23 @@ def render_reset_password_form(members_df: pd.DataFrame):
             else:
                 show_form_error(str(err_msg))
 
+    st.markdown('<div class="login-back-row">', unsafe_allow_html=True)
     if st.button("← Voltar ao login", use_container_width=True):
         st.query_params.clear()
         st.rerun()
+    st.markdown("</div>", unsafe_allow_html=True)
 
 
 def show_login_page(members_df: pd.DataFrame):
+    from app_theme import inject_login_v2_theme
+
     apply_music_theme()
+    inject_login_v2_theme()
+    st.markdown('<div class="login-page">', unsafe_allow_html=True)
     st.markdown('<div class="login-wrap">', unsafe_allow_html=True)
+    st.markdown('<div class="login-glass-card">', unsafe_allow_html=True)
 
-    special_flow = (
-        is_reset_password_page() or is_forgot_password_page() or is_register_page()
-    )
-
-    if special_flow:
-        col_pad, col_main, col_pad2 = st.columns([0.15, 0.7, 0.15])
-        with col_main:
-            st.markdown('<div class="login-form-card">', unsafe_allow_html=True)
-    else:
-        col_brand, col_form = st.columns([1, 1], gap="large")
-        with col_brand:
-            render_login_brand()
-        with col_form:
-            st.markdown('<div class="login-form-card">', unsafe_allow_html=True)
+    render_login_v2_header()
 
     if is_reset_password_page():
         render_reset_password_form(members_df)
@@ -3630,67 +3742,19 @@ def show_login_page(members_df: pd.DataFrame):
             unsafe_allow_html=True,
         )
         render_register_form(members_df)
-        if st.button("← Já tenho conta — ir para o login", use_container_width=True):
+        st.caption("Compartilhe este link com novos integrantes:")
+        st.code(get_registration_url(), language=None)
+        st.markdown('<div class="login-back-row">', unsafe_allow_html=True)
+        if st.button("← Já tenho conta — voltar ao login", use_container_width=True):
             st.query_params.clear()
             st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
     else:
-        st.markdown('<p class="login-panel-title">Acesso ao sistema</p>', unsafe_allow_html=True)
-        st.markdown(
-            '<p class="login-panel-sub">Entre com sua conta ou cadastre-se como novo membro.</p>',
-            unsafe_allow_html=True,
-        )
-        render_registration_link_box()
+        render_login_v2_form(members_df)
 
-        tab_login, tab_register = st.tabs(["🎵 Entrar", "🎤 Cadastrar"])
+    render_login_v2_footer()
 
-        with tab_login:
-            inject_login_restore_fields()
-            inject_auto_login_submit()
-            with st.form(key="login_form"):
-                login_email = st.text_input("Email")
-                login_password = st.text_input("Senha", type="password")
-                remember_me = st.checkbox(
-                    "Lembrar login neste dispositivo (até 30 dias)",
-                    help=(
-                        f"Mantém você logado por até {SESSION_REMEMBER_DAYS} dias neste aparelho "
-                        "e preenche email/senha ao voltar. Use só em dispositivo pessoal."
-                    ),
-                )
-                login_button = st.form_submit_button(
-                    "Entrar", type="primary", use_container_width=True
-                )
-
-            if st.button("🔑  Esqueci minha senha", use_container_width=True):
-                st.query_params.clear()
-                st.query_params[FORGOT_PASSWORD_QUERY_PARAM] = "1"
-                st.rerun()
-
-            if login_button:
-                user = authenticate(login_email, login_password, members_df)
-                if user is not None:
-                    members_df = sync_recognized_member_roles(members_df)
-                    email = user["email"]
-                    refreshed = members_df[
-                        members_df["email"].astype(str).str.lower() == email
-                    ]
-                    if not refreshed.empty:
-                        user = refreshed.iloc[0]
-                    set_user_session(user, remember_me=remember_me)
-                    inject_login_remember(
-                        remember_me,
-                        login_email.strip(),
-                        login_password,
-                    )
-                    special = recognized_leadership_role(user["first_name"])
-                    if special:
-                        st.success(f"Bem-vindo! Você está como **{special}**.")
-                    st.rerun()
-                else:
-                    show_form_error("Email ou senha incorretos.")
-
-        with tab_register:
-            render_register_form(members_df)
-
+    st.markdown("</div>", unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -3790,8 +3854,7 @@ def get_escalas_bundle() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.D
     return refresh_escalas_bundle()
 
 
-@st.fragment(run_every=timedelta(seconds=ESCALA_POLL_SECONDS))
-def _escalas_global_sync():
+def _escalas_global_sync_body():
     """Sincronização em tempo real: detecta mudanças na nuvem e atualiza a tela aberta."""
     if not st.session_state.get("authenticated"):
         return
@@ -3825,7 +3888,7 @@ def _escalas_global_sync():
         st.rerun()
 
 
-def _feed_global_sync():
+def _feed_global_sync_body():
     """Atualiza revisão do feed sem rerun automático (evita avisos de formulário)."""
     if not st.session_state.get("authenticated"):
         return
@@ -3835,8 +3898,7 @@ def _feed_global_sync():
         pass
 
 
-@st.fragment(run_every=timedelta(seconds=CHAT_POLL_SECONDS))
-def _chat_global_sync():
+def _chat_global_sync_body():
     """Atualiza contagem de não lidas e badge do menu Chat em tempo quase real."""
     if not st.session_state.get("authenticated"):
         return
@@ -3872,6 +3934,16 @@ def _chat_global_sync():
         st.session_state._chat_unread_prev = unread
         st.rerun()
     st.session_state._chat_unread_prev = unread
+
+
+@st.fragment(run_every=timedelta(seconds=ESCALA_POLL_SECONDS))
+def _app_background_sync():
+    """Poll de escalas/chat/feed na sidebar — não divide a área principal em colunas vazias."""
+    if not st.session_state.get("authenticated"):
+        return
+    _escalas_global_sync_body()
+    _feed_global_sync_body()
+    _chat_global_sync_body()
 
 
 def append_chat_message(
@@ -8177,7 +8249,6 @@ def _run_app() -> None:
         show_login_page(members_df)
         return
 
-    inject_app_resume_listener()
     if handle_app_resume_query_params():
         st.rerun()
 
@@ -8190,9 +8261,6 @@ def _run_app() -> None:
         except Exception:
             pass
     menu = render_sidebar_navigation()
-    _escalas_global_sync()
-    _feed_global_sync()
-    _chat_global_sync()
     chat_unread = int(st.session_state.get("chat_unread_count", 0))
     user_email = str(st.session_state.get("user_email", ""))
     if is_scale_manager(st.session_state.user_roles):
@@ -8209,8 +8277,11 @@ def _run_app() -> None:
         )
     except Exception:
         swap_alert_count = 0
-    inject_app_notification_badges(chat_unread, sug_badge, swap_alert_count)
-    render_sidebar_footer()
+    render_sidebar_footer(
+        chat_unread=chat_unread,
+        sug_badge=sug_badge,
+        swap_alert_count=swap_alert_count,
+    )
     render_push_admin_sidebar(members_df)
     render_data_loss_warning(members_df)
 
