@@ -22,16 +22,8 @@ Renomear o app no Streamlit **não apaga** contas: na primeira abertura o app **
    - **Project URL** → `supabase_url`
    - **service_role** (secret) → `supabase_key`  
      ⚠️ Use **service_role**, não a chave `anon` pública.
-   - **anon** `public` → `supabase_anon_key` (chat em tempo real no navegador, sem polling)
 
-## 4. Realtime do chat (recomendado)
-
-1. Rode o SQL atualizado em `supabase/schema.sql` (tabela `sync_signals` + gatilho).
-2. No Supabase: **Database → Replication** → marque **`sync_signals`** em `supabase_realtime`  
-   (ou no SQL Editor: `alter publication supabase_realtime add table public.sync_signals;`).
-3. Sem `supabase_anon_key`, o chat funciona, mas cada um precisa clicar em **Atualizar conversa**.
-
-## 5. Secrets no Streamlit Cloud
+## 4. Secrets no Streamlit Cloud
 
 Em **Settings → Secrets**, adicione (mantendo o que já existe):
 
@@ -40,18 +32,17 @@ Em **Settings → Secrets**, adicione (mantendo o que já existe):
 enabled = true
 supabase_url = "https://SEU-PROJETO.supabase.co"
 supabase_key = "eyJhbGciOi... service_role ..."
-supabase_anon_key = "eyJhbGciOi... anon public ..."
 ```
 
 No PC, o mesmo bloco em `.streamlit/secrets.toml`.
 
-## 6. Reimplantar
+## 5. Reimplantar
 
 **Manage app → Reboot** (ou aguarde o deploy após `git push`).
 
 No menu lateral (desenvolvedor) deve aparecer: **Nuvem conectada (Supabase)**.
 
-## 7. Migração do app antigo (uma vez)
+## Migração do app antigo (uma vez)
 
 Se ainda tiver o **app antigo** no Streamlit com cadastros:
 

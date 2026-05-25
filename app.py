@@ -55,7 +55,6 @@ from app_features import (
     count_pending_sugestoes,
     feed_image_display_path,
     inject_app_notification_badges,
-    sync_app_notification_badges,
     lookup_louvor_meta,
     member_escala_option_label,
     programa_duracao_total,
@@ -147,7 +146,6 @@ ASSETS_DIR = APP_ROOT / "assets"
 _TEXT_INPUT_HAS_BIND = "bind" in inspect.signature(st.text_input).parameters
 CROSS_IMAGE = ASSETS_DIR / "cruz.svg"
 GROUP_NAME = "Grupo de Louvor - IBBJ"
-CHURCH_NAME = "Igreja Bíblica Batista em Jurema"
 CADASTRO_QUERY_PARAM = "cadastro"
 FORGOT_PASSWORD_QUERY_PARAM = "esqueci"
 RESET_PASSWORD_QUERY_PARAM = "redefinir"
@@ -612,12 +610,12 @@ def render_registration_link_box(compact: bool = False):
         st.sidebar.caption("🔗 Link para novos membros")
         st.sidebar.code(link, language=None)
     else:
-        with st.expander("🔗 Link de cadastro (compartilhe com o grupo)", expanded=False):
-            st.code(link, language=None)
-            st.caption(
-                "Qualquer pessoa com este link abre direto o formulário de cadastro. "
-                "Para publicar na internet, defina `public_url` em `.streamlit/secrets.toml`."
-            )
+        st.markdown("##### 🔗 Link de cadastro (compartilhe com o grupo)")
+        st.code(link, language=None)
+        st.caption(
+            "Qualquer pessoa com este link abre direto o formulário de cadastro. "
+            "Para publicar na internet, defina `public_url` em `.streamlit/secrets.toml`."
+        )
 
 
 def render_register_form(members_df: pd.DataFrame) -> pd.DataFrame:
@@ -3433,54 +3431,26 @@ def paginate_dataframe(df: pd.DataFrame, page_size: int, key: str) -> pd.DataFra
     return df.iloc[start : start + page_size]
 
 
-def render_login_header(*, compact: bool = False) -> None:
+def render_login_brand():
     if CROSS_IMAGE.exists():
         cross_b64 = base64.b64encode(CROSS_IMAGE.read_bytes()).decode()
-        cross_img = (
-            f'<img class="login-cross" src="data:image/svg+xml;base64,{cross_b64}" '
-            f'alt="Cruz" width="52" height="65"/>'
-        )
+        cross_img = f'<img src="data:image/svg+xml;base64,{cross_b64}" alt="Cruz"/>'
     else:
-        cross_img = '<span class="login-cross-fallback">✝</span>'
-
-    church = html.escape(CHURCH_NAME)
-    group = html.escape(GROUP_NAME)
-
-    if compact:
-        st.markdown(
-            f"""
-            <div class="login-header login-header--compact">
-              <div class="login-brand-row">
-                <div class="login-cross-wrap">{cross_img}</div>
-                <div class="login-brand-text">
-                  <p class="login-church">{church}</p>
-                  <p class="login-title">{group}</p>
-                </div>
-              </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-        return
+        cross_img = '<div style="font-size:4rem;color:#d4af37;">✝</div>'
 
     st.markdown(
         f"""
-        <div class="login-header">
-          <div class="login-brand-row">
-            <div class="login-cross-wrap">{cross_img}</div>
-            <div class="login-brand-text">
-              <p class="login-church">{church}</p>
-              <h1 class="login-title">{group}</h1>
-              <p class="login-tagline">Sistema de organização do ministério de louvor</p>
-            </div>
-          </div>
-          <p class="login-verse">
-            Cantai ao Senhor um cântico novo.
-            <span class="login-verse-ref">Salmos 96:1</span>
-          </p>
-          <p class="login-features">
-            🎶 Repertório · 🎧 Playlist · 📰 Feed · 🎤 Escalas · 🎼 Painel
-          </p>
+        <div class="login-hero">
+            {cross_img}
+            <p class="login-hero-quote">Cantai ao Senhor um cântico novo.</p>
+            <p class="login-hero-ref">Salmos 96:1</p>
+            <span class="login-hero-pill">É por isso que fazemos o que fazemos</span>
+            <h1>{GROUP_NAME}</h1>
+            <p class="tagline">Sistema de organização do ministério de louvor</p>
+            <p class="features">
+                🎶 Repertório &nbsp;·&nbsp; 🎧 Playlist &nbsp;·&nbsp; 📰 Feed<br>
+                🎤 Escalas &nbsp;·&nbsp; 🎼 Painel do ministério
+            </p>
         </div>
         """,
         unsafe_allow_html=True,
@@ -3596,17 +3566,22 @@ def render_reset_password_form(members_df: pd.DataFrame):
 
 def show_login_page(members_df: pd.DataFrame):
     apply_music_theme()
-    st.markdown('<div class="login-page">', unsafe_allow_html=True)
+    st.markdown('<div class="login-wrap">', unsafe_allow_html=True)
 
     special_flow = (
         is_reset_password_page() or is_forgot_password_page() or is_register_page()
     )
 
-    render_login_header(compact=special_flow)
-
-    col_pad, col_main, col_pad2 = st.columns([0.06, 0.88, 0.06])
-    with col_main:
-        st.markdown('<div class="login-form-card">', unsafe_allow_html=True)
+    if special_flow:
+        col_pad, col_main, col_pad2 = st.columns([0.15, 0.7, 0.15])
+        with col_main:
+            st.markdown('<div class="login-form-card">', unsafe_allow_html=True)
+    else:
+        col_brand, col_form = st.columns([1, 1], gap="large")
+        with col_brand:
+            render_login_brand()
+        with col_form:
+            st.markdown('<div class="login-form-card">', unsafe_allow_html=True)
 
     if is_reset_password_page():
         render_reset_password_form(members_df)
@@ -3713,8 +3688,8 @@ MENUS_AUTO_REFRESH_ESCALA = frozenset(
     }
 )
 ESCALA_POLL_SECONDS = 8
-CHAT_POLL_SECONDS = 20
-CHAT_FORCE_RELOAD_EVERY_POLLS = 6
+CHAT_POLL_SECONDS = 4
+CHAT_FORCE_RELOAD_EVERY_POLLS = 2
 CHAT_LIVE_FILE_NAMES = frozenset({"chat.csv"})
 FEED_LIVE_FILE_NAMES = frozenset(
     {"feed_posts.csv", "feed_likes.csv", "feed_comments.csv"}
@@ -3827,32 +3802,10 @@ def _feed_global_sync():
         pass
 
 
-def _apply_chat_remote_update() -> None:
-    """Recarrega chat quando a nuvem avisa mudança (Supabase Realtime)."""
-    refresh_chat_live()
-    menu = str(st.session_state.get("app_menu", ""))
-    if menu == "Chat":
-        st.session_state["_chat_push_refresh"] = True
-        st.rerun()
-        return
-    unread = count_unread_chat_messages(st.session_state.get("_chat_df_cache"))
-    st.session_state.chat_unread_count = unread
-    st.session_state._chat_unread_prev = unread
-    sync_app_notification_badges(
-        unread,
-        int(st.session_state.get("_badge_sugestoes", 0)),
-        int(st.session_state.get("_badge_swap", 0)),
-    )
-
-
 @st.fragment(run_every=timedelta(seconds=CHAT_POLL_SECONDS))
-def _chat_poll_sync():
-    """Fallback leve quando Realtime não está configurado (sem rerun da página inteira)."""
-    from remote_store import chat_realtime_available
-
-    if chat_realtime_available() or not st.session_state.get("authenticated"):
-        return
-    if str(st.session_state.get("app_menu", "")) == "Chat":
+def _chat_global_sync():
+    """Atualiza contagem de não lidas e badge do menu Chat em tempo quase real."""
+    if not st.session_state.get("authenticated"):
         return
 
     poll = int(st.session_state.get("_chat_poll_count", 0)) + 1
@@ -3867,84 +3820,25 @@ def _chat_poll_sync():
     old_rev = st.session_state.get("_chat_rev")
     rev_changed = old_rev is not None and new_rev != old_rev
 
-    if rev_changed or st.session_state.get("_chat_df_cache") is None:
-        refresh_chat_live()
-    elif force_reload:
+    if force_reload or rev_changed or st.session_state.get("_chat_df_cache") is None:
         refresh_chat_live()
     else:
         st.session_state._chat_rev = new_rev
 
+    menu = str(st.session_state.get("app_menu", ""))
+    if menu == "Chat":
+        st.session_state.chat_unread_count = 0
+        st.session_state._chat_unread_prev = 0
+        return
+
     unread = count_unread_chat_messages(st.session_state.get("_chat_df_cache"))
     prev = st.session_state.get("_chat_unread_prev")
     st.session_state.chat_unread_count = unread
-    st.session_state._chat_unread_prev = unread
 
     if prev is not None and int(prev) != unread:
-        sync_app_notification_badges(
-            unread,
-            int(st.session_state.get("_badge_sugestoes", 0)),
-            int(st.session_state.get("_badge_swap", 0)),
-        )
-
-
-@st.fragment
-def _chat_realtime_bridge():
-    """Ponte Realtime: JS clica no botão oculto só quando chat.csv mudar na nuvem."""
-    from remote_store import chat_realtime_available
-
-    if not chat_realtime_available() or not st.session_state.get("authenticated"):
-        return
-
-    if st.button("\u200b", key="ig_chat_rt_sync"):
-        _apply_chat_remote_update()
-
-    if st.session_state.get("_chat_rt_js"):
-        return
-
-    from chat_realtime import inject_chat_realtime_listener
-    from remote_store import get_realtime_public_config
-
-    url, anon = get_realtime_public_config()
-    inject_chat_realtime_listener(url, anon, watch_names=("chat.csv",))
-    st.session_state._chat_rt_js = True
-
-
-def _chat_group_live_body(members_df: pd.DataFrame, *, check_revision: bool) -> None:
-    if check_revision:
-        try:
-            new_rev = chat_data_revision()
-        except Exception:
-            new_rev = None
-        old_rev = st.session_state.get("_chat_rev")
-        rev_changed = new_rev is not None and old_rev is not None and new_rev != old_rev
-        cached = st.session_state.get("_chat_df_cache")
-        if rev_changed or cached is None:
-            chat_df = refresh_chat_live()
-        else:
-            chat_df = cached
-            if new_rev is not None:
-                st.session_state._chat_rev = new_rev
-    elif st.session_state.pop("_chat_push_refresh", False):
-        chat_df = refresh_chat_live()
-    else:
-        chat_df = st.session_state.get("_chat_df_cache")
-        if chat_df is None:
-            chat_df = refresh_chat_live()
-
-    st.session_state.chat_unread_count = 0
-
-    def _append(**kwargs):
-        append_chat_message(**kwargs)
-
-    render_chat_messages(chat_df, members_df)
-    render_chat_composer(
-        key_prefix="group_chat",
-        append_fn=_append,
-        audio_dir=CHAT_AUDIO_DIR,
-        audio_prefix="chat",
-        images_dir=CHAT_IMAGES_DIR,
-        image_prefix="chat",
-    )
+        st.session_state._chat_unread_prev = unread
+        st.rerun()
+    st.session_state._chat_unread_prev = unread
 
 
 def append_chat_message(
@@ -4155,24 +4049,28 @@ def show_group_chat(chat_df: pd.DataFrame, members_df: pd.DataFrame):
 
     mark_chat_seen(load_chat_df())
     st.markdown('<p class="music-panel-title">💬 Conversa do grupo</p>', unsafe_allow_html=True)
-    from remote_store import chat_realtime_available
-
-    if chat_realtime_available():
-        _chat_group_live_rt(members_df)
-    else:
-        _chat_group_live_poll(members_df)
+    _chat_group_live(members_df)
 
 
-@st.fragment
-def _chat_group_live_rt(members_df: pd.DataFrame):
-    """Chat com Supabase Realtime (sem polling)."""
-    _chat_group_live_body(members_df, check_revision=False)
+@st.fragment(run_every=timedelta(seconds=4))
+def _chat_group_live(members_df: pd.DataFrame):
+    """Atualiza o histórico a cada poucos segundos para refletir mensagens de outros integrantes."""
+    chat_df = load_chat_df()
+    st.session_state["_chat_df_cache"] = chat_df
+    st.session_state.chat_unread_count = 0
 
+    def _append(**kwargs):
+        append_chat_message(**kwargs)
 
-@st.fragment(run_every=timedelta(seconds=CHAT_POLL_SECONDS))
-def _chat_group_live_poll(members_df: pd.DataFrame):
-    """Chat sem Realtime: atualiza a cada ~20s só se o arquivo mudou."""
-    _chat_group_live_body(members_df, check_revision=True)
+    render_chat_messages(chat_df, members_df)
+    render_chat_composer(
+        key_prefix="group_chat",
+        append_fn=_append,
+        audio_dir=CHAT_AUDIO_DIR,
+        audio_prefix="chat",
+        images_dir=CHAT_IMAGES_DIR,
+        image_prefix="chat",
+    )
 
 
 def render_team_grid_html(
@@ -8250,17 +8148,7 @@ def _run_app() -> None:
     menu = render_sidebar_navigation()
     _escalas_global_sync()
     _feed_global_sync()
-    if st.session_state.get("_chat_df_cache") is None:
-        try:
-            refresh_chat_live()
-        except Exception:
-            pass
-    from remote_store import chat_realtime_available
-
-    if chat_realtime_available():
-        _chat_realtime_bridge()
-    else:
-        _chat_poll_sync()
+    _chat_global_sync()
     chat_unread = int(st.session_state.get("chat_unread_count", 0))
     user_email = str(st.session_state.get("user_email", ""))
     if is_scale_manager(st.session_state.user_roles):
@@ -8277,8 +8165,6 @@ def _run_app() -> None:
         )
     except Exception:
         swap_alert_count = 0
-    st.session_state._badge_sugestoes = sug_badge
-    st.session_state._badge_swap = swap_alert_count
     inject_app_notification_badges(chat_unread, sug_badge, swap_alert_count)
     render_sidebar_footer()
     render_push_admin_sidebar(members_df)

@@ -73,7 +73,7 @@ def _persistence_secrets() -> dict:
             except Exception:
                 pass
 
-        for key in ("enabled", "supabase_url", "supabase_key", "supabase_anon_key"):
+        for key in ("enabled", "supabase_url", "supabase_key"):
             if key not in merged or not str(merged.get(key, "")).strip():
                 val = st.secrets.get(key, None)
                 if val is not None and str(val).strip():
@@ -122,36 +122,6 @@ def is_remote_enabled() -> bool:
 def _get_credentials() -> tuple[str, str]:
     p = _persistence_secrets()
     return _normalize_url(str(p.get("supabase_url", ""))), str(p.get("supabase_key", "")).strip()
-
-
-def get_realtime_public_config() -> tuple[str, str]:
-    """URL + chave anon (pública) para Realtime no navegador — nunca use service_role aqui."""
-    if not is_remote_enabled():
-        return "", ""
-    p = _persistence_secrets()
-    url = _normalize_url(str(p.get("supabase_url", "")))
-    anon = str(p.get("supabase_anon_key", "")).strip()
-    return url, anon
-
-
-def chat_realtime_available() -> bool:
-    url, anon = get_realtime_public_config()
-    return bool(url and anon)
-
-
-def _touch_sync_signal(name: str) -> None:
-    """Sinal leve na nuvem para Realtime (sem expor conteúdo do CSV)."""
-    if not is_remote_enabled() or name not in SYNC_CSV_NAMES:
-        return
-    try:
-        _get_client().table("sync_signals").upsert(
-            {
-                "name": name,
-                "updated_at": datetime.now(timezone.utc).isoformat(),
-            }
-        ).execute()
-    except Exception as exc:
-        logger.debug("sync_signals %s: %s", name, exc)
 
 
 def _get_client():
@@ -289,7 +259,6 @@ def store_csv_text(name: str, content: str) -> None:
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
     _get_client().table(TABLE_NAME).upsert(payload).execute()
-    _touch_sync_signal(name)
 
 
 def _local_file_has_data(path: Path) -> bool:
