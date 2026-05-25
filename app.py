@@ -4726,17 +4726,16 @@ def render_feed_post_card(
     pid = str(post.get("id", ""))
     my_email = st.session_state.user_email.strip().lower()
     badge = _feed_post_badge(post.get("post_type", ""))
-    author = html.escape(str(post.get("author_name", "Integrante")))
     created = format_local(post.get("created_at"), "%d/%m/%Y %H:%M")
-    title = html.escape(str(post.get("title", "")))
     body_raw = str(post.get("body", ""))
 
-    st.markdown(
-        f'<div class="feed-post-card">'
-        f'<span class="feed-post-badge">{badge}</span>'
-        f"<h4>{title}</h4>"
-        f'<p class="feed-post-meta">{author} · {html.escape(created)}</p></div>',
-        unsafe_allow_html=True,
+    from feed_ui import render_feed_post_header
+
+    render_feed_post_header(
+        badge=badge,
+        title=str(post.get("title", "")),
+        author=str(post.get("author_name", "Integrante")),
+        created=created,
     )
     if body_raw.strip():
         st.markdown(body_raw)
@@ -4857,11 +4856,20 @@ def show_feed_page(
     likes_df: pd.DataFrame,
     comments_df: pd.DataFrame,
 ):
-    from verse_of_day import render_verse_of_day
+    from feed_ui import (
+        render_feed_empty_state,
+        render_feed_header,
+        render_feed_page_close,
+        render_feed_page_open,
+        render_feed_verse_card,
+    )
 
-    render_verse_of_day()
+    render_feed_page_open()
+    render_feed_header()
+    render_feed_verse_card()
+
     if is_scale_manager(st.session_state.user_roles):
-        with st.expander("⚠️ Manutenção do feed (líderes)", expanded=False):
+        with st.expander("Manutenção do feed (líderes)", expanded=False, key="ig_feed_maint"):
             st.caption(
                 "Apaga **todos** os posts, curtidas e comentários. Use se o feed estiver "
                 "duplicado ou deixando o app lento."
@@ -4871,7 +4879,7 @@ def show_feed_page(
                 st.success(f"Feed limpo ({n} publicação(ões) removida(s)).")
                 st.rerun()
 
-    with st.expander("➕ Nova publicação", expanded=False):
+    with st.expander("Nova publicação", expanded=False, key="ig_feed_new"):
         with st.form(key="feed_post_form"):
             titulo = st.text_input("Título")
             corpo = st.text_area("Mensagem")
@@ -4912,12 +4920,16 @@ def show_feed_page(
                     st.rerun()
 
     if posts_df.empty:
-        st.info("Nenhuma publicação ainda. Músicas aprovadas aparecem aqui automaticamente.")
+        render_feed_empty_state()
+        render_feed_page_close()
         return
 
-    if st.button("🔄 Atualizar feed", key="feed_manual_refresh", use_container_width=False):
+    st.markdown('<div class="ig-feed-refresh-wrap">', unsafe_allow_html=True)
+    if st.button("Atualizar feed", key="ig_feed_refresh", use_container_width=False):
         st.rerun()
+    st.markdown("</div>", unsafe_allow_html=True)
     _render_feed_posts_live()
+    render_feed_page_close()
 
 
 def _render_feed_posts_live():
@@ -8427,7 +8439,7 @@ def _run_app() -> None:
         notif_count=notif_hdr,
     )
 
-    if menu != "Dashboard":
+    if menu not in ("Dashboard", "Feed", "Avisos"):
         page_header(menu)
 
     wa_open = st.session_state.pop("wa_auto_open_url", None)

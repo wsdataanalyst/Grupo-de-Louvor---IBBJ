@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import html
 from datetime import date
 
 import streamlit as st
@@ -115,16 +114,7 @@ def verse_for_date(when: date | None = None) -> dict[str, str]:
 
 
 def render_verse_of_day() -> None:
-    v = verse_for_date()
-    text = html.escape(v["text"])
-    ref = html.escape(v["ref"])
-    st.markdown(
-        f"""
-        <div class="verse-of-day">
-            <p class="verse-label">📖 Versículo do dia</p>
-            <p class="verse-text">"{text}"</p>
-            <p class="verse-ref">{ref}</p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    """Versículo premium (mesmo layout do Feed)."""
+    from feed_ui import render_feed_verse_card
+
+    render_feed_verse_card()

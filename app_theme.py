@@ -956,7 +956,14 @@ def ibbj_theme_css() -> str:
             color: var(--ig-text-dim);
             font-size: 0.72rem;
             margin-top: 2rem;
-            padding: 1rem 0;
+            padding: 1rem 0 0.5rem;
+        }
+        .ig-footer::after {
+            content: "♥";
+            display: block;
+            margin-top: 0.35rem;
+            color: #d4a017;
+            font-size: 0.75rem;
         }
 
         .ig-page-lead {
@@ -1380,13 +1387,14 @@ def inject_ibbj_theme() -> None:
     import streamlit as st
 
     from app_theme_v3 import ibbj_v3_css
+    from feed_ui import feed_page_css
     from sidebar_icons import sidebar_nav_icons_css, sidebar_tool_icons_css
 
     st.markdown(
         '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">',
         unsafe_allow_html=True,
     )
-    extra = sidebar_nav_icons_css() + sidebar_tool_icons_css() + ibbj_v3_css()
+    extra = sidebar_nav_icons_css() + sidebar_tool_icons_css() + ibbj_v3_css() + feed_page_css()
     st.markdown(f"<style>{ibbj_theme_css()}{extra}</style>", unsafe_allow_html=True)
 
 
