@@ -3722,36 +3722,33 @@ def show_login_page(members_df: pd.DataFrame):
     inject_login_v2_theme()
     st.markdown('<div class="login-page">', unsafe_allow_html=True)
 
-    # Colunas centrais: widgets Streamlit ficam no DOM real (não dentro de div HTML)
-    pad_l, login_col, pad_r = st.columns([1, 1.15, 1], gap="small")
-    with login_col:
-        render_login_v2_header()
+    render_login_v2_header()
 
-        if is_reset_password_page():
-            render_reset_password_form(members_df)
-        elif is_forgot_password_page():
-            render_forgot_password_form(members_df)
-        elif is_register_page():
-            st.markdown(
-                '<p class="login-panel-title">Cadastro de novo membro</p>',
-                unsafe_allow_html=True,
-            )
-            st.markdown(
-                '<p class="login-panel-sub">Preencha seus dados para entrar no ministério de louvor.</p>',
-                unsafe_allow_html=True,
-            )
-            render_register_form(members_df)
-            st.caption("Compartilhe este link com novos integrantes:")
-            st.code(get_registration_url(), language=None)
-            st.markdown('<div class="login-back-row">', unsafe_allow_html=True)
-            if st.button("← Já tenho conta — voltar ao login", use_container_width=True):
-                st.query_params.clear()
-                st.rerun()
-            st.markdown("</div>", unsafe_allow_html=True)
-        else:
-            render_login_v2_form(members_df)
+    if is_reset_password_page():
+        render_reset_password_form(members_df)
+    elif is_forgot_password_page():
+        render_forgot_password_form(members_df)
+    elif is_register_page():
+        st.markdown(
+            '<p class="login-panel-title">Cadastro de novo membro</p>',
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            '<p class="login-panel-sub">Preencha seus dados para entrar no ministério de louvor.</p>',
+            unsafe_allow_html=True,
+        )
+        render_register_form(members_df)
+        st.caption("Compartilhe este link com novos integrantes:")
+        st.code(get_registration_url(), language=None)
+        st.markdown('<div class="login-back-row">', unsafe_allow_html=True)
+        if st.button("← Já tenho conta — voltar ao login", use_container_width=True):
+            st.query_params.clear()
+            st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
+    else:
+        render_login_v2_form(members_df)
 
-        render_login_v2_footer()
+    render_login_v2_footer()
 
     st.markdown("</div>", unsafe_allow_html=True)
 

@@ -868,30 +868,23 @@ def ibbj_login_v2_css() -> str:
                 radial-gradient(ellipse 60% 40% at 80% 100%, rgba(212, 175, 55, 0.08), transparent 50%),
                 #0b0e14 !important;
         }
-        [data-testid="stAppViewContainer"]:has(.login-page) .main .block-container,
-        [data-testid="stAppViewContainer"]:has(.login-page) [data-testid="stMain"] .block-container {
-            max-width: 100% !important;
-            width: 100% !important;
-            padding: 1.25rem 0.75rem 2rem !important;
+        [data-testid="stAppViewContainer"]:has(.login-page) [data-testid="stMain"] {
             display: flex !important;
             flex-direction: column !important;
             align-items: center !important;
             justify-content: center !important;
-            min-height: calc(100vh - 1.5rem) !important;
+            min-height: 100vh !important;
         }
-        /* Bloco central do login — largura fixa no desktop (card glass) */
-        [data-testid="stAppViewContainer"]:has(.login-page) [data-testid="stMain"] [data-testid="stHorizontalBlock"] {
-            max-width: 440px !important;
-            width: 100% !important;
+        /* Card único centralizado — largura confortável no PC, 92% no celular */
+        [data-testid="stAppViewContainer"]:has(.login-page) .main .block-container,
+        [data-testid="stAppViewContainer"]:has(.login-page) [data-testid="stMain"] .block-container {
+            width: min(420px, 92vw) !important;
+            max-width: min(420px, 92vw) !important;
+            min-width: 280px !important;
             margin-left: auto !important;
             margin-right: auto !important;
-            gap: 0.5rem !important;
-            flex-wrap: nowrap !important;
-        }
-        [data-testid="stAppViewContainer"]:has(.login-page) [data-testid="stMain"] [data-testid="stColumn"] {
-            min-width: 0 !important;
-        }
-        [data-testid="stAppViewContainer"]:has(.login-page) [data-testid="stMain"] [data-testid="stColumn"]:nth-child(2) {
+            padding: 2rem 1.65rem 1.5rem !important;
+            box-sizing: border-box !important;
             background: rgba(15, 23, 42, 0.58) !important;
             border: 1px solid rgba(255, 255, 255, 0.1) !important;
             border-radius: 22px !important;
@@ -900,18 +893,15 @@ def ibbj_login_v2_css() -> str:
                 inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
             backdrop-filter: blur(18px);
             -webkit-backdrop-filter: blur(18px);
-            padding: 1.65rem 1.35rem 1.25rem !important;
         }
-        [data-testid="stAppViewContainer"]:has(.login-page) [data-testid="stMain"] [data-testid="stColumn"]:first-child,
-        [data-testid="stAppViewContainer"]:has(.login-page) [data-testid="stMain"] [data-testid="stColumn"]:last-child {
-            background: transparent !important;
-            border: none !important;
-            box-shadow: none !important;
-            padding: 0 !important;
-        }
-        [data-testid="stAppViewContainer"]:has(.login-page) [data-testid="stMain"] [data-testid="element-container"] {
+        [data-testid="stAppViewContainer"]:has(.login-page) [data-testid="stMain"] [data-testid="element-container"],
+        [data-testid="stAppViewContainer"]:has(.login-page) [data-testid="stMain"] [data-testid="stHorizontalBlock"],
+        [data-testid="stAppViewContainer"]:has(.login-page) [data-testid="stMain"] [data-testid="stForm"] {
             max-width: 100% !important;
             width: 100% !important;
+        }
+        [data-testid="stAppViewContainer"]:has(.login-page) [data-testid="stMain"] [data-testid="stHorizontalBlock"] {
+            gap: 0.5rem !important;
         }
         .login-v2-header { text-align: center; margin-bottom: 1.35rem; }
         .login-logo-stack {
@@ -1190,18 +1180,11 @@ def ibbj_login_v2_css() -> str:
             border-radius: 10px !important;
         }
         @media (max-width: 768px) {
-            [data-testid="stAppViewContainer"]:has(.login-page) [data-testid="stMain"] [data-testid="stHorizontalBlock"] {
-                max-width: 100% !important;
-            }
-            [data-testid="stAppViewContainer"]:has(.login-page) [data-testid="stMain"] [data-testid="stColumn"]:first-child,
-            [data-testid="stAppViewContainer"]:has(.login-page) [data-testid="stMain"] [data-testid="stColumn"]:last-child {
-                display: none !important;
-            }
-            [data-testid="stAppViewContainer"]:has(.login-page) [data-testid="stMain"] [data-testid="stColumn"]:nth-child(2) {
-                flex: 1 1 100% !important;
-                width: 100% !important;
-                max-width: 100% !important;
-                padding: 1.35rem 1rem 1rem !important;
+            [data-testid="stAppViewContainer"]:has(.login-page) .main .block-container,
+            [data-testid="stAppViewContainer"]:has(.login-page) [data-testid="stMain"] .block-container {
+                width: min(420px, 94vw) !important;
+                max-width: 94vw !important;
+                padding: 1.5rem 1.15rem 1.25rem !important;
                 border-radius: 18px !important;
             }
         }
