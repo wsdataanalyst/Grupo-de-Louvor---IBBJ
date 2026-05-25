@@ -379,6 +379,21 @@ DASHBOARD_QUICK_LINKS = (
     "Perfil",
 )
 
+# Ícones do menu lateral (visual mais limpo que o radio nativo)
+SIDEBAR_NAV_ICONS = {
+    "Feed": "📰",
+    "Dashboard": "📊",
+    "Escalas": "🎤",
+    "Gerenciar Escalas": "📋",
+    "Repertório": "🎵",
+    "Playlist": "🎧",
+    "Sugestão de louvor": "✦",
+    "Chat": "💬",
+    "Eventos": "📅",
+    "Membros": "👥",
+    "Perfil": "👤",
+}
+
 ROLE_LIDER = "Líder"
 ROLE_ORG_MUSICAL = "Organizador Musical"
 ROLE_ORG_VOCAL = "Organizador Vocal"
@@ -3239,23 +3254,21 @@ def render_sidebar_navigation() -> str:
         unsafe_allow_html=True,
     )
 
-    try:
-        idx = names.index(st.session_state.app_menu)
-    except ValueError:
-        idx = 0
-
-    # Sem key no widget: navegação só via app_menu (compatível com atalhos do Dashboard)
-    picked = st.sidebar.radio(
-        "Ir para",
-        names,
-        index=idx,
-        format_func=lambda n, ic=icons: f"{ic.get(n, '🎵')}  {n}",
-        label_visibility="collapsed",
-    )
-    if picked != st.session_state.app_menu:
-        st.session_state.app_menu = picked
-        st.rerun()
-    return picked
+    current = st.session_state.app_menu
+    for name in names:
+        icon = SIDEBAR_NAV_ICONS.get(name, icons.get(name, "•"))
+        label = f"{icon}   {name}"
+        is_active = name == current
+        if st.sidebar.button(
+            label,
+            key=f"ig_nav_{name}",
+            use_container_width=True,
+            type="primary" if is_active else "secondary",
+        ):
+            if name != current:
+                st.session_state.app_menu = name
+                st.rerun()
+    return st.session_state.app_menu
 
 
 def render_dashboard_quick_actions(roles: str):

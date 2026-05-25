@@ -81,19 +81,18 @@ def inject_app_notification_badges(
           var badges = {badges_json};
           var doc = window.parent.document;
 
-          function matchMenu(raw, menuName) {{
-            if (!raw || raw.indexOf(menuName) < 0) return false;
-            if (menuName === "Chat" && raw.toLowerCase().indexOf("ensaio") >= 0) return false;
-            if (menuName === "Escalas" && raw.indexOf("Gerenciar") >= 0) return false;
-            return true;
-          }}
-
-          function countForLabel(raw) {{
-            var total = 0;
-            Object.keys(badges).forEach(function (menuName) {{
-              if (matchMenu(raw, menuName)) total += badges[menuName];
+          function badgeForLabel(raw) {{
+            if (!raw) return 0;
+            var keys = Object.keys(badges).sort(function (a, b) {{
+              return b.length - a.length;
             }});
-            return total;
+            for (var i = 0; i < keys.length; i++) {{
+              var menuName = keys[i];
+              if (menuName === "Chat" && raw.toLowerCase().indexOf("ensaio") >= 0) continue;
+              if (menuName === "Escalas" && raw.indexOf("Gerenciar") >= 0) continue;
+              if (raw.indexOf(menuName) >= 0) return badges[menuName];
+            }}
+            return 0;
           }}
 
           function setWaBadge(host, n) {{
@@ -102,35 +101,30 @@ def inject_app_notification_badges(
             var badge = doc.createElement("span");
             badge.className = "nav-wa-badge";
             badge.textContent = n > 99 ? "99+" : String(n);
-            badge.style.display = "flex";
+            badge.setAttribute("aria-label", n + " novidades");
+            host.style.position = "relative";
             host.appendChild(badge);
           }}
 
           function attachSidebar() {{
             var sidebar = doc.querySelector('[data-testid="stSidebar"]');
             if (!sidebar) return;
+            sidebar.querySelectorAll('[class*="st-key-ig_nav_"]').forEach(function (wrap) {{
+              var raw = (wrap.innerText || "").trim();
+              var n = badgeForLabel(raw);
+              setWaBadge(wrap, n);
+            }});
             sidebar.querySelectorAll('[data-testid="stRadio"] label').forEach(function (el) {{
               var raw = (el.innerText || "").trim();
-              var n = countForLabel(raw);
-              el.removeAttribute("data-nav-alert");
-              setWaBadge(el, 0);
-              if (n > 0) {{
-                setWaBadge(el, n);
-              }}
+              setWaBadge(el, badgeForLabel(raw));
             }});
           }}
 
           function attachQuickNav() {{
             doc.querySelectorAll(".quick-nav-btn").forEach(function (wrap) {{
               var raw = (wrap.innerText || "").trim();
-              var n = countForLabel(raw);
-              wrap.removeAttribute("data-nav-alert");
-              setWaBadge(wrap, 0);
-              if (n > 0) {{
-                wrap.setAttribute("data-nav-alert", "1");
-                wrap.style.position = "relative";
-                setWaBadge(wrap, n);
-              }}
+              var n = badgeForLabel(raw);
+              setWaBadge(wrap, n);
             }});
           }}
 
