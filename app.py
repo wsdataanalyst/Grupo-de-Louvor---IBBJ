@@ -37,6 +37,7 @@ from data_persistence import (
     backup_csv_if_exists,
     load_csv_preserve_rows,
     members_save_allowed,
+    prepare_members,
     snapshot_data_folder,
 )
 from password_reset import (
@@ -676,8 +677,8 @@ def load_data(file_path: Path, columns: tuple):
     else:
         df = load_csv_preserve_rows(file_path, columns)
 
-    if file_path == MEMBERS_FILE and not df.empty and "email" in df.columns:
-        df["email"] = df["email"].astype(str).str.strip().str.lower()
+    if file_path == MEMBERS_FILE:
+        df = prepare_members(df)
     return df
 
 
@@ -686,6 +687,7 @@ def save_data(df: pd.DataFrame, file_path: Path, *, force: bool = False) -> bool
     file_path.parent.mkdir(parents=True, exist_ok=True)
 
     if file_path == MEMBERS_FILE:
+        df = prepare_members(df)
         ok, msg = members_save_allowed(df, file_path, force=force)
         if not ok:
             show_technical_error(msg)
@@ -725,6 +727,29 @@ def new_id() -> str:
 
 def email_to_photo_slug(email: str) -> str:
     return email.strip().lower().replace("@", "_at_").replace(".", "_")
+
+
+def ensure_local_profile_photos(members_df: pd.DataFrame) -> None:
+    """Restaura fotos da nuvem após reboot (Streamlit Cloud)."""
+    if members_df.empty:
+        return
+    from remote_store import is_remote_enabled, pull_profile_photo_file
+
+    if not is_remote_enabled():
+        return
+    PROFILE_PHOTOS_DIR.mkdir(parents=True, exist_ok=True)
+    members_df = prepare_members(members_df)
+    for _, row in members_df.iterrows():
+        fn = str(row.get("profile_photo", "")).strip()
+        if not fn:
+            continue
+        dest = PROFILE_PHOTOS_DIR / fn
+        if not dest.exists():
+            pull_profile_photo_file(fn, PROFILE_PHOTOS_DIR)
+        elif dest.is_file():
+            from remote_store import push_profile_photo_file
+
+            push_profile_photo_file(dest)
 
 
 def profile_photo_file(email: str, stored_name: str = "") -> Path | None:
@@ -782,6 +807,12 @@ def save_profile_photo(email: str, uploaded_file) -> str:
             dest = PROFILE_PHOTOS_DIR / filename
     except Exception:
         dest.write_bytes(raw)
+    try:
+        from remote_store import push_profile_photo_file
+
+        push_profile_photo_file(dest)
+    except Exception:
+        pass
     return filename
 
 
@@ -5023,6 +5054,7 @@ def show_user_profile(
     escalas_df: pd.DataFrame,
     equipe_df: pd.DataFrame,
 ):
+    members_df = prepare_members(members_df)
     idx, row = get_current_member_row(members_df)
     if row is None:
         show_technical_error("Não foi possível carregar o perfil.")
@@ -5068,7 +5100,7 @@ def show_user_profile(
             else:
                 try:
                     filename = save_profile_photo(email, pending)
-                    members_df.loc[idx, "profile_photo"] = filename
+                    members_df.at[idx, "profile_photo"] = str(filename).strip()
                     if save_data(members_df, MEMBERS_FILE):
                         st.session_state.user_profile_photo = filename
                         st.success("Foto atualizada!")
@@ -5086,9 +5118,17 @@ def show_user_profile(
                     )
                     st.session_state["_pending_profile_photo"] = pending
         if photo_path and st.button("🗑️ Remover foto", use_container_width=True, key="rm_profile_photo"):
+            old_name = str(members_df.at[idx, "profile_photo"]).strip()
             photo_path.unlink(missing_ok=True)
-            members_df.loc[idx, "profile_photo"] = ""
+            members_df.at[idx, "profile_photo"] = ""
             if save_data(members_df, MEMBERS_FILE):
+                try:
+                    from remote_store import delete_profile_photo_remote
+
+                    if old_name:
+                        delete_profile_photo_remote(old_name)
+                except Exception:
+                    pass
                 st.session_state.user_profile_photo = ""
                 st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
@@ -8072,6 +8112,8 @@ def _run_app() -> None:
 
     members_df = load_data(MEMBERS_FILE, MEMBER_COLUMNS)
     members_df = ensure_developer_access(members_df)
+    members_df = prepare_members(members_df)
+    ensure_local_profile_photos(members_df)
     members_df = sync_recognized_member_roles(members_df)
     chat_df = prepare_chat(load_data(CHAT_FILE, CHAT_COLUMNS))
     escalas_df = prepare_escalas(load_data(ESCALAS_FILE, ESCALA_COLUMNS))

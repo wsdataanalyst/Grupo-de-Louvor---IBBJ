@@ -12,6 +12,43 @@ MAX_BACKUPS_PER_FILE = 15
 MEMBERS_GUARD_MIN_ROWS = 1
 MEMBERS_DROP_RATIO_LIMIT = 0.5
 
+MEMBER_STRING_COLUMNS = (
+    "first_name",
+    "last_name",
+    "email",
+    "roles",
+    "password_hash",
+    "created_at",
+    "profile_photo",
+    "phone",
+    "bio",
+)
+
+MEMBER_STRING_COLUMNS = (
+    "first_name",
+    "last_name",
+    "email",
+    "roles",
+    "password_hash",
+    "created_at",
+    "profile_photo",
+    "phone",
+    "bio",
+)
+
+
+def prepare_members(df: pd.DataFrame) -> pd.DataFrame:
+    """Garante colunas de texto (evita profile_photo como float64 / NaN)."""
+    if df.empty:
+        return pd.DataFrame(columns=list(MEMBER_STRING_COLUMNS))
+    out = df.copy()
+    for column in MEMBER_STRING_COLUMNS:
+        if column not in out.columns:
+            out[column] = ""
+        out[column] = out[column].fillna("").astype(str).str.strip()
+    out["email"] = out["email"].str.lower()
+    return out[list(MEMBER_STRING_COLUMNS)].copy()
+
 
 def backup_dir_for(data_dir: Path) -> Path:
     return data_dir / "backups"
@@ -56,6 +93,32 @@ def latest_backup(file_path: Path, data_dir: Path) -> Path | None:
         reverse=True,
     )
     return files[0] if files else None
+
+
+def _member_cell_to_str(value) -> str:
+    if value is None:
+        return ""
+    try:
+        if pd.isna(value):
+            return ""
+    except (TypeError, ValueError):
+        pass
+    text = str(value).strip()
+    return "" if text.lower() in ("nan", "none", "<na>") else text
+
+
+def prepare_members(df: pd.DataFrame) -> pd.DataFrame:
+    """Garante colunas de texto (evita profile_photo como float64 por células vazias)."""
+    if df.empty:
+        return pd.DataFrame(columns=list(MEMBER_STRING_COLUMNS))
+    out = df.copy()
+    for column in MEMBER_STRING_COLUMNS:
+        if column not in out.columns:
+            out[column] = ""
+        else:
+            out[column] = out[column].map(_member_cell_to_str)
+    out["email"] = out["email"].astype(str).str.strip().str.lower()
+    return out[list(MEMBER_STRING_COLUMNS)].copy()
 
 
 def load_csv_preserve_rows(file_path: Path, columns: tuple) -> pd.DataFrame:

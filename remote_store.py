@@ -11,6 +11,7 @@ supabase_key = "sua-service-role-key"
 
 from __future__ import annotations
 
+import base64
 import logging
 import os
 from datetime import datetime, timezone
@@ -22,6 +23,7 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 TABLE_NAME = "data_files"
+PROFILE_PHOTO_REMOTE_PREFIX = "profile_photos/"
 
 SYNC_CSV_NAMES = frozenset(
     {
@@ -253,12 +255,77 @@ def should_sync_file(file_path: Path) -> bool:
 def store_csv_text(name: str, content: str) -> None:
     if name not in SYNC_CSV_NAMES:
         return
+    _store_data_file_text(name, content)
+
+
+def _store_data_file_text(name: str, content: str) -> None:
     payload = {
         "name": name,
         "content": content,
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
     _get_client().table(TABLE_NAME).upsert(payload).execute()
+
+
+def profile_photo_remote_name(filename: str) -> str:
+    return f"{PROFILE_PHOTO_REMOTE_PREFIX}{filename.strip()}"
+
+
+def push_profile_photo_file(photo_path: Path) -> bool:
+    """Envia foto de perfil para Supabase (base64) — sobrevive a reboot do Streamlit."""
+    if not is_remote_enabled() or not photo_path.is_file():
+        return False
+    try:
+        raw = photo_path.read_bytes()
+        if not raw:
+            return False
+        content = base64.b64encode(raw).decode("ascii")
+        _store_data_file_text(profile_photo_remote_name(photo_path.name), content)
+        return True
+    except Exception as exc:
+        logger.warning("push profile photo %s: %s", photo_path.name, exc)
+        return False
+
+
+def pull_profile_photo_file(filename: str, dest_dir: Path) -> bool:
+    """Baixa foto da nuvem se não existir localmente."""
+    filename = str(filename).strip()
+    if not filename or not is_remote_enabled():
+        return False
+    dest = dest_dir / filename
+    if dest.exists() and dest.stat().st_size > 0:
+        return True
+    try:
+        res = (
+            _get_client()
+            .table(TABLE_NAME)
+            .select("content")
+            .eq("name", profile_photo_remote_name(filename))
+            .limit(1)
+            .execute()
+        )
+        rows = res.data or []
+        if not rows or not rows[0].get("content"):
+            return False
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_bytes(base64.b64decode(str(rows[0]["content"])))
+        return True
+    except Exception as exc:
+        logger.warning("pull profile photo %s: %s", filename, exc)
+        return False
+
+
+def delete_profile_photo_remote(filename: str) -> None:
+    """Remove foto da nuvem (opcional ao apagar perfil)."""
+    filename = str(filename).strip()
+    if not filename or not is_remote_enabled():
+        return
+    try:
+        _get_client().table(TABLE_NAME).delete().eq(
+            "name", profile_photo_remote_name(filename)
+        ).execute()
+    except Exception as exc:
+        logger.warning("delete profile photo %s: %s", filename, exc)
 
 
 def _local_file_has_data(path: Path) -> bool:
