@@ -6,6 +6,11 @@ import html
 import urllib.parse
 
 
+def svg_icon_uri(paths: str, *, stroke: str = "#94a3b8", size: int = 18) -> str:
+    """URI data:image/svg para uso em CSS background."""
+    return _svg_uri(paths, stroke=stroke, size=size)
+
+
 def _svg_uri(paths: str, *, stroke: str = "#94a3b8", size: int = 18) -> str:
     svg = (
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{size}" height="{size}" '
