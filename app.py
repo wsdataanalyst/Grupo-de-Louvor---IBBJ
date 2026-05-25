@@ -3292,19 +3292,15 @@ def format_sidebar_role_display(roles: str) -> tuple[str, str]:
 
 
 def render_sidebar_profile(members_df: pd.DataFrame | None = None):
+    from sidebar_brand import sidebar_brand_mark_html
     from sidebar_icons import sidebar_user_placeholder_svg
 
     cross_img = _login_cross_img_html()
+    mark_html = sidebar_brand_mark_html(cross_img)
     st.sidebar.markdown(
         f"""
         <div class="ig-sb-brand">
-            <div class="ig-sb-logo-stack">
-                {cross_img}
-                <div class="login-eq" aria-hidden="true">
-                    <span></span><span></span><span></span><span></span>
-                    <span></span><span></span><span></span>
-                </div>
-            </div>
+            {mark_html}
             <div class="ig-sb-brand-text">
                 <h2 class="ig-sb-app-name">{html.escape(LOGIN_DISPLAY_TITLE)}</h2>
                 <p class="ig-sb-app-sub">Gestão Ministerial</p>
@@ -3332,7 +3328,7 @@ def render_sidebar_profile(members_df: pd.DataFrame | None = None):
     else:
         ph_uri = sidebar_user_placeholder_svg()
         avatar_inner = (
-            f'<span class="ig-sb-avatar-ph" style="background:center/58% no-repeat '
+            f'<span class="ig-sb-avatar-ph" style="background:center/72% no-repeat '
             f'url({ph_uri})" aria-hidden="true"></span>'
         )
 
@@ -3347,7 +3343,8 @@ def render_sidebar_profile(members_df: pd.DataFrame | None = None):
         f"""
         <div class="ig-sb-profile-card">
             <div class="ig-sb-avatar-wrap">
-                <div class="ig-sb-avatar-glow"></div>
+                <div class="ig-sb-avatar-glow" aria-hidden="true"></div>
+                <div class="ig-sb-avatar-ring" aria-hidden="true"></div>
                 <div class="ig-sb-avatar">{avatar_inner}</div>
             </div>
             <div class="ig-sb-profile-text">

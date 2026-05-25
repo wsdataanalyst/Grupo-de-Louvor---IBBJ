@@ -102,8 +102,8 @@ _LOGOUT_PATH = (
 )
 
 _USER_PLACEHOLDER = (
-    '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>'
-    '<circle cx="12" cy="7" r="4"/>'
+    '<circle cx="12" cy="8.5" r="3.75"/>'
+    '<path d="M5.5 20.5c0-3.2 2.9-5.8 6.5-5.8s6.5 2.6 6.5 5.8"/>'
 )
 
 
@@ -189,4 +189,4 @@ def sidebar_tool_icons_css() -> str:
 
 
 def sidebar_user_placeholder_svg() -> str:
-    return _svg_uri(_USER_PLACEHOLDER, stroke="#93c5fd", size=28)
+    return _svg_uri(_USER_PLACEHOLDER, stroke="#7dd3fc", size=32)

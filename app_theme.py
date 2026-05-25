@@ -210,23 +210,67 @@ def ibbj_theme_css() -> str:
         .ig-sb-brand {
             display: flex;
             align-items: center;
-            gap: 0.7rem;
+            gap: 0.8rem;
             text-align: left;
-            padding: 0.4rem 0.35rem 0.85rem;
-            margin-bottom: 0.45rem;
+            padding: 0.5rem 0.35rem 1rem;
+            margin-bottom: 0.15rem;
         }
-        .ig-sb-logo-stack {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
+        /* Marca: equalizador prateado + cruz dourada centralizada (ref. UI) */
+        .ig-sb-mark {
+            position: relative;
             flex-shrink: 0;
+            width: 54px;
+            height: 50px;
         }
-        .ig-sb-brand .login-cross { width: 38px; height: auto; }
-        .ig-sb-brand .login-eq { height: 22px; margin-top: 3px; }
+        .ig-sb-mark .ig-sb-eq {
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            gap: 3px;
+            height: 100%;
+            padding: 0 2px 1px;
+        }
+        .ig-sb-mark .ig-sb-eq span {
+            display: block;
+            width: 4px;
+            border-radius: 2px;
+            background: linear-gradient(
+                180deg,
+                #f8fafc 0%,
+                #e2e8f0 38%,
+                #94a3b8 72%,
+                rgba(148, 163, 184, 0.35) 100%
+            );
+            box-shadow: 0 0 8px rgba(248, 250, 252, 0.22);
+        }
+        .ig-sb-mark .ig-sb-eq span:nth-child(1) { height: 9px; }
+        .ig-sb-mark .ig-sb-eq span:nth-child(2) { height: 15px; }
+        .ig-sb-mark .ig-sb-eq span:nth-child(3) { height: 22px; }
+        .ig-sb-mark .ig-sb-eq span:nth-child(4) { height: 28px; }
+        .ig-sb-mark .ig-sb-eq span:nth-child(5) { height: 22px; }
+        .ig-sb-mark .ig-sb-eq span:nth-child(6) { height: 15px; }
+        .ig-sb-mark .ig-sb-eq span:nth-child(7) { height: 9px; }
+        .ig-sb-mark .ig-sb-cross-overlay {
+            position: absolute;
+            left: 50%;
+            top: 46%;
+            transform: translate(-50%, -50%);
+            z-index: 2;
+            pointer-events: none;
+            line-height: 0;
+        }
+        .ig-sb-mark .ig-sb-cross-overlay img.login-cross,
+        .ig-sb-mark .ig-sb-cross-overlay .login-cross {
+            display: block;
+            width: 34px !important;
+            height: auto !important;
+            margin: 0 !important;
+            filter: drop-shadow(0 2px 10px rgba(212, 175, 55, 0.55));
+        }
         .ig-sb-brand-text { min-width: 0; flex: 1; }
         .ig-sb-app-name {
-            margin: 0 0 0.15rem;
-            font-size: 1.05rem;
+            margin: 0 0 0.2rem;
+            font-size: 1.08rem;
             font-weight: 700;
             color: #f8fafc !important;
             letter-spacing: -0.02em;
@@ -234,9 +278,9 @@ def ibbj_theme_css() -> str:
         }
         .ig-sb-app-sub {
             margin: 0;
-            font-size: 0.58rem;
+            font-size: 0.6rem;
             font-weight: 700;
-            letter-spacing: 0.16em;
+            letter-spacing: 0.14em;
             text-transform: uppercase;
             color: #d4a017 !important;
         }
@@ -244,71 +288,98 @@ def ibbj_theme_css() -> str:
         .ig-sb-profile-card {
             display: flex;
             align-items: center;
-            gap: 0.75rem;
-            padding: 0.85rem 0.75rem;
-            margin: 0 0 0.65rem;
-            border-radius: 16px;
-            background: rgba(15, 23, 42, 0.72);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+            gap: 0.85rem;
+            padding: 0.35rem 0.35rem 0.9rem;
+            margin: 0 0 0.55rem;
+            background: transparent;
+            border: none;
+            box-shadow: none;
         }
-        .ig-sb-avatar-wrap { position: relative; flex-shrink: 0; }
+        .ig-sb-avatar-wrap {
+            position: relative;
+            flex-shrink: 0;
+            width: 3.35rem;
+            height: 3.35rem;
+        }
         .ig-sb-avatar-glow {
             position: absolute;
-            inset: -6px;
+            inset: -14px;
             border-radius: 50%;
-            background: radial-gradient(circle, rgba(37, 99, 235, 0.45) 0%, transparent 70%);
-            filter: blur(6px);
+            background: radial-gradient(
+                circle,
+                rgba(56, 189, 248, 0.55) 0%,
+                rgba(37, 99, 235, 0.28) 42%,
+                transparent 68%
+            );
+            filter: blur(10px);
+            opacity: 1;
+            z-index: 0;
+        }
+        .ig-sb-avatar-ring {
+            position: absolute;
+            inset: 0;
+            border-radius: 50%;
+            border: 2px solid rgba(125, 211, 252, 0.95);
+            box-shadow:
+                0 0 0 1px rgba(186, 230, 253, 0.45),
+                0 0 10px 3px rgba(56, 189, 248, 0.65),
+                0 0 22px 7px rgba(37, 99, 235, 0.45),
+                0 0 36px 12px rgba(37, 99, 235, 0.22);
+            z-index: 2;
+            pointer-events: none;
         }
         .ig-sb-avatar {
             position: relative;
-            width: 2.75rem;
-            height: 2.75rem;
+            z-index: 1;
+            width: 100%;
+            height: 100%;
             border-radius: 50%;
             overflow: hidden;
-            border: 2px solid rgba(37, 99, 235, 0.55);
-            background: #1e293b;
+            border: none;
+            background: linear-gradient(165deg, #1e3a5f 0%, #0c1929 55%, #0a0e1a 100%);
             display: flex;
             align-items: center;
             justify-content: center;
+            box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.35);
         }
         .ig-sb-avatar img { width: 100%; height: 100%; object-fit: cover; }
         .ig-sb-avatar-letter {
             font-size: 1.1rem;
             font-weight: 700;
-            color: #93c5fd;
+            color: #7dd3fc;
         }
         .ig-sb-avatar-ph {
             display: block;
             width: 100%;
             height: 100%;
-            opacity: 0.85;
+            opacity: 1;
         }
         .ig-sb-profile-text { min-width: 0; flex: 1; }
         .ig-sb-user-name {
             display: block;
             color: #f8fafc !important;
-            font-size: 0.88rem;
-            font-weight: 600;
+            font-size: 0.95rem;
+            font-weight: 700;
             line-height: 1.25;
         }
         .ig-sb-user-role {
             display: block;
             color: #94a3b8 !important;
-            font-size: 0.72rem;
-            margin-top: 0.12rem;
-            line-height: 1.3;
+            font-size: 0.74rem;
+            margin-top: 0.18rem;
+            line-height: 1.35;
         }
         .ig-sb-role-badge {
             display: inline-block;
-            margin-top: 0.35rem;
-            padding: 0.15rem 0.5rem;
+            margin-top: 0.4rem;
+            padding: 0.2rem 0.55rem;
             border-radius: 999px;
-            font-size: 0.62rem;
+            font-size: 0.64rem;
             font-weight: 600;
-            color: #bfdbfe !important;
-            background: rgba(37, 99, 235, 0.25);
-            border: 1px solid rgba(37, 99, 235, 0.4);
+            color: #93c5fd !important;
+            background: rgba(30, 58, 138, 0.92);
+            border: 1px solid rgba(59, 130, 246, 0.45);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
         }
 
         .ig-sb-nav-group {
