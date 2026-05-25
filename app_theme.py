@@ -1387,6 +1387,7 @@ def inject_ibbj_theme() -> None:
     import streamlit as st
 
     from app_theme_v3 import ibbj_v3_css
+    from escalas_ui import escalas_page_css
     from feed_ui import feed_page_css
     from sidebar_icons import sidebar_nav_icons_css, sidebar_tool_icons_css
 
@@ -1394,7 +1395,13 @@ def inject_ibbj_theme() -> None:
         '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">',
         unsafe_allow_html=True,
     )
-    extra = sidebar_nav_icons_css() + sidebar_tool_icons_css() + ibbj_v3_css() + feed_page_css()
+    extra = (
+        sidebar_nav_icons_css()
+        + sidebar_tool_icons_css()
+        + ibbj_v3_css()
+        + feed_page_css()
+        + escalas_page_css()
+    )
     st.markdown(f"<style>{ibbj_theme_css()}{extra}</style>", unsafe_allow_html=True)
 
 

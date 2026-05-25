@@ -7376,22 +7376,31 @@ def show_escalas_page(
     louvores_df: pd.DataFrame,
     chat_ensaio_df: pd.DataFrame,
 ):
+    from escalas_ui import (
+        render_escalas_gerenciar_button,
+        render_escalas_header,
+        render_escalas_info_banner,
+        render_escalas_not_scheduled_warning,
+        render_escalas_page_close,
+        render_escalas_page_open,
+    )
+
     escalas_df, programa_df, equipe_df, trocas_df = get_escalas_bundle()
 
+    render_escalas_page_open()
+    render_escalas_header()
+    render_escalas_info_banner()
     if is_scale_manager(st.session_state.user_roles):
-        st.info(
-            "🎯 Líderes e organizadores montam escalas em **Gerenciar Escalas**. "
-            "Aqui você solicita trocas e acompanha o chat do ensaio."
-        )
+        render_escalas_gerenciar_button()
 
     tab_equipe, tab_todas, tab_sequencia, tab_trocar, tab_pedidos, tab_ensaio = st.tabs(
         [
-            "👥 Minha equipe",
-            "📆 Todas minhas escalas",
-            "🎼 Sequência do Culto",
-            "🔄 Trocar escala",
-            "📬 Solicitações",
-            "💬 Chat do ensaio",
+            "Minha equipe",
+            "Todas minhas escalas",
+            "Sequência do Culto",
+            "Trocar escala",
+            "Solicitações",
+            "Chat do ensaio",
         ]
     )
 
@@ -7418,7 +7427,7 @@ def show_escalas_page(
                 )
                 st.markdown("---")
         if not minhas and not focus_id:
-            st.info("Você não está escalado(a) nesta semana ou a escala ainda não foi publicada.")
+            render_escalas_not_scheduled_warning()
         for item in minhas:
             if focus_id and str(item["escala"].get("id", "")) == str(focus_id):
                 continue
@@ -7636,6 +7645,8 @@ def show_escalas_page(
                     "Fique atento(a)!"
                 )
             render_ensaio_chat(labels[escolha], chat_ensaio_df, members_df)
+
+    render_escalas_page_close()
 
 
 def _render_louvor_validation_search(louvores_df: pd.DataFrame):
@@ -8439,7 +8450,7 @@ def _run_app() -> None:
         notif_count=notif_hdr,
     )
 
-    if menu not in ("Dashboard", "Feed", "Avisos"):
+    if menu not in ("Dashboard", "Feed", "Avisos", "Escalas"):
         page_header(menu)
 
     wa_open = st.session_state.pop("wa_auto_open_url", None)
