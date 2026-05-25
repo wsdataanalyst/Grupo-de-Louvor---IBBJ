@@ -19,7 +19,12 @@ def worship_theme_overrides() -> str:
             --wc-bg-soft: #eef1f6;
             --wc-card: #ffffff;
             --wc-text: #1a2332;
-            --wc-text-muted: #5c6b7f;
+            --wc-text-muted: #475569;
+            --wc-text-label: #334155;
+            --wc-input-bg: #ffffff;
+            --wc-input-border: #94a3b8;
+            --wc-btn-primary-top: #a86f25;
+            --wc-btn-primary-bot: #7a5520;
             --wc-border: rgba(16, 29, 51, 0.1);
             --wc-shadow: 0 8px 32px rgba(16, 29, 51, 0.08);
             --wc-radius: 16px;
@@ -279,34 +284,9 @@ def worship_theme_overrides() -> str:
             border-radius: var(--wc-radius) !important;
             box-shadow: var(--wc-shadow) !important;
         }
-        div[data-testid="stTabs"] button[data-baseweb="tab"] {
-            color: var(--wc-text-muted) !important;
-        }
-        div[data-testid="stTabs"] button[data-baseweb="tab"][aria-selected="true"] {
-            color: var(--wc-gold-deep) !important;
-            border-bottom-color: var(--wc-gold) !important;
-        }
+        /* Abas — ver bloco de acessibilidade */
 
-        /* Botões primários — dourado */
-        .main .stButton > button[kind="primary"],
-        .main .stFormSubmitButton > button {
-            background: linear-gradient(135deg, var(--wc-gold) 0%, var(--wc-gold-deep) 100%) !important;
-            color: #fff !important;
-            border: none !important;
-            box-shadow: 0 4px 14px rgba(176, 125, 62, 0.35) !important;
-            font-weight: 600 !important;
-            border-radius: 12px !important;
-        }
-        .main .stButton > button[kind="primary"]:hover,
-        .main .stFormSubmitButton > button:hover {
-            filter: brightness(1.05) !important;
-            box-shadow: 0 6px 18px rgba(176, 125, 62, 0.45) !important;
-        }
-        .main .stButton > button[kind="secondary"] {
-            background: var(--wc-card) !important;
-            color: var(--wc-navy) !important;
-            border: 1px solid var(--wc-border) !important;
-        }
+        /* Botões primários — ver bloco de acessibilidade no final */
 
         /* Login — layout tipo Worship Collective */
         .login-wrap {
@@ -433,14 +413,7 @@ def worship_theme_overrides() -> str:
         }
         .feed-post-card { color: var(--wc-text) !important; }
 
-        /* Inputs */
-        .main input, .main textarea, .main select {
-            background: var(--wc-card) !important;
-            color: var(--wc-text) !important;
-            border-color: var(--wc-border) !important;
-            border-radius: 10px !important;
-        }
-        .main label { color: var(--wc-text) !important; }
+        /* Inputs — ver bloco de acessibilidade */
 
         /* Alertas Streamlit */
         .main .stSuccess { background: #ecfdf5 !important; color: #065f46 !important; }
@@ -478,6 +451,226 @@ def worship_theme_overrides() -> str:
         .cifra-chord-line .cifra-chord,
         .cifra-strophe-inline .cifra-lyric-line .cifra-chord {
             color: var(--wc-gold-deep) !important;
+        }
+
+        /* ========== Acessibilidade: contraste na área principal ========== */
+        section.main,
+        [data-testid="stMain"],
+        .login-wrap,
+        .login-form-card {
+            color: var(--wc-text) !important;
+        }
+
+        /* Neutraliza texto claro do tema escuro legado */
+        section.main [data-testid="stMarkdownContainer"] p,
+        section.main [data-testid="stMarkdownContainer"] li,
+        section.main [data-testid="stMarkdownContainer"] span,
+        [data-testid="stMain"] [data-testid="stMarkdownContainer"] p,
+        [data-testid="stMain"] [data-testid="stMarkdownContainer"] li,
+        .login-form-card [data-testid="stMarkdownContainer"] p,
+        .login-form-card [data-testid="stMarkdownContainer"] li {
+            color: var(--wc-text) !important;
+        }
+        section.main h1, section.main h2, section.main h3, section.main h4,
+        [data-testid="stMain"] h1, [data-testid="stMain"] h2, [data-testid="stMain"] h3 {
+            color: var(--wc-navy) !important;
+        }
+
+        /* Labels de formulário (Email, Senha, etc.) */
+        section.main label,
+        section.main [data-testid="stWidgetLabel"] p,
+        section.main [data-testid="stWidgetLabel"] label,
+        section.main .stTextInput label,
+        section.main .stTextArea label,
+        section.main .stSelectbox label,
+        section.main .stMultiSelect label,
+        section.main .stNumberInput label,
+        section.main .stDateInput label,
+        section.main .stTimeInput label,
+        [data-testid="stMain"] label,
+        [data-testid="stMain"] [data-testid="stWidgetLabel"] p,
+        .login-form-card label,
+        .login-form-card [data-testid="stWidgetLabel"] p {
+            color: var(--wc-text-label) !important;
+            font-weight: 600 !important;
+        }
+
+        /* Checkbox e ajuda */
+        section.main .stCheckbox label p,
+        section.main .stCheckbox span,
+        section.main .stCheckbox [data-testid="stMarkdownContainer"] p,
+        [data-testid="stMain"] .stCheckbox label p,
+        .login-form-card .stCheckbox label p {
+            color: var(--wc-text-label) !important;
+            font-weight: 500 !important;
+        }
+        section.main .stCaption,
+        section.main small,
+        [data-testid="stMain"] .stCaption {
+            color: var(--wc-text-muted) !important;
+        }
+
+        /* Abas (Entrar / Cadastrar, etc.) */
+        section.main div[data-testid="stTabs"] [data-baseweb="tab"],
+        [data-testid="stMain"] div[data-testid="stTabs"] [data-baseweb="tab"],
+        .login-form-card div[data-testid="stTabs"] [data-baseweb="tab"] {
+            color: var(--wc-text-label) !important;
+            font-weight: 600 !important;
+            opacity: 1 !important;
+        }
+        section.main div[data-testid="stTabs"] [data-baseweb="tab"][aria-selected="true"],
+        [data-testid="stMain"] div[data-testid="stTabs"] [data-baseweb="tab"][aria-selected="true"],
+        .login-form-card div[data-testid="stTabs"] [data-baseweb="tab"][aria-selected="true"] {
+            color: var(--wc-navy) !important;
+            border-bottom: 3px solid var(--wc-gold-deep) !important;
+        }
+        section.main div[data-testid="stTabs"] [data-baseweb="tab-list"],
+        [data-testid="stMain"] div[data-testid="stTabs"] [data-baseweb="tab-list"] {
+            border-bottom: 1px solid var(--wc-input-border) !important;
+        }
+
+        /* Campos de texto — fundo claro e texto escuro */
+        section.main input,
+        section.main textarea,
+        section.main select,
+        [data-testid="stMain"] input,
+        [data-testid="stMain"] textarea,
+        .login-form-card input,
+        .login-form-card textarea {
+            background-color: var(--wc-input-bg) !important;
+            color: var(--wc-text) !important;
+            -webkit-text-fill-color: var(--wc-text) !important;
+            border: 1px solid var(--wc-input-border) !important;
+            caret-color: var(--wc-navy) !important;
+        }
+        section.main [data-baseweb="input"],
+        [data-testid="stMain"] [data-baseweb="input"],
+        .login-form-card [data-baseweb="input"] {
+            background-color: var(--wc-input-bg) !important;
+            border: 1px solid var(--wc-input-border) !important;
+        }
+        section.main [data-baseweb="input"] > div,
+        [data-testid="stMain"] [data-baseweb="input"] > div {
+            background-color: #f8fafc !important;
+            border-color: var(--wc-input-border) !important;
+        }
+        section.main [data-baseweb="input"] input,
+        [data-testid="stMain"] [data-baseweb="input"] input,
+        .login-form-card [data-baseweb="input"] input {
+            color: var(--wc-text) !important;
+            -webkit-text-fill-color: var(--wc-text) !important;
+        }
+
+        /* Botões primários — dourado mais escuro (texto branco legível) */
+        section.main .stButton > button[kind="primary"],
+        section.main .stFormSubmitButton > button,
+        section.main button[kind="primaryFormSubmit"],
+        [data-testid="stMain"] .stButton > button[kind="primary"],
+        [data-testid="stMain"] .stFormSubmitButton > button,
+        [data-testid="stMain"] button[kind="primaryFormSubmit"],
+        .login-form-card .stButton > button[kind="primary"],
+        .login-form-card .stFormSubmitButton > button,
+        .login-form-card button[kind="primaryFormSubmit"] {
+            background: linear-gradient(
+                135deg,
+                var(--wc-btn-primary-top) 0%,
+                var(--wc-btn-primary-bot) 100%
+            ) !important;
+            color: #ffffff !important;
+            border: 1px solid #6b4718 !important;
+            font-weight: 700 !important;
+            text-shadow: 0 1px 1px rgba(0, 0, 0, 0.25) !important;
+        }
+
+        /* Botões secundários */
+        section.main .stButton > button[kind="secondary"],
+        [data-testid="stMain"] .stButton > button[kind="secondary"],
+        .login-form-card .stButton > button[kind="secondary"] {
+            background: #f1f5f9 !important;
+            color: var(--wc-navy) !important;
+            border: 1px solid var(--wc-input-border) !important;
+            font-weight: 600 !important;
+        }
+
+        /* Select / multiselect na área principal */
+        section.main [data-baseweb="select"] > div,
+        [data-testid="stMain"] [data-baseweb="select"] > div {
+            background-color: var(--wc-input-bg) !important;
+            color: var(--wc-text) !important;
+            border-color: var(--wc-input-border) !important;
+        }
+        section.main [data-baseweb="tag"],
+        [data-testid="stMain"] [data-baseweb="tag"] {
+            background: #e2e8f0 !important;
+            color: var(--wc-navy) !important;
+        }
+
+        /* Radio/checkbox na área principal (não sidebar) */
+        section.main div[data-testid="stRadio"] > label,
+        [data-testid="stMain"] div[data-testid="stRadio"] > label {
+            color: var(--wc-text) !important;
+        }
+
+        /* Expanders, links */
+        section.main .streamlit-expanderHeader,
+        [data-testid="stMain"] .streamlit-expanderHeader {
+            color: var(--wc-navy) !important;
+            font-weight: 600 !important;
+        }
+        section.main a,
+        [data-testid="stMain"] a {
+            color: #1d4ed8 !important;
+        }
+
+        /* Status escalado / avisos no dashboard */
+        .status-escalado {
+            background: #ecfdf5 !important;
+            border: 1px solid #6ee7b7 !important;
+            color: var(--wc-text) !important;
+        }
+        .status-escalado p,
+        .status-escalado strong {
+            color: #065f46 !important;
+        }
+        .status-escalado .escala-evento {
+            color: var(--wc-navy) !important;
+        }
+        .status-escalado .escala-data {
+            color: #047857 !important;
+        }
+        .status-escalado .escala-funcao {
+            color: #334155 !important;
+        }
+        .status-escalado .ensaio-ok {
+            color: #1d4ed8 !important;
+        }
+        .status-escalado .ensaio-pendente {
+            color: #b45309 !important;
+        }
+        .status-nao-escalado {
+            color: #92400e !important;
+            background: #fffbeb !important;
+            border: 1px solid #fbbf24 !important;
+        }
+        .status-nao-escalado strong {
+            color: #78350f !important;
+        }
+        .ensaio-aviso-banner {
+            color: #92400e !important;
+            background: #fffbeb !important;
+        }
+
+        /* Dataframe */
+        section.main [data-testid="stDataFrame"],
+        [data-testid="stMain"] [data-testid="stDataFrame"] {
+            color: var(--wc-text) !important;
+        }
+
+        /* Placeholder inputs */
+        section.main input::placeholder,
+        [data-testid="stMain"] input::placeholder {
+            color: #64748b !important;
+            opacity: 1 !important;
         }
     """
 

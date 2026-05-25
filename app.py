@@ -3229,12 +3229,11 @@ def apply_music_theme():
         }
         .music-pagination strong { color: #fbbf24; }
 
-        /* Alertas e textos principais */
-        [data-testid="stMarkdownContainer"] p,
-        [data-testid="stMarkdownContainer"] li {
-            color: #d4cce8;
+        /* Textos claros só na sidebar (área principal usa tema claro) */
+        section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p,
+        section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] li {
+            color: rgba(255, 255, 255, 0.85);
         }
-        h1, h2, h3 { color: #faf8ff !important; }
         div[data-testid="stMetric"] {
             background: rgba(26, 21, 48, 0.6);
             border: 1px solid rgba(167, 139, 250, 0.2);
