@@ -347,17 +347,17 @@ MENU_HEADERS = {
     "Perfil": "Sua foto e dados cadastrais",
 }
 MENU_ACCENTS = {
-    "Dashboard": "#c41e3a",
-    "Gerenciar Escalas": "#c41e3a",
-    "Repertório": "#9a1830",
-    "Escalas": "#c41e3a",
-    "Feed": "#c41e3a",
+    "Dashboard": "#20b2aa",
+    "Gerenciar Escalas": "#d4af37",
+    "Repertório": "#d4af37",
+    "Escalas": "#20b2aa",
+    "Feed": "#00c2cb",
     "Eventos": "#6b7280",
-    "Sugestão de louvor": "#9a1830",
-    "Playlist": "#9a1830",
-    "Chat": "#c41e3a",
-    "Membros": "#374151",
-    "Perfil": "#9a1830",
+    "Sugestão de louvor": "#d4af37",
+    "Playlist": "#00c2cb",
+    "Chat": "#34d399",
+    "Membros": "#9ca3af",
+    "Perfil": "#d4af37",
 }
 
 # Organização do menu por áreas (sidebar)
@@ -2915,7 +2915,7 @@ def inject_mobile_app_shell():
     st.markdown(
         """
         <link rel="manifest" href="/manifest.webmanifest">
-        <meta name="theme-color" content="#0a0a0a">
+        <meta name="theme-color" content="#121212">
         <meta name="mobile-web-app-capable" content="yes">
         <meta name="apple-mobile-web-app-capable" content="yes">
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -3165,30 +3165,21 @@ def render_sidebar_profile():
             <div class="sidebar-brand-mark">
                 <span class="sidebar-brand-icon">✝</span>
                 <div>
-                    <h3>IGREJA Bíblica<br>BATISTA Jurema</h3>
-                    <p>Ministério de louvor</p>
+                    <h3>IGREJA</h3>
+                    <p class="brand-line2">Gestão ministerial</p>
                 </div>
             </div>
         </div>
         """,
         unsafe_allow_html=True,
     )
-    photo_path = profile_photo_file(
-        st.session_state.user_email,
-        st.session_state.get("user_profile_photo", ""),
+    roles = str(st.session_state.user_roles).strip()
+    role_txt = roles_for_public_display(roles) if roles else "Membro"
+    st.sidebar.markdown(
+        f'<div class="sidebar-user-mini"><strong>{html.escape(st.session_state.user_name)}</strong>'
+        f"<br><span>{html.escape(role_txt)}</span></div>",
+        unsafe_allow_html=True,
     )
-    col_photo, col_info = st.sidebar.columns([1, 2])
-    with col_photo:
-        if photo_path:
-            st.image(str(photo_path), width=72)
-        else:
-            st.markdown('<div style="font-size:2.2rem;text-align:center">👤</div>', unsafe_allow_html=True)
-    with col_info:
-        st.markdown(f"**{st.session_state.user_name}**")
-        roles = str(st.session_state.user_roles).strip()
-        if roles:
-            st.caption(roles_for_public_display(roles))
-    st.sidebar.markdown("---")
 
 
 def render_sidebar_navigation() -> str:
@@ -3204,7 +3195,7 @@ def render_sidebar_navigation() -> str:
         st.session_state.app_menu = "Feed" if "Feed" in names else (names[0] if names else "Dashboard")
 
     st.sidebar.markdown(
-        '<p class="nav-group-label">Navegação</p>',
+        '<p class="nav-group-label">NAVEGAÇÃO</p>',
         unsafe_allow_html=True,
     )
     group_legend = " · ".join(g for g, _ in groups)
@@ -3278,11 +3269,13 @@ def render_sidebar_footer():
 
 
 def page_header(menu: str):
+    if menu == "Gerenciar Escalas":
+        return
     items, _, icons = get_menu_items_for_user(st.session_state.user_roles)
     icon = icons.get(menu, "🎵")
     title = MENU_HEADERS.get(menu, menu)
     subtitle = next((desc for name, _, desc in items if name == menu), "")
-    accent = MENU_ACCENTS.get(menu, "#c41e3a")
+    accent = MENU_ACCENTS.get(menu, "#d4af37")
     group_label = next(
         (g for g, section_names in NAV_GROUP_ORDER if menu in section_names),
         "",
@@ -3321,47 +3314,22 @@ def humanize_stat(value: int, label: str) -> tuple[str, str]:
     return "—", "Sem informações no momento"
 
 
-def render_app_top_bar():
-    """Barra superior estilo mockup IBBJ (marca + usuário logado)."""
-    name = html.escape(str(st.session_state.get("user_name", "")))
-    roles = roles_for_public_display(str(st.session_state.get("user_roles", "")))
-    role_txt = html.escape(roles) if roles else "Membro"
-    st.markdown(
-        f"""
-        <div class="ibbj-topbar">
-            <div class="ibbj-topbar-brand">
-                <span class="ibbj-topbar-cross">✝</span>
-                <div>
-                    <p class="ibbj-topbar-title">IGREJA Bíblica BATISTA Jurema</p>
-                    <p class="ibbj-topbar-sub">Ministério de louvor · {html.escape(GROUP_NAME)}</p>
-                </div>
-            </div>
-            <div class="ibbj-topbar-user">
-                <strong>{name}</strong>
-                <span>{role_txt}</span>
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
 def render_music_stats(stats: list[tuple[str, str, int]]):
     if not stats:
         st.caption("Resumo indisponível no momento.")
         return
     cards = []
-    for icon, label, value in stats:
+    for i, (icon, label, value) in enumerate(stats):
         display_val, display_label = humanize_stat(value, label)
         cards.append(
-            f'<div class="ibbj-kpi-card">'
-            f'<span class="ibbj-kpi-icon">{icon}</span>'
-            f"<div><span class=\"ibbj-kpi-value\">{html.escape(display_val)}</span>"
-            f'<span class="ibbj-kpi-label">{html.escape(display_label)}</span></div>'
+            f'<div class="ig-kpi-card ig-kpi-card--{i % 4}">'
+            f'<span class="ig-kpi-icon">{icon}</span>'
+            f'<span class="ig-kpi-value">{html.escape(display_val)}</span>'
+            f'<span class="ig-kpi-label">{html.escape(display_label)}</span>'
             f"</div>"
         )
     st.markdown(
-        f'<div class="ibbj-kpi-row">{"".join(cards)}</div>',
+        f'<div class="ig-kpi-row">{"".join(cards)}</div>',
         unsafe_allow_html=True,
     )
 
@@ -5989,11 +5957,6 @@ def show_escala_completa_editor(
 ):
     maybe_show_escala_mes_aviso()
 
-    st.write(
-        "Monte a escala completa: integrantes, louvores e salve. "
-        "As alterações aparecem no **Dashboard** de todos os integrantes."
-    )
-
     if members_df.empty:
         st.warning("Cadastre integrantes antes de montar escalas.")
         return
@@ -6036,7 +5999,12 @@ def show_escala_completa_editor(
             )
 
         with col_nova:
-            st.markdown("#### 📅 Novo culto")
+            st.markdown(
+                '<div class="section-heading">'
+                '<span class="section-heading-icon">📅</span>'
+                "<h3>Novo culto</h3></div>",
+                unsafe_allow_html=True,
+            )
             culto_date = st.date_input("Data do culto", key="nova_esc_data")
             culto_event = st.text_input("Evento / Culto", key="nova_esc_event")
             data_ensaio = st.date_input("Data do ensaio", key="nova_esc_ensaio")
@@ -6181,12 +6149,14 @@ def show_escala_completa_editor(
                     st.rerun()
 
         with col_painel:
+            st.markdown('<div class="planner-column-wrap">', unsafe_allow_html=True)
             render_escala_planner_panel(
                 members_df,
                 escalas_df,
                 equipe_df,
                 st.session_state.get("nova_esc_data", date.today()),
             )
+            st.markdown("</div>", unsafe_allow_html=True)
         return
 
     escala_id = None
@@ -6206,11 +6176,18 @@ def show_escala_completa_editor(
 
     col_main_hdr, col_painel_edit = st.columns([2, 1])
     with col_painel_edit:
+        st.markdown('<div class="planner-column-wrap">', unsafe_allow_html=True)
         render_escala_planner_panel(
             members_df, escalas_df, equipe_df, culto_ref_edit
         )
+        st.markdown("</div>", unsafe_allow_html=True)
     with col_main_hdr:
-        st.markdown("#### ✏️ Editar escala")
+        st.markdown(
+            '<div class="section-heading">'
+            '<span class="section-heading-icon">✏️</span>'
+            "<h3>Editar escala</h3></div>",
+            unsafe_allow_html=True,
+        )
         st.caption(
             "Líderes e organizadores podem alterar dados, equipe, louvores ou **excluir** esta escala."
         )
@@ -6592,16 +6569,6 @@ def show_gerenciar_escalas(
 ):
     escalas_df, programa_df, equipe_df, _ = get_escalas_bundle()
     render_pending_whatsapp_share_banner()
-    primary = st.session_state.get("user_primary_role", "membro")
-    if is_leader(st.session_state.user_roles):
-        st.success(
-            "👑 Painel do **Líder** — adicione, remova e edite qualquer escala, integrante e louvor."
-        )
-    else:
-        st.info(
-            f"🎼 Painel de **{primary}** — mesmas permissões: montar, alterar e excluir escalas."
-        )
-
     render_music_stats(
         [
             ("👥", "Integrantes", len(members_visible_to_group(members_df))),
@@ -6613,11 +6580,11 @@ def show_gerenciar_escalas(
 
     tab_montar, tab_sugestoes, tab_sequencia, tab_pdf, tab_membros = st.tabs(
         [
-            "🎯 Montar / editar escala",
-            "💡 Sugestões",
-            "🎼 Sequência do Culto",
-            "📄 PDF WhatsApp",
-            "👥 Integrantes",
+            "Montar / editar escala",
+            "Sugestões",
+            "Sequência do Culto",
+            "PDF WhatsApp",
+            "Integrantes",
         ]
     )
 
@@ -8107,7 +8074,6 @@ def _run_app() -> None:
     render_push_admin_sidebar(members_df)
     render_data_loss_warning(members_df)
 
-    render_app_top_bar()
     page_header(menu)
 
     wa_open = st.session_state.pop("wa_auto_open_url", None)
@@ -8201,7 +8167,7 @@ def _run_app() -> None:
 
     year = now_local().year
     st.markdown(
-        f'<p class="ibbj-footer">© {year} Igreja Bíblica Batista Jurema — Ministério de Louvor</p>',
+        f'<p class="ig-footer">© {year} IGREJA · Gestão Ministerial — {html.escape(GROUP_NAME)}</p>',
         unsafe_allow_html=True,
     )
 

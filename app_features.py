@@ -55,10 +55,10 @@ def inject_app_notification_badges(
         #app-bell-notif {{
             position: fixed; top: 0.65rem; right: 0.75rem; z-index: 9999;
             width: 2.5rem; height: 2.5rem; border-radius: 50%;
-            background: #ffffff;
-            border: 1px solid rgba(0, 0, 0, 0.1);
+            background: #1e1e1e;
+            border: 1px solid rgba(212, 175, 55, 0.45);
             display: {show_bell}; align-items: center; justify-content: center;
-            font-size: 1.2rem; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+            font-size: 1.2rem; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
             pointer-events: none;
         }}
         #app-bell-notif .nav-wa-badge {{
@@ -66,11 +66,11 @@ def inject_app_notification_badges(
             left: auto;
             min-width: 1.2rem; height: 1.2rem;
             padding: 0 0.34rem; border-radius: 999px;
-            background: #c41e3a; color: #fff;
+            background: #ff453a; color: #fff;
             font-size: 0.62rem; font-weight: 800;
             display: flex; align-items: center; justify-content: center;
-            border: 2px solid #fff;
-            box-shadow: 0 2px 6px rgba(196, 30, 58, 0.45);
+            border: 2px solid #121212;
+            box-shadow: 0 2px 6px rgba(255, 69, 58, 0.45);
         }}
         </style>
         <div id="app-bell-notif" title="Novidades">
@@ -265,7 +265,7 @@ def render_escala_planner_panel(
 
     st.markdown(
         '<div class="planner-panel-card">'
-        '<p class="planner-title">📋 Painel do mês</p>'
+        '<p class="planner-title"><span class="planner-icon-gold">📅</span>Painel do mês</p>'
         '<p class="planner-sub">Última escala e quem ainda não entrou neste mês.</p></div>',
         unsafe_allow_html=True,
     )
