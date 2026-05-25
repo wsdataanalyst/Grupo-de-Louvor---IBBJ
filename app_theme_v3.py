@@ -192,24 +192,26 @@ def ibbj_v3_css() -> str:
             font-style: normal;
         }
 
-        /* Metrics */
-        .ig-metric-row {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 1rem;
-            margin-bottom: 1.1rem;
+        /* Metrics — cards via st.columns + st.html */
+        [data-testid="stHorizontalBlock"]:has([class*="st-key-ig_metric"]) {
+            gap: 1rem !important;
+            margin-bottom: 1.1rem !important;
         }
-        @media (max-width: 900px) {
-            .ig-metric-row { grid-template-columns: 1fr; }
+        [data-testid="stHorizontalBlock"]:has([class*="st-key-ig_metric"]) [data-testid="stColumn"] {
+            min-width: 0 !important;
         }
+        [data-testid="stHtml"] .ig-metric-card,
         .ig-metric-card {
             position: relative;
-            padding: 1.15rem 1.1rem 0.9rem;
+            width: 100%;
+            box-sizing: border-box;
+            padding: 1.15rem 1.1rem 0.65rem;
+            margin-bottom: 0.35rem;
             border-radius: var(--ig-radius-xl);
             background: var(--ig-card);
             border: 1px solid var(--ig-border);
             overflow: hidden;
-            min-height: 7.5rem;
+            min-height: 6.75rem;
         }
         .ig-metric-bg {
             position: absolute;
@@ -233,13 +235,6 @@ def ibbj_v3_css() -> str:
             color: var(--ig-muted) !important;
             margin-top: 0.2rem;
         }
-        .ig-metric-link {
-            display: block;
-            font-size: 0.72rem;
-            color: var(--ig-blue) !important;
-            margin-top: 0.45rem;
-            font-weight: 600;
-        }
         .ig-metric-ico {
             display: inline-block;
             width: 1.35rem;
@@ -258,12 +253,25 @@ def ibbj_v3_css() -> str:
         }
         [class*="st-key-ig_metric"] .stButton > button {
             font-size: 0.72rem !important;
-            padding: 0.2rem !important;
-            min-height: 1.6rem !important;
+            padding: 0.35rem 0.5rem 0.45rem 1rem !important;
+            min-height: 2rem !important;
+            justify-content: flex-start !important;
+            text-align: left !important;
             background: transparent !important;
             border: none !important;
             color: var(--ig-blue) !important;
+            font-weight: 600 !important;
             box-shadow: none !important;
+        }
+        [class*="st-key-ig_metric"] .stButton > button:hover {
+            color: #93c5fd !important;
+            background: rgba(37, 99, 235, 0.08) !important;
+        }
+        [data-testid="stHtml"] {
+            background: transparent !important;
+        }
+        [data-testid="stHtml"] iframe {
+            background: transparent !important;
         }
 
         /* Warning */

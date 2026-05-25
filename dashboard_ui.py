@@ -238,37 +238,45 @@ def render_dashboard_hero(*, user_name: str, group_name: str) -> None:
     )
 
 
+def _inject_metric_html(fragment: str) -> None:
+    try:
+        st.html(fragment)
+    except Exception:
+        st.markdown(fragment, unsafe_allow_html=True)
+
+
 def render_premium_metrics(stats: list[tuple[str, str, int, str]]) -> None:
-    """(icon_key, label, value, link_label)"""
-    cards = []
-    for i, (icon_key, label, value, link_label) in enumerate(stats):
-        val = value if value > 0 else "—"
-        cards.append(
-            f"""
-            <div class="ig-metric-card ig-metric-card--{icon_key}">
-                <div class="ig-metric-bg" aria-hidden="true"></div>
-                <span class="ig-metric-ico ig-metric-ico--{icon_key}"></span>
-                <span class="ig-metric-value">{_esc_html(val)}</span>
-                <span class="ig-metric-label">{_esc_html(label)}</span>
-                <span class="ig-metric-link">{_esc_html(link_label)} →</span>
-            </div>
-            """
-        )
-    st.markdown(f'<div class="ig-metric-row">{"".join(cards)}</div>', unsafe_allow_html=True)
+    """(icon_key, label, value, link_label) — um card por coluna Streamlit."""
+    menu_by_key = {
+        "members": "Membros",
+        "louvores": "Repertório",
+        "escalas": "Escalas",
+    }
+    btn_keys = {
+        "members": "ig_metric_members",
+        "louvores": "ig_metric_louvores",
+        "escalas": "ig_metric_escalas",
+    }
     cols = st.columns(len(stats))
-    keys = ["ig_metric_members", "ig_metric_louvores", "ig_metric_escalas"]
-    menus = ["Membros", "Repertório", "Escalas"]
-    for col, key, menu, (icon_key, label, value, link_label) in zip(
-        cols, keys[: len(stats)], menus[: len(stats)], stats
-    ):
+    for col, (icon_key, label, value, link_label) in zip(cols, stats):
+        val = value if value > 0 else "—"
+        card_html = (
+            f'<div class="ig-metric-card ig-metric-card--{_esc_html(icon_key)}">'
+            f'<div class="ig-metric-bg" aria-hidden="true"></div>'
+            f'<span class="ig-metric-ico ig-metric-ico--{_esc_html(icon_key)}"></span>'
+            f'<span class="ig-metric-value">{_esc_html(val)}</span>'
+            f'<span class="ig-metric-label">{_esc_html(label)}</span>'
+            f"</div>"
+        )
         with col:
+            _inject_metric_html(card_html)
             if st.button(
-                link_label,
-                key=key,
+                f"{link_label} →",
+                key=btn_keys.get(icon_key, f"ig_metric_{icon_key}"),
                 use_container_width=True,
                 type="secondary",
             ):
-                st.session_state.app_menu = menu
+                st.session_state.app_menu = menu_by_key.get(icon_key, "Dashboard")
                 st.rerun()
 
 
