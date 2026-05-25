@@ -55,10 +55,10 @@ def inject_app_notification_badges(
         #app-bell-notif {{
             position: fixed; top: 0.65rem; right: 0.75rem; z-index: 9999;
             width: 2.5rem; height: 2.5rem; border-radius: 50%;
-            background: rgba(30, 20, 50, 0.94);
-            border: 1px solid rgba(251, 191, 36, 0.45);
+            background: #ffffff;
+            border: 1px solid rgba(0, 0, 0, 0.1);
             display: {show_bell}; align-items: center; justify-content: center;
-            font-size: 1.2rem; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+            font-size: 1.2rem; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
             pointer-events: none;
         }}
         #app-bell-notif .nav-wa-badge {{
@@ -66,11 +66,11 @@ def inject_app_notification_badges(
             left: auto;
             min-width: 1.2rem; height: 1.2rem;
             padding: 0 0.34rem; border-radius: 999px;
-            background: #ff3b30; color: #fff;
+            background: #c41e3a; color: #fff;
             font-size: 0.62rem; font-weight: 800;
             display: flex; align-items: center; justify-content: center;
-            border: 2px solid #14111f;
-            box-shadow: 0 2px 6px rgba(255, 59, 48, 0.55);
+            border: 2px solid #fff;
+            box-shadow: 0 2px 6px rgba(196, 30, 58, 0.45);
         }}
         </style>
         <div id="app-bell-notif" title="Novidades">

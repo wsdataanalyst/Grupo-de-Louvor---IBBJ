@@ -1,81 +1,163 @@
-"""Tema visual Worship Collective — layout claro + sidebar navy + detalhes dourados."""
+"""Tema visual IBBJ — sidebar preta, área clara, destaque vermelho, alto contraste."""
 
 from __future__ import annotations
 
 
-def worship_theme_overrides() -> str:
-    """CSS de redesign (sobrescreve o tema escuro legado com !important)."""
+def ibbj_theme_css() -> str:
     return """
-        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,500&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 
         :root {
-            --wc-navy: #101d33;
-            --wc-navy-soft: #162544;
-            --wc-navy-muted: #1e3358;
-            --wc-gold: #d4a056;
-            --wc-gold-deep: #b07d3e;
-            --wc-gold-light: #f0d9a8;
-            --wc-bg: #f4f6f9;
-            --wc-bg-soft: #eef1f6;
-            --wc-card: #ffffff;
-            --wc-text: #1a2332;
-            --wc-text-muted: #475569;
-            --wc-text-label: #334155;
-            --wc-input-bg: #ffffff;
-            --wc-input-border: #94a3b8;
-            --wc-btn-primary-top: #a86f25;
-            --wc-btn-primary-bot: #7a5520;
-            --wc-border: rgba(16, 29, 51, 0.1);
-            --wc-shadow: 0 8px 32px rgba(16, 29, 51, 0.08);
-            --wc-radius: 16px;
-            --bg-deep: var(--wc-bg);
-            --bg-surface: var(--wc-card);
-            --bg-elevated: var(--wc-card);
-            --text-primary: var(--wc-text);
-            --text-secondary: var(--wc-text-muted);
-            --accent-gold: var(--wc-gold);
-            --accent-violet: var(--wc-gold-deep);
-            --border-subtle: var(--wc-border);
-            --border-accent: rgba(212, 160, 86, 0.45);
-            --radius-lg: var(--wc-radius);
-            --radius-md: 12px;
-            --shadow-card: var(--wc-shadow);
+            --ibbj-black: #0a0a0a;
+            --ibbj-black-soft: #141414;
+            --ibbj-black-muted: #1f1f1f;
+            --ibbj-red: #c41e3a;
+            --ibbj-red-dark: #9a1830;
+            --ibbj-red-light: #fce8ec;
+            --ibbj-bg: #f3f4f6;
+            --ibbj-bg-soft: #e8eaed;
+            --ibbj-card: #ffffff;
+            --ibbj-text: #111827;
+            --ibbj-text-muted: #4b5563;
+            --ibbj-text-label: #374151;
+            --ibbj-input-bg: #ffffff;
+            --ibbj-input-border: #9ca3af;
+            --ibbj-border: rgba(0, 0, 0, 0.09);
+            --ibbj-shadow: 0 4px 24px rgba(0, 0, 0, 0.07);
+            --ibbj-radius: 14px;
+            --bg-deep: var(--ibbj-bg);
+            --bg-surface: var(--ibbj-card);
+            --bg-elevated: var(--ibbj-card);
+            --text-primary: var(--ibbj-text);
+            --text-secondary: var(--ibbj-text-muted);
+            --accent-gold: var(--ibbj-red);
+            --accent-violet: var(--ibbj-red-dark);
+            --border-subtle: var(--ibbj-border);
+            --border-accent: rgba(196, 30, 58, 0.35);
+            --radius-lg: var(--ibbj-radius);
+            --radius-md: 10px;
+            --shadow-card: var(--ibbj-shadow);
         }
 
         html, body, [class*="css"] {
             font-family: 'Plus Jakarta Sans', 'Segoe UI', sans-serif !important;
         }
 
-        /* Área principal clara */
         [data-testid="stAppViewContainer"] {
-            background: var(--wc-bg) !important;
+            background: var(--ibbj-bg) !important;
         }
         [data-testid="stHeader"] {
             background: transparent !important;
             border: none !important;
         }
         .block-container {
-            max-width: 1140px !important;
-            padding-top: 0.5rem !important;
+            max-width: 1200px !important;
+            padding-top: 0.25rem !important;
             padding-bottom: 2.5rem !important;
         }
-        .main .block-container p,
-        .main .block-container li,
-        .main .block-container span,
-        .main [data-testid="stMarkdownContainer"] p,
-        .main [data-testid="stMarkdownContainer"] li {
-            color: var(--wc-text) !important;
+
+        /* ========== Barra superior (mockup) ========== */
+        .ibbj-topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            background: var(--ibbj-card);
+            border: 1px solid var(--ibbj-border);
+            border-radius: var(--ibbj-radius);
+            box-shadow: var(--ibbj-shadow);
+            padding: 0.85rem 1.25rem;
+            margin-bottom: 1rem;
         }
-        .main h1, .main h2, .main h3, .main h4 {
-            color: var(--wc-navy) !important;
-            font-family: 'Plus Jakarta Sans', sans-serif !important;
+        .ibbj-topbar-brand {
+            display: flex;
+            align-items: center;
+            gap: 0.65rem;
+            min-width: 0;
+        }
+        .ibbj-topbar-cross {
+            width: 2.1rem;
+            height: 2.1rem;
+            border-radius: 8px;
+            background: var(--ibbj-red);
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-size: 1rem;
+            flex-shrink: 0;
+        }
+        .ibbj-topbar-title {
+            margin: 0;
+            font-size: 1.05rem;
+            font-weight: 800;
+            color: var(--ibbj-text);
+            line-height: 1.2;
+        }
+        .ibbj-topbar-sub {
+            margin: 0.1rem 0 0;
+            font-size: 0.72rem;
+            color: var(--ibbj-text-muted);
+            font-weight: 500;
+        }
+        .ibbj-topbar-user {
+            text-align: right;
+            flex-shrink: 0;
+        }
+        .ibbj-topbar-user strong {
+            display: block;
+            color: var(--ibbj-text);
+            font-size: 0.88rem;
+        }
+        .ibbj-topbar-user span {
+            color: var(--ibbj-text-muted);
+            font-size: 0.75rem;
         }
 
-        /* Sidebar navy (referência Worship Collective) */
+        /* KPI cards */
+        .ibbj-kpi-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 0.85rem;
+            margin: 0 0 1.15rem;
+        }
+        .ibbj-kpi-card {
+            background: var(--ibbj-card);
+            border: 1px solid var(--ibbj-border);
+            border-radius: var(--ibbj-radius);
+            box-shadow: var(--ibbj-shadow);
+            padding: 1rem 1.1rem;
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+        }
+        .ibbj-kpi-icon {
+            font-size: 1.5rem;
+            line-height: 1;
+        }
+        .ibbj-kpi-value {
+            display: block;
+            font-size: 1.65rem;
+            font-weight: 800;
+            color: var(--ibbj-text);
+            line-height: 1.1;
+        }
+        .ibbj-kpi-label {
+            display: block;
+            font-size: 0.72rem;
+            font-weight: 600;
+            color: var(--ibbj-text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            margin-top: 0.15rem;
+        }
+
+        /* ========== Sidebar preta ========== */
         section[data-testid="stSidebar"] {
-            background: linear-gradient(180deg, var(--wc-navy) 0%, #0d1829 100%) !important;
+            background: linear-gradient(180deg, var(--ibbj-black) 0%, var(--ibbj-black-soft) 100%) !important;
             border-right: none !important;
-            box-shadow: 4px 0 24px rgba(16, 29, 51, 0.15) !important;
+            box-shadow: 4px 0 20px rgba(0, 0, 0, 0.2) !important;
         }
         section[data-testid="stSidebar"] > div {
             padding-top: 0.5rem !important;
@@ -84,54 +166,57 @@ def worship_theme_overrides() -> str:
         section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] strong,
         section[data-testid="stSidebar"] label,
         section[data-testid="stSidebar"] .stCaption {
-            color: rgba(255, 255, 255, 0.72) !important;
+            color: rgba(255, 255, 255, 0.78) !important;
         }
         .sidebar-brand {
             padding: 0.75rem 0.5rem 1rem !important;
             margin-bottom: 0.5rem !important;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
         }
         .sidebar-brand-mark {
             display: flex;
             align-items: center;
             gap: 0.65rem;
-            margin-bottom: 0.35rem;
         }
         .sidebar-brand-icon {
-            width: 2.35rem;
-            height: 2.35rem;
-            border-radius: 50%;
-            background: linear-gradient(135deg, var(--wc-gold), var(--wc-gold-deep));
+            width: 2.4rem;
+            height: 2.4rem;
+            border-radius: 8px;
+            background: var(--ibbj-red);
+            color: #fff;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 1.15rem;
-            box-shadow: 0 4px 14px rgba(212, 160, 86, 0.45);
+            font-size: 1.1rem;
+            font-weight: 800;
+            box-shadow: 0 4px 12px rgba(196, 30, 58, 0.45);
         }
         .sidebar-brand h3 {
             color: #fff !important;
-            font-size: 0.95rem !important;
-            font-weight: 700 !important;
+            font-size: 0.92rem !important;
+            font-weight: 800 !important;
             margin: 0 !important;
             line-height: 1.25 !important;
         }
         .sidebar-brand p {
             color: rgba(255, 255, 255, 0.55) !important;
-            font-size: 0.72rem !important;
+            font-size: 0.7rem !important;
             margin: 0 !important;
         }
         .nav-group-label {
-            color: rgba(255, 255, 255, 0.45) !important;
+            color: rgba(255, 255, 255, 0.42) !important;
             font-size: 0.65rem !important;
-            letter-spacing: 0.14em !important;
-            margin: 1.1rem 0 0.4rem 0.35rem !important;
+            letter-spacing: 0.12em !important;
+            margin: 1rem 0 0.35rem 0.35rem !important;
+            font-weight: 700 !important;
         }
         section[data-testid="stSidebar"] div[data-testid="stRadio"] > label {
-            color: rgba(255, 255, 255, 0.78) !important;
+            color: rgba(255, 255, 255, 0.82) !important;
             border: 1px solid transparent !important;
-            margin-bottom: 0.12rem !important;
-            padding: 0.62rem 0.85rem 0.62rem 1.85rem !important;
-            border-radius: 12px !important;
+            margin-bottom: 0.1rem !important;
+            padding: 0.6rem 0.85rem 0.6rem 1.85rem !important;
+            border-radius: 10px !important;
+            font-weight: 500 !important;
         }
         section[data-testid="stSidebar"] div[data-testid="stRadio"] > label:hover {
             background: rgba(255, 255, 255, 0.06) !important;
@@ -139,546 +224,389 @@ def worship_theme_overrides() -> str:
         }
         section[data-testid="stSidebar"] div[data-testid="stRadio"] > label[data-checked="true"],
         section[data-testid="stSidebar"] div[data-testid="stRadio"] label:has(input:checked) {
-            background: linear-gradient(90deg, rgba(212, 160, 86, 0.35) 0%, rgba(212, 160, 86, 0.08) 100%) !important;
-            border-color: rgba(212, 160, 86, 0.35) !important;
+            background: var(--ibbj-red) !important;
+            border-color: var(--ibbj-red-dark) !important;
             color: #fff !important;
-            font-weight: 600 !important;
+            font-weight: 700 !important;
         }
         section[data-testid="stSidebar"] div[data-testid="stRadio"] > label > div:first-child {
-            background: rgba(255, 255, 255, 0.18) !important;
+            background: rgba(255, 255, 255, 0.2) !important;
         }
         section[data-testid="stSidebar"] div[data-testid="stRadio"] > label[data-nav-alert="1"] > div:first-child {
             background: #ff3b30 !important;
         }
         section[data-testid="stSidebar"] div[data-testid="stRadio"] label .nav-wa-badge {
-            border-color: var(--wc-navy) !important;
-        }
-        section[data-testid="stSidebar"] button {
-            border-radius: 12px !important;
-            font-weight: 600 !important;
+            border-color: var(--ibbj-black) !important;
         }
         section[data-testid="stSidebar"] button[kind="secondary"] {
             background: rgba(255, 255, 255, 0.08) !important;
             color: #fff !important;
-            border: 1px solid rgba(255, 255, 255, 0.12) !important;
+            border: 1px solid rgba(255, 255, 255, 0.15) !important;
         }
 
-        /* Boas-vindas no Dashboard */
+        /* ========== Área principal ========== */
+        .main .block-container p,
+        .main [data-testid="stMarkdownContainer"] p,
+        section.main [data-testid="stMarkdownContainer"] p {
+            color: var(--ibbj-text) !important;
+        }
+        .main h1, .main h2, .main h3, .main h4,
+        section.main h1, section.main h2, section.main h3 {
+            color: var(--ibbj-text) !important;
+        }
+
         .welcome-card {
-            background: var(--wc-card) !important;
-            border: 1px solid var(--wc-border) !important;
-            border-radius: var(--wc-radius) !important;
-            box-shadow: var(--wc-shadow) !important;
-            padding: 1.35rem 1.5rem !important;
-            margin-bottom: 1.15rem !important;
-            border-left: 5px solid var(--wc-gold) !important;
+            background: var(--ibbj-card) !important;
+            border: 1px solid var(--ibbj-border) !important;
+            border-radius: var(--ibbj-radius) !important;
+            box-shadow: var(--ibbj-shadow) !important;
+            padding: 1.25rem 1.35rem !important;
+            margin-bottom: 1rem !important;
+            border-left: 4px solid var(--ibbj-red) !important;
         }
-        .welcome-card h3 {
-            color: var(--wc-navy) !important;
-            font-size: 1.35rem !important;
-            margin: 0 0 0.35rem !important;
-        }
-        .welcome-card p {
-            color: var(--wc-text-muted) !important;
-            margin: 0 !important;
-        }
+        .welcome-card h3 { color: var(--ibbj-text) !important; margin: 0 0 0.35rem !important; }
+        .welcome-card p { color: var(--ibbj-text-muted) !important; margin: 0 !important; }
 
-        /* Cabeçalho de página — card branco */
         .music-hero {
-            background: var(--wc-card) !important;
-            border: 1px solid var(--wc-border) !important;
-            border-radius: var(--wc-radius) !important;
-            box-shadow: var(--wc-shadow) !important;
-            padding: 1.35rem 1.5rem !important;
-        }
-        .music-hero::before {
-            background: linear-gradient(135deg, rgba(212, 160, 86, 0.12) 0%, transparent 55%) !important;
-            opacity: 1 !important;
+            background: var(--ibbj-card) !important;
+            border: 1px solid var(--ibbj-border) !important;
+            border-radius: var(--ibbj-radius) !important;
+            box-shadow: var(--ibbj-shadow) !important;
+            padding: 1.2rem 1.35rem !important;
+            margin-bottom: 1rem !important;
+            position: relative;
+            overflow: hidden;
         }
         .music-hero::after {
-            background: linear-gradient(180deg, var(--wc-gold), var(--wc-gold-deep)) !important;
-            width: 5px !important;
+            content: "";
+            position: absolute;
+            left: 0; top: 0; bottom: 0;
+            width: 4px;
+            background: var(--accent, var(--ibbj-red));
+            border-radius: 4px 0 0 4px;
         }
         .music-hero h2 {
-            color: var(--wc-navy) !important;
-            font-size: 1.5rem !important;
+            color: var(--ibbj-text) !important;
+            font-size: 1.4rem !important;
+            font-weight: 800 !important;
+            margin: 0 !important;
         }
         .music-hero p {
-            color: var(--wc-text-muted) !important;
+            color: var(--ibbj-text-muted) !important;
+            margin: 0.3rem 0 0 !important;
         }
 
-        /* Dashboard */
         .dash-section {
-            background: var(--wc-card) !important;
-            border: 1px solid var(--wc-border) !important;
-            box-shadow: var(--wc-shadow) !important;
-            border-radius: var(--wc-radius) !important;
+            background: var(--ibbj-card) !important;
+            border: 1px solid var(--ibbj-border) !important;
+            box-shadow: var(--ibbj-shadow) !important;
+            border-radius: var(--ibbj-radius) !important;
+            margin-bottom: 1rem;
+            overflow: hidden;
         }
         .dash-section-header {
-            background: var(--wc-bg-soft) !important;
-            border-bottom: 1px solid var(--wc-border) !important;
-            border-left: 4px solid var(--dash-accent, var(--wc-gold)) !important;
+            background: var(--ibbj-bg-soft) !important;
+            border-bottom: 1px solid var(--ibbj-border) !important;
+            border-left: 4px solid var(--dash-accent, var(--ibbj-red)) !important;
+            padding: 0.75rem 1rem !important;
         }
         .dash-section-header h4 {
-            color: var(--wc-navy) !important;
-        }
-        .dash-section-sub {
-            color: var(--wc-text-muted) !important;
-        }
-        .quick-nav-btn .stButton > button {
-            background: var(--wc-card) !important;
-            border: 1px solid var(--wc-border) !important;
-            color: var(--wc-navy) !important;
-            box-shadow: 0 2px 8px rgba(16, 29, 51, 0.06) !important;
-            border-radius: 14px !important;
-        }
-        .quick-nav-btn .stButton > button:hover {
-            border-color: var(--wc-gold) !important;
-            background: #fffdf8 !important;
-        }
-
-        /* Painéis e métricas */
-        .music-panel {
-            background: var(--wc-card) !important;
-            border: 1px solid var(--wc-border) !important;
-            box-shadow: var(--wc-shadow) !important;
-        }
-        .music-panel-title {
-            color: var(--wc-gold-deep) !important;
-        }
-        .music-stat {
-            background: var(--wc-card) !important;
-            border: 1px solid var(--wc-border) !important;
-            box-shadow: 0 4px 16px rgba(16, 29, 51, 0.06) !important;
-        }
-        .music-stat:hover {
-            box-shadow: 0 8px 24px rgba(212, 160, 86, 0.18) !important;
-            border-color: rgba(212, 160, 86, 0.35) !important;
-        }
-        .music-stat-value { color: var(--wc-navy) !important; }
-        .music-stat-label { color: var(--wc-text-muted) !important; }
-        .music-pagination {
-            background: var(--wc-card) !important;
-            border: 1px solid var(--wc-border) !important;
-        }
-        .music-pagination span { color: var(--wc-text-muted) !important; }
-        .music-pagination strong { color: var(--wc-gold-deep) !important; }
-
-        div[data-testid="stMetric"] {
-            background: var(--wc-card) !important;
-            border: 1px solid var(--wc-border) !important;
-            box-shadow: 0 2px 12px rgba(16, 29, 51, 0.05) !important;
-        }
-        div[data-testid="stMetric"] label { color: var(--wc-text-muted) !important; }
-        div[data-testid="stMetric"] [data-testid="stMetricValue"] {
-            color: var(--wc-navy) !important;
-        }
-        div[data-testid="stForm"] {
-            background: var(--wc-card) !important;
-            border: 1px solid var(--wc-border) !important;
-            box-shadow: var(--wc-shadow) !important;
-        }
-        div[data-testid="stTabs"] {
-            background: var(--wc-card) !important;
-            border: 1px solid var(--wc-border) !important;
-            border-radius: var(--wc-radius) !important;
-            box-shadow: var(--wc-shadow) !important;
-        }
-        /* Abas — ver bloco de acessibilidade */
-
-        /* Botões primários — ver bloco de acessibilidade no final */
-
-        /* Login — layout tipo Worship Collective */
-        .login-wrap {
-            max-width: 1080px !important;
-            margin: 0 auto !important;
-            padding: 1.5rem 1rem 2.5rem !important;
-        }
-        .login-layout {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 1.5rem;
-            align-items: stretch;
-        }
-        @media (max-width: 900px) {
-            .login-layout { grid-template-columns: 1fr; }
-        }
-        .login-hero {
-            background: linear-gradient(165deg, var(--wc-navy) 0%, var(--wc-navy-soft) 50%, #0d1829 100%) !important;
-            border: none !important;
-            border-radius: 20px !important;
-            min-height: 480px !important;
-            box-shadow: var(--wc-shadow) !important;
-            text-align: left !important;
-            padding: 2.5rem 2rem !important;
-            align-items: flex-start !important;
-            justify-content: flex-end !important;
-        }
-        .login-hero::before {
-            content: "" !important;
-            position: absolute;
-            inset: 0;
-            background: url('https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=800') center/cover !important;
-            opacity: 0.22 !important;
-            letter-spacing: 0 !important;
-            font-size: 0 !important;
-            top: 0 !important;
-        }
-        .login-hero-quote {
-            position: relative;
-            z-index: 2;
-            font-family: 'Playfair Display', Georgia, serif !important;
-            color: #fff !important;
-            font-size: 1.45rem !important;
-            line-height: 1.45 !important;
-            margin: 0 0 0.75rem !important;
-            font-weight: 600 !important;
-        }
-        .login-hero-ref {
-            position: relative;
-            z-index: 2;
-            color: var(--wc-gold-light) !important;
-            font-size: 0.88rem !important;
-            margin: 0 0 1.25rem !important;
-        }
-        .login-hero-pill {
-            position: relative;
-            z-index: 2;
-            display: inline-block;
-            padding: 0.4rem 0.85rem;
-            border-radius: 999px;
-            background: rgba(255, 255, 255, 0.12);
-            color: #fff !important;
-            font-size: 0.78rem;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-        }
-        .login-hero h1 {
-            position: relative;
-            z-index: 2;
-            color: #fff !important;
-            font-size: 1.35rem !important;
-            margin-top: 1.5rem !important;
-        }
-        .login-hero .tagline,
-        .login-hero .features {
-            position: relative;
-            z-index: 2;
-            color: rgba(255, 255, 255, 0.75) !important;
-        }
-        .login-form-card {
-            background: var(--wc-card) !important;
-            border: 1px solid var(--wc-border) !important;
-            border-radius: 20px !important;
-            padding: 2rem 1.75rem !important;
-            box-shadow: var(--wc-shadow) !important;
-        }
-        .login-panel-title {
-            color: var(--wc-navy) !important;
-            font-size: 1.4rem !important;
+            color: var(--ibbj-text) !important;
             font-weight: 700 !important;
         }
-        .login-panel-sub {
-            color: var(--wc-text-muted) !important;
+        .dash-section-sub { color: var(--ibbj-text-muted) !important; }
+
+        .quick-nav-btn .stButton > button {
+            background: var(--ibbj-card) !important;
+            border: 1px solid var(--ibbj-border) !important;
+            color: var(--ibbj-text) !important;
+            border-radius: 12px !important;
+            min-height: 4rem !important;
+        }
+        .quick-nav-btn .stButton > button:hover {
+            border-color: var(--ibbj-red) !important;
+            background: var(--ibbj-red-light) !important;
         }
 
-        /* Cards auxiliares na área principal */
-        .profile-card,
-        .planner-panel-card,
-        .sugestao-track-card,
-        .culto-week-card,
-        .feed-post-card {
-            background: var(--wc-card) !important;
-            border: 1px solid var(--wc-border) !important;
-            box-shadow: 0 4px 20px rgba(16, 29, 51, 0.06) !important;
+        .music-panel {
+            background: var(--ibbj-card) !important;
+            border: 1px solid var(--ibbj-border) !important;
+            box-shadow: var(--ibbj-shadow) !important;
+            border-radius: var(--ibbj-radius) !important;
+            padding: 1rem 1.25rem !important;
         }
-        .planner-title, .sugestao-track-title { color: var(--wc-navy) !important; }
-        .planner-sub, .sugestao-track-meta { color: var(--wc-text-muted) !important; }
-
-        /* Chat / feed legíveis no fundo claro */
-        #chat-scroll-box {
-            background: var(--wc-bg-soft) !important;
-            border: 1px solid var(--wc-border) !important;
-        }
-        .chat-row-name { color: var(--wc-navy) !important; }
-        .chat-row-time, .chat-meta { color: var(--wc-text-muted) !important; }
-        .chat-bubble.other {
-            background: var(--wc-card) !important;
-            border: 1px solid var(--wc-border) !important;
-            color: var(--wc-text) !important;
-        }
-        .chat-bubble.other .chat-text { color: var(--wc-text) !important; }
-        .chat-bubble.me {
-            background: linear-gradient(135deg, var(--wc-navy-soft), var(--wc-navy)) !important;
-            border-color: var(--wc-navy) !important;
-        }
-        .feed-post-card { color: var(--wc-text) !important; }
-
-        /* Inputs — ver bloco de acessibilidade */
-
-        /* Alertas Streamlit */
-        .main .stSuccess { background: #ecfdf5 !important; color: #065f46 !important; }
-        .main .stInfo { background: #eff6ff !important; color: #1e40af !important; }
-        .main .stWarning { background: #fffbeb !important; color: #92400e !important; }
-        .main .stError { background: #fef2f2 !important; color: #991b1b !important; }
-
-        #app-bell-notif {
-            background: var(--wc-card) !important;
-            border: 1px solid var(--wc-border) !important;
-            box-shadow: var(--wc-shadow) !important;
+        .music-panel-title {
+            color: var(--ibbj-red-dark) !important;
+            font-weight: 700 !important;
         }
 
-        /* Sequência do culto / cifras — legível no tema claro */
-        .seq-cifra-panel,
-        .seq-cifra-view,
-        .seq-lyric-block,
-        .seq-inline-lyric,
-        .seq-cifra-direcoes {
-            background: var(--wc-card) !important;
-            border-color: var(--wc-border) !important;
+        .music-stat, div[data-testid="stMetric"] {
+            background: var(--ibbj-card) !important;
+            border: 1px solid var(--ibbj-border) !important;
+            box-shadow: var(--ibbj-shadow) !important;
+            border-radius: var(--ibbj-radius) !important;
         }
-        .seq-lyric-lines,
-        .seq-inline-lines,
-        .seq-cifra-dir-text,
-        .seq-cifra-pre {
-            color: var(--wc-text) !important;
+        .music-stat-value, div[data-testid="stMetric"] [data-testid="stMetricValue"] {
+            color: var(--ibbj-text) !important;
         }
-        .seq-cifra-meta,
-        .seq-empty,
-        .seq-cifra-direcoes-title {
-            color: var(--wc-text-muted) !important;
-        }
-        .cifra-chord-line,
-        .cifra-chord-line .cifra-chord,
-        .cifra-strophe-inline .cifra-lyric-line .cifra-chord {
-            color: var(--wc-gold-deep) !important;
+        .music-stat-label, div[data-testid="stMetric"] label {
+            color: var(--ibbj-text-muted) !important;
         }
 
-        /* ========== Acessibilidade: contraste na área principal ========== */
-        section.main,
-        [data-testid="stMain"],
-        .login-wrap,
-        .login-form-card {
-            color: var(--wc-text) !important;
+        div[data-testid="stForm"],
+        div[data-testid="stTabs"] {
+            background: var(--ibbj-card) !important;
+            border: 1px solid var(--ibbj-border) !important;
+            border-radius: var(--ibbj-radius) !important;
+            box-shadow: var(--ibbj-shadow) !important;
         }
-
-        /* Neutraliza texto claro do tema escuro legado */
-        section.main [data-testid="stMarkdownContainer"] p,
-        section.main [data-testid="stMarkdownContainer"] li,
-        section.main [data-testid="stMarkdownContainer"] span,
-        [data-testid="stMain"] [data-testid="stMarkdownContainer"] p,
-        [data-testid="stMain"] [data-testid="stMarkdownContainer"] li,
-        .login-form-card [data-testid="stMarkdownContainer"] p,
-        .login-form-card [data-testid="stMarkdownContainer"] li {
-            color: var(--wc-text) !important;
-        }
-        section.main h1, section.main h2, section.main h3, section.main h4,
-        [data-testid="stMain"] h1, [data-testid="stMain"] h2, [data-testid="stMain"] h3 {
-            color: var(--wc-navy) !important;
-        }
-
-        /* Labels de formulário (Email, Senha, etc.) */
-        section.main label,
-        section.main [data-testid="stWidgetLabel"] p,
-        section.main [data-testid="stWidgetLabel"] label,
-        section.main .stTextInput label,
-        section.main .stTextArea label,
-        section.main .stSelectbox label,
-        section.main .stMultiSelect label,
-        section.main .stNumberInput label,
-        section.main .stDateInput label,
-        section.main .stTimeInput label,
-        [data-testid="stMain"] label,
-        [data-testid="stMain"] [data-testid="stWidgetLabel"] p,
-        .login-form-card label,
-        .login-form-card [data-testid="stWidgetLabel"] p {
-            color: var(--wc-text-label) !important;
-            font-weight: 600 !important;
-        }
-
-        /* Checkbox e ajuda */
-        section.main .stCheckbox label p,
-        section.main .stCheckbox span,
-        section.main .stCheckbox [data-testid="stMarkdownContainer"] p,
-        [data-testid="stMain"] .stCheckbox label p,
-        .login-form-card .stCheckbox label p {
-            color: var(--wc-text-label) !important;
-            font-weight: 500 !important;
-        }
-        section.main .stCaption,
-        section.main small,
-        [data-testid="stMain"] .stCaption {
-            color: var(--wc-text-muted) !important;
-        }
-
-        /* Abas (Entrar / Cadastrar, etc.) */
         section.main div[data-testid="stTabs"] [data-baseweb="tab"],
-        [data-testid="stMain"] div[data-testid="stTabs"] [data-baseweb="tab"],
-        .login-form-card div[data-testid="stTabs"] [data-baseweb="tab"] {
-            color: var(--wc-text-label) !important;
+        [data-testid="stMain"] div[data-testid="stTabs"] [data-baseweb="tab"] {
+            color: var(--ibbj-text-label) !important;
             font-weight: 600 !important;
-            opacity: 1 !important;
         }
         section.main div[data-testid="stTabs"] [data-baseweb="tab"][aria-selected="true"],
-        [data-testid="stMain"] div[data-testid="stTabs"] [data-baseweb="tab"][aria-selected="true"],
-        .login-form-card div[data-testid="stTabs"] [data-baseweb="tab"][aria-selected="true"] {
-            color: var(--wc-navy) !important;
-            border-bottom: 3px solid var(--wc-gold-deep) !important;
-        }
-        section.main div[data-testid="stTabs"] [data-baseweb="tab-list"],
-        [data-testid="stMain"] div[data-testid="stTabs"] [data-baseweb="tab-list"] {
-            border-bottom: 1px solid var(--wc-input-border) !important;
+        [data-testid="stMain"] div[data-testid="stTabs"] [data-baseweb="tab"][aria-selected="true"] {
+            color: var(--ibbj-red-dark) !important;
+            border-bottom: 3px solid var(--ibbj-red) !important;
         }
 
-        /* Campos de texto — fundo claro e texto escuro */
-        section.main input,
-        section.main textarea,
-        section.main select,
-        [data-testid="stMain"] input,
-        [data-testid="stMain"] textarea,
-        .login-form-card input,
-        .login-form-card textarea {
-            background-color: var(--wc-input-bg) !important;
-            color: var(--wc-text) !important;
-            -webkit-text-fill-color: var(--wc-text) !important;
-            border: 1px solid var(--wc-input-border) !important;
-            caret-color: var(--wc-navy) !important;
+        .profile-card, .planner-panel-card, .sugestao-track-card,
+        .culto-week-card, .feed-post-card, .event-feed-card, .prog-card, .swap-card {
+            background: var(--ibbj-card) !important;
+            border: 1px solid var(--ibbj-border) !important;
+            box-shadow: var(--ibbj-shadow) !important;
+            border-radius: var(--ibbj-radius) !important;
+            color: var(--ibbj-text) !important;
         }
-        section.main [data-baseweb="input"],
-        [data-testid="stMain"] [data-baseweb="input"],
-        .login-form-card [data-baseweb="input"] {
-            background-color: var(--wc-input-bg) !important;
-            border: 1px solid var(--wc-input-border) !important;
+        .culto-week-card h3, .planner-title, .sugestao-track-title, .prog-card .prog-parte {
+            color: var(--ibbj-red-dark) !important;
         }
-        section.main [data-baseweb="input"] > div,
-        [data-testid="stMain"] [data-baseweb="input"] > div {
-            background-color: #f8fafc !important;
-            border-color: var(--wc-input-border) !important;
+        .culto-week-card .culto-date, .planner-sub, .sugestao-track-meta, .prog-card .prog-meta {
+            color: var(--ibbj-text-muted) !important;
+        }
+        .prog-card .prog-louvor { color: var(--ibbj-text) !important; }
+        .team-chip {
+            background: var(--ibbj-red-light) !important;
+            border: 1px solid rgba(196, 30, 58, 0.25) !important;
+            color: var(--ibbj-text) !important;
+        }
+        .team-chip strong { color: var(--ibbj-red-dark) !important; }
+
+        .verse-of-day {
+            background: var(--ibbj-card) !important;
+            border: 1px solid var(--ibbj-border) !important;
+            border-left: 4px solid var(--ibbj-red) !important;
+            border-radius: var(--ibbj-radius) !important;
+            padding: 1rem 1.2rem !important;
+        }
+        .verse-of-day .verse-label { color: var(--ibbj-red-dark) !important; font-weight: 700 !important; }
+        .verse-of-day .verse-text { color: var(--ibbj-text) !important; }
+        .verse-of-day .verse-ref { color: var(--ibbj-text-muted) !important; font-weight: 600 !important; }
+
+        #chat-scroll-box {
+            background: var(--ibbj-bg-soft) !important;
+            border: 1px solid var(--ibbj-border) !important;
+        }
+        .chat-row-name { color: var(--ibbj-text) !important; }
+        .chat-row-time, .chat-meta { color: var(--ibbj-text-muted) !important; }
+        .chat-bubble.other {
+            background: var(--ibbj-card) !important;
+            border: 1px solid var(--ibbj-border) !important;
+        }
+        .chat-bubble.other .chat-text { color: var(--ibbj-text) !important; }
+        .chat-bubble.me {
+            background: linear-gradient(135deg, var(--ibbj-red), var(--ibbj-red-dark)) !important;
+            border-color: var(--ibbj-red-dark) !important;
+        }
+        .chat-bubble.me .chat-text { color: #fff !important; }
+
+        .status-escalado {
+            background: #ecfdf5 !important;
+            border: 1px solid #6ee7b7 !important;
+            color: var(--ibbj-text) !important;
+        }
+        .status-escalado strong, .status-escalado .escala-evento { color: #065f46 !important; }
+        .status-escalado .escala-data { color: #047857 !important; }
+        .status-escalado .escala-funcao { color: #334155 !important; }
+        .status-nao-escalado {
+            background: #fffbeb !important;
+            border: 1px solid #fbbf24 !important;
+            color: #78350f !important;
+        }
+        .ensaio-aviso-banner {
+            background: #fff7ed !important;
+            border: 1px solid #fdba74 !important;
+            color: #9a3412 !important;
+        }
+
+        .members-leader-wrap {
+            border: 1px solid var(--ibbj-border) !important;
+            background: var(--ibbj-card) !important;
+        }
+        .members-leader-table { color: var(--ibbj-text) !important; }
+        .members-leader-table th {
+            background: var(--ibbj-bg-soft) !important;
+            color: var(--ibbj-text-label) !important;
+        }
+        .members-leader-table .mem-nome { color: var(--ibbj-text) !important; }
+        .members-leader-table .mem-funcao { color: var(--ibbj-text-muted) !important; }
+        .badge-escalado-sim { background: #d1fae5 !important; color: #065f46 !important; border-color: #6ee7b7 !important; }
+        .badge-escalado-nao { background: #f3f4f6 !important; color: #4b5563 !important; }
+
+        .sugestao-status--pendente { background: #fef3c7 !important; color: #92400e !important; border: 1px solid #fcd34d !important; }
+        .sugestao-status--em_analise { background: #dbeafe !important; color: #1e40af !important; border: 1px solid #93c5fd !important; }
+        .sugestao-status--aprovada { background: #d1fae5 !important; color: #065f46 !important; border: 1px solid #6ee7b7 !important; }
+        .sugestao-status--recusada { background: #fee2e2 !important; color: #991b1b !important; border: 1px solid #fca5a5 !important; }
+
+        .badge-sem-escala {
+            display: inline-block;
+            padding: 0.18rem 0.55rem;
+            border-radius: 999px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            background: var(--ibbj-red);
+            color: #fff;
+        }
+
+        .music-pagination {
+            background: var(--ibbj-card) !important;
+            border: 1px solid var(--ibbj-border) !important;
+            color: var(--ibbj-text-muted) !important;
+        }
+        .music-pagination strong { color: var(--ibbj-red-dark) !important; }
+
+        .profile-avatar-placeholder {
+            background: var(--ibbj-bg-soft) !important;
+            border: 2px dashed var(--ibbj-input-border) !important;
+            color: var(--ibbj-text-muted) !important;
+        }
+
+        .seq-cifra-panel, .seq-cifra-view, .seq-lyric-block {
+            background: var(--ibbj-card) !important;
+            border-color: var(--ibbj-border) !important;
+        }
+        .seq-lyric-lines, .seq-cifra-pre { color: var(--ibbj-text) !important; }
+        .seq-cifra-meta, .seq-empty { color: var(--ibbj-text-muted) !important; }
+        .cifra-chord-line, .cifra-chord { color: var(--ibbj-red-dark) !important; }
+
+        #app-bell-notif {
+            background: var(--ibbj-card) !important;
+            border: 1px solid var(--ibbj-border) !important;
+            box-shadow: var(--ibbj-shadow) !important;
+        }
+
+        /* Login */
+        .login-wrap { max-width: 1080px !important; margin: 0 auto !important; }
+        .login-hero {
+            background: linear-gradient(165deg, var(--ibbj-black) 0%, var(--ibbj-black-soft) 100%) !important;
+            border: none !important;
+            border-radius: 20px !important;
+            min-height: 420px !important;
+            padding: 2rem 1.75rem !important;
+        }
+        .login-hero h1, .login-hero-quote { color: #fff !important; }
+        .login-hero .tagline, .login-hero .features { color: rgba(255,255,255,0.75) !important; }
+        .login-hero-ref, .login-hero-pill { color: var(--ibbj-red-light) !important; }
+        .login-form-card {
+            background: var(--ibbj-card) !important;
+            border: 1px solid var(--ibbj-border) !important;
+            border-radius: 20px !important;
+            box-shadow: var(--ibbj-shadow) !important;
+        }
+        .login-panel-title { color: var(--ibbj-text) !important; }
+        .login-panel-sub { color: var(--ibbj-text-muted) !important; }
+
+        /* Formulários — contraste */
+        section.main label,
+        section.main [data-testid="stWidgetLabel"] p,
+        [data-testid="stMain"] label,
+        .login-form-card label {
+            color: var(--ibbj-text-label) !important;
+            font-weight: 600 !important;
+        }
+        section.main .stCaption, [data-testid="stMain"] .stCaption {
+            color: var(--ibbj-text-muted) !important;
+        }
+        section.main input, section.main textarea,
+        [data-testid="stMain"] input, [data-testid="stMain"] textarea,
+        .login-form-card input {
+            background: var(--ibbj-input-bg) !important;
+            color: var(--ibbj-text) !important;
+            -webkit-text-fill-color: var(--ibbj-text) !important;
+            border: 1px solid var(--ibbj-input-border) !important;
         }
         section.main [data-baseweb="input"] input,
-        [data-testid="stMain"] [data-baseweb="input"] input,
-        .login-form-card [data-baseweb="input"] input {
-            color: var(--wc-text) !important;
-            -webkit-text-fill-color: var(--wc-text) !important;
+        [data-testid="stMain"] [data-baseweb="input"] input {
+            color: var(--ibbj-text) !important;
+        }
+        section.main [data-baseweb="select"] > div,
+        [data-testid="stMain"] [data-baseweb="select"] > div {
+            background: var(--ibbj-input-bg) !important;
+            color: var(--ibbj-text) !important;
+        }
+        section.main [data-baseweb="tag"],
+        [data-testid="stMain"] [data-baseweb="tag"] {
+            background: #e5e7eb !important;
+            color: var(--ibbj-text) !important;
         }
 
-        /* Botões primários — dourado mais escuro (texto branco legível) */
         section.main .stButton > button[kind="primary"],
         section.main .stFormSubmitButton > button,
         section.main button[kind="primaryFormSubmit"],
         [data-testid="stMain"] .stButton > button[kind="primary"],
         [data-testid="stMain"] .stFormSubmitButton > button,
-        [data-testid="stMain"] button[kind="primaryFormSubmit"],
         .login-form-card .stButton > button[kind="primary"],
-        .login-form-card .stFormSubmitButton > button,
-        .login-form-card button[kind="primaryFormSubmit"] {
-            background: linear-gradient(
-                135deg,
-                var(--wc-btn-primary-top) 0%,
-                var(--wc-btn-primary-bot) 100%
-            ) !important;
+        .login-form-card .stFormSubmitButton > button {
+            background: linear-gradient(135deg, var(--ibbj-red) 0%, var(--ibbj-red-dark) 100%) !important;
             color: #ffffff !important;
-            border: 1px solid #6b4718 !important;
+            border: 1px solid var(--ibbj-red-dark) !important;
             font-weight: 700 !important;
-            text-shadow: 0 1px 1px rgba(0, 0, 0, 0.25) !important;
         }
-
-        /* Botões secundários */
         section.main .stButton > button[kind="secondary"],
-        [data-testid="stMain"] .stButton > button[kind="secondary"],
-        .login-form-card .stButton > button[kind="secondary"] {
-            background: #f1f5f9 !important;
-            color: var(--wc-navy) !important;
-            border: 1px solid var(--wc-input-border) !important;
-            font-weight: 600 !important;
+        [data-testid="stMain"] .stButton > button[kind="secondary"] {
+            background: #f9fafb !important;
+            color: var(--ibbj-text) !important;
+            border: 1px solid var(--ibbj-input-border) !important;
         }
 
-        /* Select / multiselect na área principal */
-        section.main [data-baseweb="select"] > div,
-        [data-testid="stMain"] [data-baseweb="select"] > div {
-            background-color: var(--wc-input-bg) !important;
-            color: var(--wc-text) !important;
-            border-color: var(--wc-input-border) !important;
-        }
-        section.main [data-baseweb="tag"],
-        [data-testid="stMain"] [data-baseweb="tag"] {
-            background: #e2e8f0 !important;
-            color: var(--wc-navy) !important;
-        }
-
-        /* Radio/checkbox na área principal (não sidebar) */
-        section.main div[data-testid="stRadio"] > label,
-        [data-testid="stMain"] div[data-testid="stRadio"] > label {
-            color: var(--wc-text) !important;
-        }
-
-        /* Expanders, links */
         section.main .streamlit-expanderHeader,
         [data-testid="stMain"] .streamlit-expanderHeader {
-            color: var(--wc-navy) !important;
+            color: var(--ibbj-text) !important;
             font-weight: 600 !important;
         }
-        section.main a,
-        [data-testid="stMain"] a {
-            color: #1d4ed8 !important;
+        section.main a, [data-testid="stMain"] a {
+            color: var(--ibbj-red-dark) !important;
         }
 
-        /* Status escalado / avisos no dashboard */
-        .status-escalado {
-            background: #ecfdf5 !important;
-            border: 1px solid #6ee7b7 !important;
-            color: var(--wc-text) !important;
-        }
-        .status-escalado p,
-        .status-escalado strong {
-            color: #065f46 !important;
-        }
-        .status-escalado .escala-evento {
-            color: var(--wc-navy) !important;
-        }
-        .status-escalado .escala-data {
-            color: #047857 !important;
-        }
-        .status-escalado .escala-funcao {
-            color: #334155 !important;
-        }
-        .status-escalado .ensaio-ok {
-            color: #1d4ed8 !important;
-        }
-        .status-escalado .ensaio-pendente {
-            color: #b45309 !important;
-        }
-        .status-nao-escalado {
-            color: #92400e !important;
-            background: #fffbeb !important;
-            border: 1px solid #fbbf24 !important;
-        }
-        .status-nao-escalado strong {
-            color: #78350f !important;
-        }
-        .ensaio-aviso-banner {
-            color: #92400e !important;
-            background: #fffbeb !important;
+        .main .stSuccess { background: #ecfdf5 !important; color: #065f46 !important; }
+        .main .stInfo { background: #eff6ff !important; color: #1e40af !important; }
+        .main .stWarning { background: #fffbeb !important; color: #92400e !important; }
+        .main .stError { background: #fef2f2 !important; color: #991b1b !important; }
+
+        .ibbj-footer {
+            text-align: center;
+            color: var(--ibbj-text-muted);
+            font-size: 0.75rem;
+            margin-top: 2rem;
+            padding: 1rem 0;
         }
 
-        /* Dataframe */
-        section.main [data-testid="stDataFrame"],
-        [data-testid="stMain"] [data-testid="stDataFrame"] {
-            color: var(--wc-text) !important;
-        }
-
-        /* Placeholder inputs */
-        section.main input::placeholder,
-        [data-testid="stMain"] input::placeholder {
-            color: #64748b !important;
-            opacity: 1 !important;
+        @media (max-width: 768px) {
+            .ibbj-topbar { flex-wrap: wrap; padding: 0.75rem 1rem; }
+            .ibbj-kpi-row { grid-template-columns: 1fr 1fr; }
+            .block-container { padding-left: 0.65rem !important; padding-right: 0.65rem !important; }
+            input, textarea, select { font-size: 16px !important; }
         }
     """
 
 
-def inject_worship_theme() -> None:
+def inject_ibbj_theme() -> None:
     import streamlit as st
 
-    st.markdown(
-        f"<style>{worship_theme_overrides()}</style>",
-        unsafe_allow_html=True,
-    )
+    st.markdown(f"<style>{ibbj_theme_css()}</style>", unsafe_allow_html=True)
+
+
+def inject_worship_theme() -> None:
+    """Alias legado — tema atual é IBBJ."""
+    inject_ibbj_theme()

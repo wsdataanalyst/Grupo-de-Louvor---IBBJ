@@ -347,17 +347,17 @@ MENU_HEADERS = {
     "Perfil": "Sua foto e dados cadastrais",
 }
 MENU_ACCENTS = {
-    "Dashboard": "#d4a056",
-    "Gerenciar Escalas": "#b07d3e",
-    "Repertório": "#d4a056",
-    "Escalas": "#101d33",
-    "Feed": "#c17a3a",
-    "Eventos": "#5c6b7f",
-    "Sugestão de louvor": "#b07d3e",
-    "Playlist": "#d4a056",
-    "Chat": "#101d33",
-    "Membros": "#8b6914",
-    "Perfil": "#b07d3e",
+    "Dashboard": "#c41e3a",
+    "Gerenciar Escalas": "#c41e3a",
+    "Repertório": "#9a1830",
+    "Escalas": "#c41e3a",
+    "Feed": "#c41e3a",
+    "Eventos": "#6b7280",
+    "Sugestão de louvor": "#9a1830",
+    "Playlist": "#9a1830",
+    "Chat": "#c41e3a",
+    "Membros": "#374151",
+    "Perfil": "#9a1830",
 }
 
 # Organização do menu por áreas (sidebar)
@@ -1267,11 +1267,29 @@ def normalize_sugestao_status(raw: str) -> str:
     return SUGESTAO_STATUS_PENDENTE
 
 
+def csv_cell_text(value) -> str:
+    """Texto seguro para células CSV (evita exibir/gravar 'nan' em colunas float64)."""
+    if value is None:
+        return ""
+    try:
+        if pd.isna(value):
+            return ""
+    except (TypeError, ValueError):
+        pass
+    text = str(value).strip()
+    if text.lower() in ("nan", "nat", "none", "<na>"):
+        return ""
+    return text
+
+
 def prepare_sugestoes(df: pd.DataFrame) -> pd.DataFrame:
     for column in SUGESTAO_COLUMNS:
         if column not in df.columns:
             df[column] = ""
     out = df[list(SUGESTAO_COLUMNS)].copy()
+    # Células vazias no CSV viram float64 (NaN) — impedem gravar status/notas na gestão
+    for column in SUGESTAO_COLUMNS:
+        out[column] = out[column].fillna("").astype(str)
     if not out.empty and "status" in out.columns:
         out["status"] = out["status"].map(normalize_sugestao_status)
     return out
@@ -1341,6 +1359,7 @@ def _aprovar_sugestao_louvor(
         LOUVORES_FILE,
     )
     sid = str(s["id"])
+    sugestoes_df = prepare_sugestoes(sugestoes_df)
     mask = sugestoes_df["id"].astype(str) == sid
     sugestoes_df.loc[mask, "status"] = SUGESTAO_STATUS_APROVADA
     save_data(sugestoes_df, SUGESTOES_FILE)
@@ -2874,1472 +2893,9 @@ def ensure_session_state():
 
 
 def apply_music_theme():
-    st.markdown(
-        """
-        <style>
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+    from app_theme import inject_ibbj_theme
 
-        :root {
-            --bg-deep: #07060d;
-            --bg-surface: #12101c;
-            --bg-elevated: #1a1728;
-            --border-subtle: rgba(255, 255, 255, 0.08);
-            --border-accent: rgba(167, 139, 250, 0.35);
-            --text-primary: #f4f2fa;
-            --text-secondary: #a8a3b8;
-            --accent-gold: #f5c842;
-            --accent-violet: #8b5cf6;
-            --radius-lg: 18px;
-            --radius-md: 12px;
-            --shadow-card: 0 12px 40px rgba(0, 0, 0, 0.35);
-        }
-
-        html, body, [class*="css"] {
-            font-family: 'Plus Jakarta Sans', 'Segoe UI', sans-serif;
-        }
-
-        [data-testid="stAppViewContainer"] {
-            background:
-                radial-gradient(ellipse 80% 50% at 0% 0%, rgba(139, 92, 246, 0.14) 0%, transparent 50%),
-                radial-gradient(ellipse 60% 40% at 100% 100%, rgba(245, 200, 66, 0.08) 0%, transparent 45%),
-                linear-gradient(180deg, var(--bg-deep) 0%, #0e0c16 50%, #14121f 100%);
-        }
-        [data-testid="stAppViewContainer"]::before { display: none; }
-        [data-testid="stHeader"] { background: transparent !important; }
-        .block-container {
-            padding-top: 1rem;
-            max-width: 1080px;
-            position: relative;
-            z-index: 1;
-        }
-
-        /* Sidebar */
-        section[data-testid="stSidebar"] {
-            background: linear-gradient(180deg, #0c0a14 0%, #14111f 55%, #0a0810 100%) !important;
-            border-right: 1px solid var(--border-subtle);
-        }
-        section[data-testid="stSidebar"] > div {
-            padding-top: 0.75rem;
-        }
-        .sidebar-brand {
-            padding: 0.5rem 0.25rem 0.75rem;
-            margin-bottom: 0.25rem;
-        }
-        .sidebar-brand h3 {
-            color: var(--text-primary) !important;
-            font-size: 1.05rem !important;
-            font-weight: 700 !important;
-            margin: 0 !important;
-            letter-spacing: -0.02em;
-        }
-        .sidebar-brand p {
-            color: var(--text-secondary) !important;
-            font-size: 0.78rem !important;
-            margin: 0.2rem 0 0 !important;
-        }
-        .nav-group-label {
-            color: var(--text-secondary);
-            font-size: 0.68rem;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.12em;
-            margin: 1rem 0 0.35rem 0.15rem;
-            padding: 0;
-        }
-        section[data-testid="stSidebar"] div[data-testid="stRadio"] > label {
-            position: relative !important;
-            padding: 0.55rem 0.75rem 0.55rem 1.85rem !important;
-            border-radius: var(--radius-md) !important;
-            margin-bottom: 0.15rem !important;
-            font-weight: 500 !important;
-            font-size: 0.9rem !important;
-            color: var(--text-secondary) !important;
-            border: 1px solid transparent !important;
-            transition: background 0.15s, border-color 0.15s, color 0.15s !important;
-        }
-        /* Bolinha lateral do menu (cinza → vermelha quando há notificação) */
-        section[data-testid="stSidebar"] div[data-testid="stRadio"] > label > div:first-child {
-            position: absolute !important;
-            left: 0.55rem !important;
-            top: 50% !important;
-            transform: translateY(-50%) !important;
-            width: 11px !important;
-            height: 11px !important;
-            min-width: 11px !important;
-            margin: 0 !important;
-            border-radius: 50% !important;
-            background: rgba(148, 163, 184, 0.28) !important;
-            border: none !important;
-            box-shadow: none !important;
-        }
-        section[data-testid="stSidebar"] div[data-testid="stRadio"] > label > div:first-child > div {
-            display: none !important;
-        }
-        section[data-testid="stSidebar"] div[data-testid="stRadio"] > label[data-nav-alert="1"] > div:first-child {
-            background: #ff3b30 !important;
-            box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.92) !important;
-        }
-        /* Badge numérico estilo WhatsApp sobre o emoji do menu */
-        section[data-testid="stSidebar"] div[data-testid="stRadio"] label .nav-wa-badge {
-            position: absolute;
-            left: 2.35rem;
-            top: 0.2rem;
-            min-width: 1.2rem;
-            height: 1.2rem;
-            padding: 0 0.34rem;
-            border-radius: 999px;
-            background: #ff3b30;
-            color: #fff !important;
-            font-size: 0.62rem;
-            font-weight: 800;
-            display: none;
-            align-items: center;
-            justify-content: center;
-            line-height: 1.1;
-            border: 2px solid #14111f;
-            box-shadow: 0 2px 6px rgba(255, 59, 48, 0.55);
-            z-index: 15;
-            pointer-events: none;
-        }
-        .quick-nav-btn {
-            position: relative;
-        }
-        .quick-nav-btn .nav-wa-badge {
-            left: auto;
-            right: 0.4rem;
-            top: 0.4rem;
-        }
-        section[data-testid="stSidebar"] div[data-testid="stRadio"] > label:hover {
-            background: rgba(139, 92, 246, 0.12) !important;
-            color: var(--text-primary) !important;
-        }
-        section[data-testid="stSidebar"] div[data-testid="stRadio"] > label[data-checked="true"],
-        section[data-testid="stSidebar"] div[data-testid="stRadio"] label:has(input:checked) {
-            background: rgba(139, 92, 246, 0.22) !important;
-            border-color: var(--border-accent) !important;
-            color: var(--text-primary) !important;
-            font-weight: 600 !important;
-        }
-        section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] h3 {
-            color: #fbbf24 !important;
-            font-weight: 700;
-            letter-spacing: 0.03em;
-        }
-        section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p,
-        section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] strong {
-            color: #e9e4f5 !important;
-        }
-        section[data-testid="stSidebar"] .stCaption {
-            color: #a89bc4 !important;
-        }
-        section[data-testid="stSidebar"] div[data-testid="stRadio"] label {
-            padding: 0.6rem 0.85rem;
-            border-radius: 10px;
-            margin-bottom: 0.2rem;
-            font-weight: 500;
-            color: #d4cce8 !important;
-            border: 1px solid transparent;
-            transition: all 0.2s ease;
-        }
-        section[data-testid="stSidebar"] div[data-testid="stRadio"] label:hover {
-            background: rgba(139, 92, 246, 0.2);
-            border-color: rgba(167, 139, 250, 0.35);
-        }
-        section[data-testid="stSidebar"] button {
-            border-radius: 10px !important;
-            font-weight: 600 !important;
-        }
-
-        /* Cabeçalho de página */
-        .music-hero {
-            background: rgba(26, 23, 40, 0.65);
-            border: 1px solid var(--border-subtle);
-            border-radius: var(--radius-lg);
-            padding: 1.15rem 1.35rem;
-            margin-bottom: 1rem;
-            box-shadow: var(--shadow-card);
-            backdrop-filter: blur(12px);
-            position: relative;
-            overflow: hidden;
-        }
-        .music-hero::before {
-            content: "";
-            position: absolute;
-            inset: 0;
-            background: linear-gradient(135deg, var(--accent, #8b5cf6) 0%, transparent 55%);
-            opacity: 0.12;
-            pointer-events: none;
-        }
-        .music-hero::after {
-            content: "";
-            position: absolute;
-            left: 0; top: 0; bottom: 0;
-            width: 4px;
-            background: var(--accent, var(--accent-gold));
-            border-radius: 4px 0 0 4px;
-        }
-        .music-hero h2 {
-            margin: 0;
-            color: var(--text-primary);
-            font-size: 1.45rem;
-            font-weight: 700;
-            letter-spacing: -0.02em;
-            position: relative;
-        }
-        .music-hero p {
-            margin: 0.3rem 0 0;
-            color: var(--text-secondary);
-            font-size: 0.88rem;
-            position: relative;
-        }
-        .music-hero .notes-deco { display: none; }
-
-        /* Dashboard — seções em cards */
-        .dash-section {
-            background: linear-gradient(155deg, rgba(22, 18, 38, 0.95), rgba(14, 12, 24, 0.98));
-            border: 1px solid rgba(167, 139, 250, 0.22);
-            border-radius: 14px;
-            margin: 0 0 1.15rem;
-            overflow: hidden;
-            box-shadow: 0 8px 28px rgba(0, 0, 0, 0.28);
-        }
-        .dash-section-header {
-            display: flex;
-            align-items: flex-start;
-            gap: 0.65rem;
-            padding: 0.8rem 1rem;
-            background: rgba(255, 255, 255, 0.04);
-            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-            border-left: 4px solid var(--dash-accent, #a78bfa);
-        }
-        .dash-section-icon {
-            font-size: 1.35rem;
-            line-height: 1;
-            filter: drop-shadow(0 2px 6px rgba(0,0,0,0.35));
-        }
-        .dash-section-header h4 {
-            margin: 0;
-            font-size: 0.78rem;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-            color: #f8f6ff;
-        }
-        .dash-section-sub {
-            margin: 0.2rem 0 0;
-            font-size: 0.82rem;
-            color: var(--dash-accent, #c4b5fd);
-            font-weight: 500;
-        }
-        .dash-section-content {
-            padding: 0.85rem 0.9rem 1rem;
-        }
-
-        /* Atalhos do dashboard */
-        .quick-nav-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-            gap: 0.65rem;
-            margin: 0.5rem 0 1.25rem;
-        }
-        .quick-nav-card {
-            background: rgba(255, 255, 255, 0.04);
-            border: 1px solid var(--border-subtle);
-            border-radius: var(--radius-md);
-            padding: 0.85rem 0.5rem;
-            text-align: center;
-            transition: transform 0.15s, border-color 0.15s, background 0.15s;
-        }
-        .quick-nav-card:hover {
-            transform: translateY(-2px);
-            border-color: var(--border-accent);
-            background: rgba(139, 92, 246, 0.1);
-        }
-        .quick-nav-card .qn-icon { font-size: 1.5rem; display: block; margin-bottom: 0.35rem; }
-        .quick-nav-card .qn-label {
-            color: var(--text-primary);
-            font-size: 0.72rem;
-            font-weight: 600;
-            line-height: 1.2;
-        }
-
-        /* Cards e painéis */
-        .music-panel {
-            background: rgba(255, 255, 255, 0.04);
-            border: 1px solid rgba(167, 139, 250, 0.25);
-            border-radius: 14px;
-            padding: 1.25rem 1.5rem;
-            margin-bottom: 1rem;
-            backdrop-filter: blur(8px);
-        }
-        .music-panel-title {
-            color: #fbbf24;
-            font-weight: 600;
-            font-size: 0.85rem;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-            margin: 0 0 0.75rem;
-        }
-
-        /* Métricas estilo player */
-        .music-stats {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 1rem;
-            margin: 1rem 0 1.5rem;
-        }
-        @media (max-width: 900px) {
-            .music-stats { grid-template-columns: repeat(2, 1fr); }
-        }
-        .music-stat {
-            background: linear-gradient(145deg, rgba(30, 25, 55, 0.9), rgba(20, 16, 38, 0.95));
-            border: 1px solid rgba(212, 175, 55, 0.3);
-            border-radius: 14px;
-            padding: 1.1rem 1rem;
-            text-align: center;
-            transition: transform 0.2s, box-shadow 0.2s;
-        }
-        .music-stat:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 24px rgba(139, 92, 246, 0.25);
-        }
-        .music-stat-icon { font-size: 1.75rem; display: block; margin-bottom: 0.35rem; }
-        .music-stat-value {
-            display: block;
-            font-size: 1.85rem;
-            font-weight: 700;
-            color: #faf8ff;
-            line-height: 1.2;
-        }
-        .music-stat-label {
-            display: block;
-            font-size: 0.78rem;
-            color: #a89bc4;
-            text-transform: uppercase;
-            letter-spacing: 0.06em;
-            margin-top: 0.25rem;
-        }
-
-        /* Paginação */
-        .music-pagination {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            flex-wrap: wrap;
-            gap: 0.75rem;
-            background: rgba(18, 14, 31, 0.8);
-            border: 1px solid rgba(251, 191, 36, 0.35);
-            border-radius: 12px;
-            padding: 0.75rem 1.25rem;
-            margin: 0.75rem 0 1rem;
-        }
-        .music-pagination span {
-            color: #d4cce8;
-            font-size: 0.9rem;
-        }
-        .music-pagination strong { color: #fbbf24; }
-
-        /* Textos claros só na sidebar (área principal usa tema claro) */
-        section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p,
-        section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] li {
-            color: rgba(255, 255, 255, 0.85);
-        }
-        div[data-testid="stMetric"] {
-            background: rgba(26, 21, 48, 0.6);
-            border: 1px solid rgba(167, 139, 250, 0.2);
-            border-radius: 12px;
-            padding: 0.75rem;
-        }
-        div[data-testid="stForm"] {
-            background: rgba(255, 255, 255, 0.03);
-            border: 1px solid rgba(167, 139, 250, 0.2);
-            border-radius: 14px;
-            padding: 1rem;
-        }
-        div[data-testid="stTabs"] {
-            background: rgba(18, 14, 31, 0.85) !important;
-            border: 1px solid rgba(212, 175, 55, 0.25) !important;
-            border-radius: 16px !important;
-        }
-        .stSuccess, .stInfo, .stWarning, .stError {
-            border-radius: 10px;
-        }
-
-        /* Login */
-        .login-wrap { max-width: 980px; margin: 0 auto; padding: 1rem 0 2rem; }
-        .login-hero {
-            background: linear-gradient(165deg, #1a1435 0%, #2d1f4e 40%, #120e1f 100%);
-            border: 1px solid rgba(212, 175, 55, 0.4);
-            border-radius: 20px;
-            padding: 2.5rem 1.5rem;
-            text-align: center;
-            min-height: 420px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
-            position: relative;
-            overflow: hidden;
-        }
-        .login-hero::before {
-            content: "♫ ♪ ♩ ♬";
-            position: absolute;
-            font-size: 5rem;
-            opacity: 0.06;
-            top: 10%;
-            letter-spacing: 1rem;
-        }
-        .login-hero img {
-            width: 120px;
-            filter: drop-shadow(0 4px 16px rgba(251, 191, 36, 0.4));
-        }
-        .login-hero h1 {
-            color: #faf8ff;
-            font-size: 1.6rem;
-            font-weight: 700;
-            margin: 1rem 0 0.4rem;
-        }
-        .login-hero .tagline { color: #c4b5fd; font-size: 0.95rem; }
-        .login-hero .features { color: #a89bc4; font-size: 0.85rem; line-height: 1.9; }
-        .login-panel-title {
-            color: #faf8ff !important;
-            font-size: 1.35rem;
-            font-weight: 600;
-        }
-        .login-panel-sub { color: #a89bc4 !important; font-size: 0.9rem; }
-
-        /* Chat entre integrantes */
-        #chat-scroll-box {
-            max-height: min(56vh, 540px);
-            overflow-y: auto;
-            overflow-x: hidden;
-            padding: 0.5rem 0.35rem 0.75rem;
-            margin-bottom: 0.5rem;
-            border: 1px solid rgba(52, 211, 153, 0.25);
-            border-radius: 14px;
-            background: rgba(12, 10, 20, 0.55);
-            scroll-behavior: smooth;
-            -webkit-overflow-scrolling: touch;
-        }
-        .chat-feed { min-height: 80px; }
-        .chat-row-head {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            margin-bottom: 0.35rem;
-        }
-        .chat-row-name { font-weight: 600; color: #e9e4ff; font-size: 0.88rem; }
-        .chat-row-time { color: #a89bc4; font-size: 0.78rem; }
-        .chat-bubble {
-            max-width: 82%;
-            padding: 0.55rem 0.85rem;
-            border-radius: 14px;
-            margin: 0 0 0.5rem 0;
-            line-height: 1.45;
-            clear: both;
-        }
-        .chat-bubble audio, .chat-bubble img {
-            max-width: 100%;
-            display: block;
-            margin-top: 0.35rem;
-            border-radius: 8px;
-        }
-        .chat-compose-bar {
-            margin-top: 0.25rem;
-            padding-top: 0.35rem;
-            border-top: 1px solid rgba(134, 150, 160, 0.15);
-        }
-        .chat-bubble.me {
-            margin-left: auto;
-            background: linear-gradient(135deg, #5b3fa6, #7c5cbf);
-            border: 1px solid rgba(167, 139, 250, 0.5);
-            border-bottom-right-radius: 4px;
-        }
-        .chat-bubble.other {
-            margin-right: auto;
-            background: rgba(255, 255, 255, 0.07);
-            border: 1px solid rgba(52, 211, 153, 0.35);
-            border-bottom-left-radius: 4px;
-        }
-        .chat-meta {
-            font-size: 0.72rem;
-            color: #a89bc4;
-            margin-bottom: 0.2rem;
-        }
-        .chat-text { color: #f3f0ff; font-size: 0.92rem; margin: 0; }
-
-        /* Compositor estilo WhatsApp — abaixo das mensagens (fluxo natural) */
-        .wa-composer-shell {
-            position: relative;
-            margin-top: 0.5rem;
-            padding: 0.35rem 0 0.25rem;
-            border-top: 1px solid rgba(134, 150, 160, 0.2);
-        }
-        .wa-composer-shell iframe {
-            border-radius: 16px !important;
-            border: 1px solid rgba(0, 168, 132, 0.25) !important;
-        }
-        [data-testid="stChatMessage"] {
-            max-width: 85%;
-        }
-        [data-testid="stChatMessageContent"] {
-            background: #2a3942 !important;
-            border-radius: 12px !important;
-            border: 1px solid rgba(134, 150, 160, 0.2) !important;
-        }
-        [data-testid="stChatMessage"]:has([data-testid="chatAvatarIcon-user"]) [data-testid="stChatMessageContent"] {
-            background: linear-gradient(135deg, #005c4b, #00a884) !important;
-            border-color: rgba(0, 168, 132, 0.35) !important;
-        }
-        .swap-card {
-            background: rgba(96, 165, 250, 0.1);
-            border: 1px solid rgba(96, 165, 250, 0.35);
-            border-radius: 12px;
-            padding: 1rem;
-            margin-bottom: 0.75rem;
-        }
-        .culto-week-card {
-            background: linear-gradient(145deg, rgba(30, 25, 55, 0.95), rgba(18, 14, 31, 0.98));
-            border: 1px solid rgba(167, 139, 250, 0.35);
-            border-radius: 16px;
-            padding: 1.25rem 1.5rem;
-            margin-bottom: 1.25rem;
-        }
-        .culto-week-card h3 {
-            color: #fbbf24;
-            margin: 0 0 0.5rem;
-            font-size: 1.2rem;
-        }
-        .culto-week-card .culto-date {
-            color: #a89bc4;
-            font-size: 0.88rem;
-            margin-bottom: 0.75rem;
-        }
-        .team-chip {
-            display: inline-block;
-            background: rgba(139, 92, 246, 0.25);
-            border: 1px solid rgba(167, 139, 250, 0.4);
-            border-radius: 20px;
-            padding: 0.35rem 0.75rem;
-            margin: 0.2rem 0.35rem 0.2rem 0;
-            font-size: 0.82rem;
-            color: #e9e4f5;
-        }
-        .team-chip strong { color: #fbbf24; }
-        .seq-badge {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            width: 1.6rem;
-            height: 1.6rem;
-            background: #fbbf24;
-            color: #1a1435;
-            border-radius: 50%;
-            font-weight: 700;
-            font-size: 0.8rem;
-            margin-right: 0.5rem;
-        }
-
-        /* Cards de programa (mobile-friendly) */
-        .prog-card {
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(167, 139, 250, 0.3);
-            border-radius: 12px;
-            padding: 0.85rem 1rem;
-            margin-bottom: 0.6rem;
-        }
-        .prog-card .prog-parte {
-            color: #fbbf24;
-            font-weight: 600;
-            font-size: 0.8rem;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-        }
-        .prog-card .prog-louvor {
-            color: #faf8ff;
-            font-size: 1rem;
-            font-weight: 600;
-            margin: 0.35rem 0 0.2rem;
-        }
-        .prog-card .prog-meta {
-            color: #a89bc4;
-            font-size: 0.82rem;
-            margin: 0;
-            line-height: 1.5;
-        }
-        .prog-card a { color: #34d399; word-break: break-all; }
-
-        .mobile-user-bar { display: none; }
-
-        /* Botões de atalho (Streamlit) */
-        div[data-testid="column"] button[kind="secondary"] {
-            border-radius: var(--radius-md) !important;
-        }
-        .quick-nav-btn {
-            position: relative;
-        }
-        .quick-nav-btn > button {
-            min-height: 4.25rem !important;
-            flex-direction: column !important;
-            font-size: 0.78rem !important;
-            line-height: 1.25 !important;
-            background: rgba(255, 255, 255, 0.04) !important;
-            border: 1px solid var(--border-subtle) !important;
-        }
-        .quick-nav-btn > button:hover {
-            border-color: var(--border-accent) !important;
-            background: rgba(139, 92, 246, 0.12) !important;
-            transform: translateY(-1px);
-        }
-        .quick-nav--escalas > button {
-            background: linear-gradient(160deg, rgba(96, 165, 250, 0.42), rgba(37, 99, 235, 0.15)) !important;
-            border-color: rgba(96, 165, 250, 0.65) !important;
-            color: #e0f2fe !important;
-        }
-        .quick-nav--chat > button {
-            background: linear-gradient(160deg, rgba(52, 211, 153, 0.42), rgba(16, 185, 129, 0.14)) !important;
-            border-color: rgba(52, 211, 153, 0.65) !important;
-            color: #d1fae5 !important;
-        }
-        .quick-nav--eventos > button {
-            background: linear-gradient(160deg, rgba(56, 189, 248, 0.4), rgba(14, 165, 233, 0.14)) !important;
-            border-color: rgba(56, 189, 248, 0.6) !important;
-            color: #e0f2fe !important;
-        }
-        .quick-nav--playlist > button {
-            background: linear-gradient(160deg, rgba(244, 114, 182, 0.4), rgba(219, 39, 119, 0.14)) !important;
-            border-color: rgba(244, 114, 182, 0.6) !important;
-            color: #fce7f3 !important;
-        }
-        .quick-nav--feed > button {
-            background: linear-gradient(160deg, rgba(244, 114, 182, 0.38), rgba(236, 72, 153, 0.12)) !important;
-            border-color: rgba(244, 114, 182, 0.58) !important;
-            color: #fce7f3 !important;
-        }
-        .quick-nav--repertorio > button {
-            background: linear-gradient(160deg, rgba(251, 191, 36, 0.42), rgba(217, 119, 6, 0.14)) !important;
-            border-color: rgba(251, 191, 36, 0.62) !important;
-            color: #fef3c7 !important;
-        }
-        .quick-nav--perfil > button {
-            background: linear-gradient(160deg, rgba(192, 132, 252, 0.42), rgba(124, 58, 237, 0.14)) !important;
-            border-color: rgba(192, 132, 252, 0.62) !important;
-            color: #f3e8ff !important;
-        }
-
-        /* Botões com área de toque confortável */
-        .stButton > button, .stFormSubmitButton > button {
-            min-height: 2.75rem !important;
-            font-size: 1rem !important;
-        }
-
-        /* Tabelas: rolagem horizontal no celular */
-        div[data-testid="stDataFrame"] {
-            overflow-x: auto !important;
-            -webkit-overflow-scrolling: touch;
-        }
-
-        /* ========== SMARTPHONE (até 768px) ========== */
-        @media (max-width: 768px) {
-            [data-testid="stAppViewContainer"]::before { display: none; }
-
-            .block-container {
-                max-width: 100% !important;
-                padding: 0.35rem 0.65rem 5rem !important;
-            }
-
-            /* Colunas Streamlit empilham */
-            [data-testid="column"] {
-                width: 100% !important;
-                flex: 1 1 100% !important;
-                min-width: 100% !important;
-            }
-
-            .music-hero {
-                padding: 1rem 1.1rem;
-                margin-bottom: 0.85rem;
-            }
-            .music-hero h2 { font-size: 1.25rem; }
-            .music-hero p { font-size: 0.85rem; }
-            .music-hero .notes-deco { display: none; }
-
-            .music-stats {
-                grid-template-columns: repeat(2, 1fr);
-                gap: 0.55rem;
-                margin: 0.75rem 0 1rem;
-            }
-            .music-stat { padding: 0.75rem 0.5rem; }
-            .music-stat-value { font-size: 1.45rem; }
-            .music-stat-label { font-size: 0.68rem; }
-
-            .login-wrap { padding: 0.25rem 0 1rem; }
-            .login-hero {
-                min-height: auto;
-                padding: 1.5rem 1rem;
-                margin-bottom: 1rem;
-            }
-            .login-hero h1 { font-size: 1.25rem; }
-            .login-hero img { width: 90px; }
-
-            .chat-feed { max-height: 55vh; padding: 0.75rem; }
-            .chat-bubble { max-width: 92%; font-size: 0.95rem; }
-
-            .culto-week-card { padding: 1rem; }
-            .culto-week-card h3 { font-size: 1.05rem; }
-            .team-chip {
-                display: block;
-                margin: 0.35rem 0;
-                text-align: center;
-            }
-
-            .music-pagination {
-                flex-direction: column;
-                text-align: center;
-                padding: 0.65rem;
-            }
-
-            div[data-testid="stTabs"] [data-baseweb="tab-list"] {
-                flex-wrap: wrap;
-            }
-            div[data-testid="stTabs"] button[data-baseweb="tab"] {
-                font-size: 0.78rem !important;
-                padding: 0.5rem 0.65rem !important;
-            }
-
-            section[data-testid="stSidebar"] {
-                min-width: min(88vw, 320px) !important;
-            }
-
-            h1 { font-size: 1.35rem !important; }
-            h2, h3 { font-size: 1.1rem !important; }
-
-            input, textarea, select {
-                font-size: 16px !important; /* evita zoom automático no iOS */
-            }
-        }
-
-        @media (max-width: 380px) {
-            .music-stats { grid-template-columns: 1fr 1fr; }
-            .music-stat-icon { font-size: 1.4rem; }
-        }
-
-        .profile-card {
-            background: linear-gradient(145deg, rgba(45, 27, 78, 0.95), rgba(30, 20, 50, 0.98));
-            border: 1px solid rgba(251, 191, 36, 0.25);
-            border-radius: 16px;
-            padding: 1.25rem;
-            margin-bottom: 1rem;
-        }
-        .profile-avatar-placeholder {
-            width: 160px;
-            height: 160px;
-            border-radius: 50%;
-            background: rgba(167, 139, 250, 0.2);
-            border: 2px dashed rgba(251, 191, 36, 0.45);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 3.5rem;
-            margin: 0 auto 0.75rem;
-        }
-        .louvor-dropdown {
-            background: rgba(28, 18, 48, 0.98);
-            border: 1px solid rgba(251, 191, 36, 0.4);
-            border-radius: 12px;
-            padding: 0.35rem 0.5rem;
-            margin: 0.35rem 0 0.75rem;
-            max-height: 260px;
-            overflow-y: auto;
-            box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
-        }
-        .louvor-dropdown .stButton > button {
-            text-align: left !important;
-            justify-content: flex-start !important;
-            background: rgba(139, 92, 246, 0.15) !important;
-            border: 1px solid rgba(167, 139, 250, 0.25) !important;
-            margin-bottom: 0.35rem !important;
-        }
-        .louvor-selected-box {
-            background: rgba(139, 92, 246, 0.1);
-            border: 1px solid rgba(167, 139, 250, 0.35);
-            border-radius: 12px;
-            padding: 0.65rem 0.85rem;
-            margin-top: 0.5rem;
-            min-height: 120px;
-            max-height: 320px;
-            overflow-y: auto;
-        }
-        .louvor-selected-title {
-            color: #fbbf24;
-            font-weight: 600;
-            font-size: 0.95rem;
-            margin: 0 0 0.5rem;
-        }
-
-        /* Dashboard moderno */
-        .welcome-card {
-            background: rgba(26, 23, 40, 0.75);
-            border: 1px solid var(--border-accent);
-            border-radius: var(--radius-lg);
-            padding: 1.25rem 1.35rem;
-            margin-bottom: 1rem;
-            box-shadow: var(--shadow-card);
-            backdrop-filter: blur(10px);
-        }
-        .welcome-card h3 {
-            color: var(--text-primary);
-            margin: 0 0 0.35rem;
-            font-size: 1.25rem;
-            font-weight: 700;
-            letter-spacing: -0.02em;
-        }
-        .welcome-card p { color: var(--text-secondary); margin: 0; font-size: 0.9rem; }
-        .verse-of-day {
-            background: linear-gradient(135deg, rgba(212, 175, 55, 0.14), rgba(139, 92, 246, 0.1));
-            border: 1px solid rgba(212, 175, 55, 0.4);
-            border-radius: 14px;
-            padding: 1rem 1.25rem;
-            margin-bottom: 1rem;
-        }
-        .verse-of-day .verse-label {
-            margin: 0 0 0.5rem;
-            font-size: 0.78rem;
-            font-weight: 600;
-            letter-spacing: 0.06em;
-            text-transform: uppercase;
-            color: #fbbf24;
-        }
-        .verse-of-day .verse-text {
-            margin: 0;
-            font-size: 1rem;
-            line-height: 1.55;
-            font-style: italic;
-            color: #f3f0ff;
-        }
-        .verse-of-day .verse-ref {
-            margin: 0.65rem 0 0;
-            font-size: 0.88rem;
-            font-weight: 600;
-            color: #c4b5fd;
-        }
-        .status-escalado {
-            background: rgba(52, 211, 153, 0.12);
-            border: 1px solid rgba(52, 211, 153, 0.45);
-            border-radius: 14px;
-            padding: 1rem 1.25rem;
-            margin-bottom: 1rem;
-            color: #d4cce8;
-            line-height: 1.55;
-        }
-        .status-escalado .escala-linha {
-            margin: 0.5rem 0 0;
-            padding: 0.45rem 0 0;
-            border-top: 1px solid rgba(52, 211, 153, 0.2);
-        }
-        .status-escalado .escala-linha:first-of-type {
-            border-top: none;
-            padding-top: 0.15rem;
-        }
-        .status-escalado .escala-evento {
-            color: #faf8ff;
-            font-weight: 600;
-        }
-        .status-escalado .escala-data {
-            color: #a7f3d0;
-            font-weight: 500;
-        }
-        .status-escalado .escala-funcao {
-            color: #86efac;
-        }
-        .status-escalado .escala-ensaio {
-            margin: 0.2rem 0 0.65rem;
-            padding: 0.35rem 0 0.35rem 0.65rem;
-            font-size: 0.92rem;
-            border-left: 3px solid rgba(251, 191, 36, 0.55);
-            line-height: 1.45;
-        }
-        .status-escalado .ensaio-ok {
-            border-left-color: rgba(96, 165, 250, 0.65);
-            color: #93c5fd;
-        }
-        .status-escalado .ensaio-pendente {
-            color: #fde68a;
-        }
-        .ensaio-aviso-banner {
-            background: rgba(251, 191, 36, 0.14);
-            border: 1px solid rgba(251, 191, 36, 0.5);
-            border-radius: 12px;
-            padding: 0.85rem 1.1rem;
-            margin: 0 0 0.85rem;
-            color: #fef3c7;
-            line-height: 1.5;
-        }
-        .ensaio-aviso-banner .ensaio-aviso-titulo {
-            margin: 0;
-            font-weight: 700;
-            color: #fde68a;
-        }
-        .ensaio-aviso-banner .ensaio-aviso-sub {
-            margin: 0.35rem 0 0;
-            font-size: 0.9rem;
-            color: #fcd34d;
-        }
-        .members-leader-wrap {
-            overflow-x: auto;
-            margin: 0.5rem 0 1rem;
-            border-radius: 14px;
-            border: 1px solid rgba(139, 92, 246, 0.35);
-            background: rgba(15, 10, 30, 0.55);
-        }
-        .members-leader-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 0.9rem;
-            color: #e8e4f5;
-        }
-        .members-leader-table th {
-            text-align: left;
-            padding: 0.75rem 0.85rem;
-            font-size: 0.72rem;
-            letter-spacing: 0.05em;
-            text-transform: uppercase;
-            color: #c4b5fd;
-            background: rgba(139, 92, 246, 0.18);
-            border-bottom: 1px solid rgba(139, 92, 246, 0.35);
-            white-space: nowrap;
-        }
-        .members-leader-table td {
-            padding: 0.65rem 0.85rem;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-            vertical-align: middle;
-        }
-        .members-leader-table tr:hover td {
-            background: rgba(139, 92, 246, 0.08);
-        }
-        .members-leader-table .col-foto {
-            width: 56px;
-        }
-        .members-leader-table .mem-nome {
-            font-weight: 600;
-            color: #faf8ff;
-        }
-        .members-leader-table .mem-funcao {
-            color: #c4b5fd;
-            font-size: 0.85rem;
-            max-width: 220px;
-        }
-        .badge-escalado-sim {
-            display: inline-block;
-            padding: 0.2rem 0.55rem;
-            border-radius: 999px;
-            font-size: 0.75rem;
-            font-weight: 600;
-            background: rgba(52, 211, 153, 0.2);
-            color: #6ee7b7;
-            border: 1px solid rgba(52, 211, 153, 0.45);
-        }
-        .badge-escalado-nao {
-            display: inline-block;
-            padding: 0.2rem 0.55rem;
-            border-radius: 999px;
-            font-size: 0.75rem;
-            font-weight: 600;
-            background: rgba(148, 163, 184, 0.15);
-            color: #94a3b8;
-            border: 1px solid rgba(148, 163, 184, 0.3);
-        }
-        .sugestao-status-pill {
-            display: inline-block;
-            padding: 0.22rem 0.65rem;
-            border-radius: 999px;
-            font-size: 0.78rem;
-            font-weight: 600;
-        }
-        .sugestao-status--pendente {
-            background: rgba(251, 191, 36, 0.18);
-            color: #fde68a;
-            border: 1px solid rgba(251, 191, 36, 0.45);
-        }
-        .sugestao-status--em_analise {
-            background: rgba(96, 165, 250, 0.18);
-            color: #93c5fd;
-            border: 1px solid rgba(96, 165, 250, 0.45);
-        }
-        .sugestao-status--aprovada {
-            background: rgba(74, 222, 128, 0.18);
-            color: #86efac;
-            border: 1px solid rgba(74, 222, 128, 0.45);
-        }
-        .sugestao-status--recusada {
-            background: rgba(248, 113, 113, 0.15);
-            color: #fca5a5;
-            border: 1px solid rgba(248, 113, 113, 0.4);
-        }
-        .sugestao-track-card {
-            background: rgba(15, 23, 42, 0.45);
-            border: 1px solid rgba(148, 163, 184, 0.2);
-            border-radius: 12px;
-            padding: 0.85rem 1rem;
-            margin-bottom: 0.65rem;
-        }
-        .sugestao-track-title {
-            font-weight: 600;
-            color: #f1f5f9;
-            margin: 0 0 0.35rem 0;
-        }
-        .sugestao-track-meta {
-            font-size: 0.82rem;
-            color: #94a3b8;
-        }
-        .stat-pill {
-            display: inline-block;
-            min-width: 1.6rem;
-            text-align: center;
-            padding: 0.15rem 0.45rem;
-            border-radius: 8px;
-            font-weight: 700;
-            background: rgba(251, 191, 36, 0.15);
-            color: #fde68a;
-        }
-        .stat-pill-zero {
-            background: rgba(148, 163, 184, 0.12);
-            color: #94a3b8;
-        }
-        .status-nao-escalado {
-            background: rgba(251, 191, 36, 0.08);
-            border: 1px solid rgba(251, 191, 36, 0.35);
-            border-radius: 14px;
-            padding: 1rem 1.25rem;
-            margin-bottom: 1rem;
-        }
-        .team-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-            gap: 0.85rem;
-            margin: 0.75rem 0 1rem;
-        }
-        .team-member-card {
-            background: rgba(255, 255, 255, 0.04);
-            border: 1px solid rgba(167, 139, 250, 0.3);
-            border-radius: 14px;
-            padding: 0.85rem 0.65rem;
-            text-align: center;
-            transition: transform 0.2s, box-shadow 0.2s;
-        }
-        .team-member-card:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 8px 24px rgba(139, 92, 246, 0.25);
-        }
-        .team-member-card .tm-name {
-            color: #faf8ff;
-            font-weight: 600;
-            font-size: 0.88rem;
-            margin: 0.45rem 0 0.15rem;
-        }
-        .team-member-card .tm-role {
-            color: #a89bc4;
-            font-size: 0.75rem;
-        }
-        .event-feed-card {
-            background: rgba(56, 189, 248, 0.08);
-            border: 1px solid rgba(56, 189, 248, 0.35);
-            border-radius: 14px;
-            padding: 1rem 1.15rem;
-            margin-bottom: 0.75rem;
-        }
-        .event-feed-card h4 { color: #7dd3fc; margin: 0 0 0.35rem; }
-        .event-feed-card .ev-date { color: #fbbf24; font-size: 0.82rem; }
-        .feed-post-card {
-            background: rgba(30, 20, 50, 0.75);
-            border: 1px solid rgba(244, 114, 182, 0.35);
-            border-radius: 16px;
-            padding: 1.1rem 1.25rem;
-            margin-bottom: 1rem;
-        }
-        .feed-post-card h4 {
-            color: #f9a8d4;
-            margin: 0 0 0.5rem;
-            font-size: 1.05rem;
-        }
-        .feed-post-meta {
-            color: #a89bc4;
-            font-size: 0.8rem;
-            margin-bottom: 0.65rem;
-        }
-        .feed-post-body {
-            color: #e9d5ff;
-            font-size: 0.92rem;
-            line-height: 1.5;
-            margin: 0 0 0.75rem;
-        }
-        .feed-post-badge {
-            display: inline-block;
-            background: rgba(74, 222, 128, 0.2);
-            border: 1px solid rgba(74, 222, 128, 0.45);
-            color: #86efac;
-            font-size: 0.72rem;
-            font-weight: 700;
-            padding: 0.15rem 0.5rem;
-            border-radius: 999px;
-            margin-bottom: 0.5rem;
-        }
-        .feed-comment {
-            background: rgba(15, 10, 30, 0.5);
-            border-radius: 10px;
-            padding: 0.55rem 0.75rem;
-            margin: 0.35rem 0;
-            font-size: 0.86rem;
-        }
-        .feed-comment b { color: #c4b5fd; }
-        .feed-comment time { color: #8b7aa8; font-size: 0.75rem; }
-        .future-escala-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-            gap: 0.65rem;
-            margin-bottom: 1rem;
-        }
-        .future-escala-card {
-            background: rgba(251, 191, 36, 0.1);
-            border: 1px solid rgba(251, 191, 36, 0.35);
-            border-radius: 12px;
-            padding: 0.75rem 0.9rem;
-        }
-        .future-escala-card .fe-date { color: #fbbf24; font-weight: 700; margin: 0; font-size: 0.88rem; }
-        .future-escala-card .fe-event { color: #e9d5ff; margin: 0.25rem 0 0; font-size: 0.82rem; }
-        .planner-panel-card {
-            background: rgba(30, 20, 50, 0.85);
-            border: 1px solid rgba(167, 139, 250, 0.35);
-            border-radius: 14px;
-            padding: 0.85rem 1rem;
-            margin-bottom: 0.65rem;
-        }
-        .planner-title { color: #c4b5fd; font-weight: 700; margin: 0; font-size: 0.95rem; }
-        .planner-sub { color: #a89bc4; font-size: 0.78rem; margin: 0.25rem 0 0; }
-        .planner-row {
-            display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem 0.5rem;
-            padding: 0.4rem 0; border-bottom: 1px solid rgba(139, 92, 246, 0.15);
-            font-size: 0.8rem;
-        }
-        .planner-name { color: #e9d5ff; font-weight: 600; flex: 1 1 auto; }
-        .planner-date { color: #a89bc4; font-size: 0.75rem; }
-        .planner-badge-warn {
-            background: rgba(251, 191, 36, 0.2); color: #fbbf24;
-            font-size: 0.65rem; padding: 0.1rem 0.4rem; border-radius: 999px;
-        }
-        .planner-badge-ok {
-            background: rgba(74, 222, 128, 0.15); color: #86efac;
-            font-size: 0.65rem; padding: 0.1rem 0.4rem; border-radius: 999px;
-        }
-        .louvor-search-btn-wrap button {
-            min-width: 4.25rem !important;
-            white-space: nowrap !important;
-            padding-left: 0.65rem !important;
-            padding-right: 0.65rem !important;
-        }
-        div[data-testid="column"]:has(.louvor-search-btn-wrap) {
-            min-width: 5rem;
-        }
-        .playlist-track-card {
-            background: rgba(244, 114, 182, 0.08);
-            border: 1px solid rgba(244, 114, 182, 0.3);
-            border-radius: 14px;
-            padding: 1rem 1.1rem;
-            margin-bottom: 0.75rem;
-        }
-        .playlist-track-card h4 { color: #fbcfe8; margin: 0 0 0.25rem; }
-        .playlist-track-meta { color: #a89bc4; font-size: 0.82rem; margin-bottom: 0.5rem; }
-        .swap-banner {
-            background: rgba(96, 165, 250, 0.12);
-            border: 1px solid rgba(96, 165, 250, 0.4);
-            border-radius: 12px;
-            padding: 0.85rem 1rem;
-            margin-bottom: 0.65rem;
-        }
-        .swap-priority-panel {
-            background: linear-gradient(135deg, rgba(251, 191, 36, 0.2), rgba(239, 68, 68, 0.1));
-            border: 2px solid rgba(251, 191, 36, 0.7);
-            border-radius: 14px;
-            padding: 1rem 1.2rem;
-            margin: 0 0 1.25rem;
-            box-shadow: 0 4px 20px rgba(251, 191, 36, 0.15);
-        }
-        .swap-priority-panel .swap-priority-title {
-            color: #fcd34d;
-            font-weight: 700;
-            font-size: 1.08rem;
-            margin: 0 0 0.35rem;
-        }
-        .swap-priority-panel .swap-priority-sub {
-            color: #e9d5ff;
-            font-size: 0.85rem;
-            margin: 0 0 0.75rem;
-        }
-        .swap-unread-badge {
-            position: absolute;
-            top: 0.15rem;
-            right: 0.35rem;
-            min-width: 1.15rem;
-            height: 1.15rem;
-            padding: 0 0.3rem;
-            border-radius: 999px;
-            background: #f59e0b;
-            color: #1a0a2e !important;
-            font-size: 0.65rem;
-            font-weight: 800;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            line-height: 1;
-            box-shadow: 0 2px 8px rgba(245, 158, 11, 0.55);
-            z-index: 6;
-            pointer-events: none;
-        }
-        .prog-actions {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 0.5rem;
-            margin-top: 0.5rem;
-        }
-        .prog-btn {
-            display: inline-block;
-            padding: 0.35rem 0.75rem;
-            border-radius: 8px;
-            font-size: 0.8rem;
-            font-weight: 600;
-            text-decoration: none !important;
-        }
-        .prog-btn-yt { background: #dc2626; color: #fff !important; }
-        .prog-btn-kit { background: #b45309; color: #fff !important; }
-        .prog-btn-cifra { background: #059669; color: #fff !important; }
-        .prog-btn-letra { background: #7c3aed; color: #fff !important; }
-        .voice-kit-banner {
-            display: flex;
-            flex-wrap: wrap;
-            align-items: center;
-            gap: 0.65rem 1rem;
-            margin: 0.5rem 0 1rem;
-            padding: 0.75rem 1rem;
-            border-radius: 12px;
-            border: 1px solid rgba(220, 38, 38, 0.45);
-            background: rgba(220, 38, 38, 0.12);
-        }
-        .voice-kit-banner a {
-            color: #fecaca !important;
-            font-weight: 600;
-            text-decoration: none;
-        }
-        .voice-kit-banner a:hover { text-decoration: underline; }
-        .voice-kit-banner span {
-            color: #c4b5fd;
-            font-size: 0.85rem;
-        }
-        .catalog-table-wrap {
-            overflow-x: auto;
-            border-radius: 14px;
-            border: 1px solid rgba(167, 139, 250, 0.35);
-            margin: 0.75rem 0;
-        }
-        table.catalog-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 0.88rem;
-        }
-        table.catalog-table th {
-            background: rgba(139, 92, 246, 0.35);
-            color: #faf8ff;
-            padding: 0.65rem 0.75rem;
-            text-align: center;
-            font-weight: 600;
-        }
-        table.catalog-table td {
-            padding: 0.55rem 0.75rem;
-            text-align: center;
-            border-bottom: 1px solid rgba(167, 139, 250, 0.15);
-            color: #e9e4f5;
-        }
-        table.catalog-table tr:nth-child(even) td {
-            background: rgba(255, 255, 255, 0.03);
-        }
-        table.catalog-table tr:hover td {
-            background: rgba(139, 92, 246, 0.12);
-        }
-        table.catalog-table td:first-child { text-align: left; font-weight: 500; }
-        .seq-lyrics-view { margin: 1rem 0; }
-        .seq-legend {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 0.45rem;
-            margin-bottom: 0.85rem;
-        }
-        .seq-legend-chip {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.35rem;
-            font-size: 0.68rem;
-            padding: 0.15rem 0.55rem;
-            border: 1px solid;
-            border-radius: 999px;
-            color: #c4b5fd;
-        }
-        .seq-legend-chip i {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            display: inline-block;
-        }
-        .seq-lyric-block {
-            display: flex;
-            gap: 0.75rem;
-            align-items: flex-start;
-            margin: 0.85rem 0;
-            padding: 0.65rem 0.85rem;
-            background: rgba(18, 16, 28, 0.85);
-            border-radius: 10px;
-        }
-        .seq-trecho-num {
-            flex: 0 0 1.55rem;
-            width: 1.55rem;
-            height: 1.55rem;
-            line-height: 1.55rem;
-            text-align: center;
-            border-radius: 50%;
-            font-size: 0.72rem;
-            font-weight: 700;
-            color: #0f0a1a;
-        }
-        .seq-badges-col {
-            flex: 0 0 12rem;
-            display: flex;
-            flex-direction: column;
-            gap: 0.35rem;
-        }
-        .seq-lyric-badge {
-            font-size: 0.72rem;
-            font-weight: 600;
-            color: #e9d5ff;
-            border-left: 3px solid #8b5cf6;
-            padding-left: 0.5rem;
-            line-height: 1.35;
-        }
-        .seq-badge-banda { color: #bae6fd; }
-        .seq-lyric-badge-empty {
-            color: #6b7280 !important;
-            border-left-color: #4b5563 !important;
-            font-weight: 400;
-            font-style: italic;
-        }
-        .seq-lyric-lines {
-            flex: 1;
-            color: #f4f2fa;
-            font-size: 0.95rem;
-            line-height: 1.55;
-            white-space: pre-wrap;
-        }
-        .seq-inline-lyric {
-            display: flex;
-            gap: 0.65rem;
-            align-items: flex-start;
-            margin: 0 0 0.65rem;
-            padding: 0.5rem 0.65rem;
-            background: rgba(12, 10, 22, 0.6);
-            border-radius: 8px;
-        }
-        .seq-inline-lines {
-            flex: 1;
-            color: #f4f2fa;
-            font-size: 0.95rem;
-            line-height: 1.5;
-            white-space: pre-wrap;
-        }
-        .seq-cifra-direcoes {
-            margin: 0 0 0.85rem;
-            padding: 0.5rem 0.65rem;
-            background: rgba(30, 27, 45, 0.75);
-            border-radius: 8px;
-            border: 1px solid rgba(167, 139, 250, 0.25);
-        }
-        .seq-cifra-direcoes-title {
-            font-size: 0.75rem;
-            color: #a89bc4;
-            margin: 0 0 0.45rem;
-            font-weight: 600;
-        }
-        .seq-cifra-dir {
-            display: flex;
-            flex-wrap: wrap;
-            align-items: baseline;
-            gap: 0.35rem 0.65rem;
-            margin: 0.35rem 0;
-            padding: 0.35rem 0.5rem;
-            font-size: 0.78rem;
-        }
-        .seq-cifra-dir-num {
-            font-weight: 700;
-            color: #c4b5fd;
-            min-width: 1.2rem;
-        }
-        .seq-cifra-dir-text { color: #f4f2fa; flex: 1 1 12rem; }
-        .seq-cifra-dir-lyric {
-            color: #9ca3af;
-            font-size: 0.72rem;
-            font-style: italic;
-            flex: 1 1 8rem;
-        }
-        .seq-cifra-panel {
-            background: rgba(12, 10, 20, 0.92);
-            border: 1px solid rgba(167, 139, 250, 0.35);
-            border-radius: 12px;
-            padding: 0.85rem 1rem;
-            margin-bottom: 1rem;
-        }
-        .seq-cifra-view {
-            background: rgba(12, 10, 20, 0.9);
-            border: 1px solid rgba(167, 139, 250, 0.3);
-            border-radius: 12px;
-            padding: 1rem;
-            margin: 0.75rem 0;
-        }
-        .seq-cifra-meta { color: #a89bc4; font-size: 0.85rem; margin: 0 0 0.75rem; }
-        .cifra-club-body { margin-top: 0.5rem; }
-        .cifra-strophe { margin: 0.65rem 0 1rem; }
-        .cifra-chord-line {
-            color: #fbbf24;
-            font-family: 'Consolas', 'Courier New', monospace;
-            font-size: 0.8rem;
-            font-weight: 700;
-            line-height: 1.35;
-            min-height: 1.2rem;
-            white-space: pre-wrap;
-        }
-        .cifra-chord-line .cifra-chord { color: #fbbf24; }
-        .cifra-lyric-line {
-            color: #f4f2fa;
-            font-size: 0.92rem;
-            line-height: 1.5;
-            white-space: pre-wrap;
-        }
-        .cifra-strophe-inline .cifra-lyric-line .cifra-chord {
-            color: #fbbf24;
-            font-weight: 700;
-        }
-        .seq-cifra-pre {
-            color: #fef3c7;
-            font-family: 'Consolas', 'Courier New', monospace;
-            font-size: 0.82rem;
-            line-height: 1.45;
-            white-space: pre-wrap;
-            margin: 0;
-        }
-        .seq-empty { color: #a89bc4; font-style: italic; }
-        .prog-btn-seq { background: #6366f1; color: #fff !important; }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
-    from app_theme import inject_worship_theme
-
-    inject_worship_theme()
+    inject_ibbj_theme()
 
 
 def inject_page_html(html_fragment: str, height: int = 0):
@@ -4359,7 +2915,7 @@ def inject_mobile_app_shell():
     st.markdown(
         """
         <link rel="manifest" href="/manifest.webmanifest">
-        <meta name="theme-color" content="#07060d">
+        <meta name="theme-color" content="#0a0a0a">
         <meta name="mobile-web-app-capable" content="yes">
         <meta name="apple-mobile-web-app-capable" content="yes">
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -4609,8 +3165,8 @@ def render_sidebar_profile():
             <div class="sidebar-brand-mark">
                 <span class="sidebar-brand-icon">✝</span>
                 <div>
-                    <h3>{GROUP_NAME}</h3>
-                    <p>Ministério de louvor · IBBJ</p>
+                    <h3>IGREJA Bíblica<br>BATISTA Jurema</h3>
+                    <p>Ministério de louvor</p>
                 </div>
             </div>
         </div>
@@ -4726,7 +3282,7 @@ def page_header(menu: str):
     icon = icons.get(menu, "🎵")
     title = MENU_HEADERS.get(menu, menu)
     subtitle = next((desc for name, _, desc in items if name == menu), "")
-    accent = MENU_ACCENTS.get(menu, "#fbbf24")
+    accent = MENU_ACCENTS.get(menu, "#c41e3a")
     group_label = next(
         (g for g, section_names in NAV_GROUP_ORDER if menu in section_names),
         "",
@@ -4765,15 +3321,49 @@ def humanize_stat(value: int, label: str) -> tuple[str, str]:
     return "—", "Sem informações no momento"
 
 
+def render_app_top_bar():
+    """Barra superior estilo mockup IBBJ (marca + usuário logado)."""
+    name = html.escape(str(st.session_state.get("user_name", "")))
+    roles = roles_for_public_display(str(st.session_state.get("user_roles", "")))
+    role_txt = html.escape(roles) if roles else "Membro"
+    st.markdown(
+        f"""
+        <div class="ibbj-topbar">
+            <div class="ibbj-topbar-brand">
+                <span class="ibbj-topbar-cross">✝</span>
+                <div>
+                    <p class="ibbj-topbar-title">IGREJA Bíblica BATISTA Jurema</p>
+                    <p class="ibbj-topbar-sub">Ministério de louvor · {html.escape(GROUP_NAME)}</p>
+                </div>
+            </div>
+            <div class="ibbj-topbar-user">
+                <strong>{name}</strong>
+                <span>{role_txt}</span>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def render_music_stats(stats: list[tuple[str, str, int]]):
     if not stats:
         st.caption("Resumo indisponível no momento.")
         return
-    cols = st.columns(len(stats))
-    for col, (icon, label, value) in zip(cols, stats):
+    cards = []
+    for icon, label, value in stats:
         display_val, display_label = humanize_stat(value, label)
-        with col:
-            st.metric(label=f"{icon} {display_label}", value=display_val)
+        cards.append(
+            f'<div class="ibbj-kpi-card">'
+            f'<span class="ibbj-kpi-icon">{icon}</span>'
+            f"<div><span class=\"ibbj-kpi-value\">{html.escape(display_val)}</span>"
+            f'<span class="ibbj-kpi-label">{html.escape(display_label)}</span></div>'
+            f"</div>"
+        )
+    st.markdown(
+        f'<div class="ibbj-kpi-row">{"".join(cards)}</div>',
+        unsafe_allow_html=True,
+    )
 
 
 def paginate_dataframe(df: pd.DataFrame, page_size: int, key: str) -> pd.DataFrame:
@@ -6267,6 +4857,14 @@ def show_dashboard(
         st.session_state.week_offset = 0
 
     is_mgr = is_scale_manager(st.session_state.user_roles)
+    if is_mgr:
+        render_music_stats(
+            [
+                ("👥", "Integrantes", len(members_visible_to_group(members_df))),
+                ("🎶", "Louvores", len(louvores_df)),
+                ("📅", "Escalas", len(escalas_df)),
+            ]
+        )
     start, end = week_bounds(st.session_state.week_offset)
     my_email = st.session_state.user_email.strip().lower()
     minhas = user_on_escala_semana(escalas_df, equipe_df, my_email, start, end)
@@ -7050,7 +5648,7 @@ def _render_picked_louvores_panel(
     )
     if not picked:
         st.markdown(
-            '<div class="louvor-selected-box"><p style="color:#a89bc4;margin:0;font-size:0.88rem">'
+            '<div class="louvor-selected-box"><p style="color:#4b5563;margin:0;font-size:0.88rem">'
             "Nenhum ainda — busque à esquerda e toque em ➕</p></div>",
             unsafe_allow_html=True,
         )
@@ -9259,7 +7857,7 @@ def _render_minhas_sugestoes_louvor(sugestoes_df: pd.DataFrame):
     )
     for _, s in mine.iterrows():
         status = normalize_sugestao_status(str(s.get("status", "")))
-        nota = str(s.get("review_notes", "")).strip()
+        nota = csv_cell_text(s.get("review_notes", ""))
         nota_html = (
             f'<p class="sugestao-track-meta">💬 {html.escape(nota)}</p>' if nota else ""
         )
@@ -9315,7 +7913,7 @@ def _render_gestao_sugestoes_lideranca(
             )
             motivo = st.text_input(
                 "Observação para quem sugeriu (opcional)",
-                value=str(s.get("review_notes", "")),
+                value=csv_cell_text(s.get("review_notes", "")),
                 key=f"nota_ld_{sid}",
             )
             c1, c2, c3 = st.columns(3)
@@ -9326,26 +7924,32 @@ def _render_gestao_sugestoes_lideranca(
                     use_container_width=True,
                 ):
                     mask = sugestoes_df["id"].astype(str) == sid
+                    sugestoes_df = prepare_sugestoes(sugestoes_df)
                     sugestoes_df.loc[mask, "status"] = SUGESTAO_STATUS_EM_ANALISE
-                    if motivo.strip():
-                        sugestoes_df.loc[mask, "review_notes"] = motivo.strip()
+                    nota = csv_cell_text(motivo)
+                    if nota:
+                        sugestoes_df.loc[mask, "review_notes"] = nota
                     save_data(sugestoes_df, SUGESTOES_FILE)
                     st.success("Sugestão marcada como **em análise**. Quem enviou vê o status aqui.")
                     st.rerun()
             with c2:
                 if st.button("✅ Aprovar", key=f"ap_{sid}", use_container_width=True):
                     mask = sugestoes_df["id"].astype(str) == sid
-                    if motivo.strip():
-                        sugestoes_df.loc[mask, "review_notes"] = motivo.strip()
+                    sugestoes_df = prepare_sugestoes(sugestoes_df)
+                    nota = csv_cell_text(motivo)
+                    if nota:
+                        sugestoes_df.loc[mask, "review_notes"] = nota
                     _aprovar_sugestao_louvor(s, sugestoes_df, louvores_df)
                     st.success("Aprovada! Publicada no Feed e no repertório.")
                     st.rerun()
             with c3:
                 if st.button("❌ Recusar", key=f"rj_{sid}", use_container_width=True):
                     mask = sugestoes_df["id"].astype(str) == sid
+                    sugestoes_df = prepare_sugestoes(sugestoes_df)
                     sugestoes_df.loc[mask, "status"] = SUGESTAO_STATUS_RECUSADA
-                    if motivo.strip():
-                        sugestoes_df.loc[mask, "review_notes"] = motivo.strip()
+                    nota = csv_cell_text(motivo)
+                    if nota:
+                        sugestoes_df.loc[mask, "review_notes"] = nota
                     save_data(sugestoes_df, SUGESTOES_FILE)
                     st.rerun()
 
@@ -9382,7 +7986,9 @@ def show_sugestao_louvor(sugestoes_df: pd.DataFrame, louvores_df: pd.DataFrame):
                 "review_notes": "",
             }
             save_data(
-                pd.concat([sugestoes_df, pd.DataFrame([nova])], ignore_index=True),
+                prepare_sugestoes(
+                    pd.concat([sugestoes_df, pd.DataFrame([nova])], ignore_index=True)
+                ),
                 SUGESTOES_FILE,
             )
             st.success(
@@ -9501,6 +8107,7 @@ def _run_app() -> None:
     render_push_admin_sidebar(members_df)
     render_data_loss_warning(members_df)
 
+    render_app_top_bar()
     page_header(menu)
 
     wa_open = st.session_state.pop("wa_auto_open_url", None)
@@ -9589,6 +8196,15 @@ def _run_app() -> None:
                 st.dataframe(page_members, use_container_width=True, hide_index=True)
             else:
                 st.info("Nenhum membro cadastrado ainda.")
+
+    from app_time import now_local
+
+    year = now_local().year
+    st.markdown(
+        f'<p class="ibbj-footer">© {year} Igreja Bíblica Batista Jurema — Ministério de Louvor</p>',
+        unsafe_allow_html=True,
+    )
+
 
 def main() -> None:
     try:
