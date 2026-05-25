@@ -39,21 +39,67 @@ def ibbj_theme_css() -> str:
             --shadow-card: var(--ig-shadow);
         }
 
-        html, body, [class*="css"] {
+        html, body {
+            font-family: 'Inter', 'Segoe UI', system-ui, sans-serif !important;
+            width: 100% !important;
+            min-height: 100% !important;
+            zoom: 1 !important;
+        }
+        section[data-testid="stSidebar"],
+        section.main,
+        [data-testid="stMain"] {
             font-family: 'Inter', 'Segoe UI', system-ui, sans-serif !important;
         }
 
         [data-testid="stAppViewContainer"] {
             background: var(--ig-bg) !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            min-width: 0 !important;
+            zoom: 1 !important;
+            transform: none !important;
+        }
+        [data-testid="stAppViewContainer"] > section.main {
+            width: 100% !important;
+            flex: 1 1 auto !important;
         }
         [data-testid="stHeader"] {
             background: transparent !important;
             border: none !important;
         }
-        .block-container {
+        [data-testid="stMain"] {
+            width: 100% !important;
+            max-width: 100% !important;
+        }
+        .main .block-container,
+        [data-testid="stMain"] .block-container {
             max-width: 1280px !important;
+            width: 100% !important;
             padding-top: 0.5rem !important;
             padding-bottom: 2.5rem !important;
+            margin-left: auto !important;
+            margin-right: auto !important;
+        }
+        /* Iframes de scripts (badges/PWA) fora do fluxo — não encolhem o app */
+        div[data-testid="stHtml"] {
+            margin: 0 !important;
+            padding: 0 !important;
+            min-height: 0 !important;
+            height: 0 !important;
+            overflow: visible !important;
+            line-height: 0 !important;
+        }
+        div[data-testid="stHtml"] iframe {
+            position: fixed !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 1px !important;
+            height: 1px !important;
+            min-height: 0 !important;
+            border: none !important;
+            visibility: hidden !important;
+            pointer-events: none !important;
+            z-index: -1 !important;
         }
 
         /* ========== Sidebar ========== */
@@ -682,6 +728,13 @@ def ibbj_theme_css() -> str:
         .login-hero {
             background: linear-gradient(165deg, #0f0f0f, var(--ig-bg-elevated)) !important;
             border: 1px solid var(--ig-border) !important;
+        }
+        .login-hero img {
+            max-width: 88px !important;
+            width: auto !important;
+            height: auto !important;
+            display: block !important;
+            margin: 0 auto 0.5rem !important;
         }
         .login-hero h1, .login-hero-quote { color: #fff !important; }
         .login-hero-ref { color: var(--ig-gold) !important; }

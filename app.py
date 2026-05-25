@@ -2949,15 +2949,30 @@ def apply_music_theme():
 
 
 def inject_page_html(html_fragment: str, height: int = 0):
-    """Injeta HTML/JS — components.html (compatível com Streamlit Cloud)."""
+    """Injeta HTML/JS sem iframes height=0 (evita layout encolhido no Cloud)."""
     body = html_fragment.strip()
     if not body:
         return
+
+    if height <= 0:
+        try:
+            st.html(body, unsafe_allow_javascript=True)
+            return
+        except Exception:
+            pass
+        import streamlit.components.v1 as components
+
+        wrapped = (
+            '<div style="position:fixed;left:0;top:0;width:1px;height:1px;'
+            'overflow:hidden;opacity:0;pointer-events:none;z-index:-1;">'
+            f"{body}</div>"
+        )
+        components.html(wrapped, height=1, scrolling=False)
+        return
+
     import streamlit.components.v1 as components
 
-    # height=0 em st.html quebra em algumas versões do Streamlit Cloud
-    iframe_h = 0 if height <= 0 else height
-    components.html(body, height=iframe_h, scrolling=False)
+    components.html(body, height=height, scrolling=False)
 
 
 def inject_mobile_app_shell():
@@ -3435,7 +3450,10 @@ def paginate_dataframe(df: pd.DataFrame, page_size: int, key: str) -> pd.DataFra
 def render_login_brand():
     if CROSS_IMAGE.exists():
         cross_b64 = base64.b64encode(CROSS_IMAGE.read_bytes()).decode()
-        cross_img = f'<img src="data:image/svg+xml;base64,{cross_b64}" alt="Cruz"/>'
+        cross_img = (
+            f'<img src="data:image/svg+xml;base64,{cross_b64}" alt="Cruz" '
+            f'style="max-width:88px;width:100%;height:auto;display:block;"/>'
+        )
     else:
         cross_img = '<div style="font-size:4rem;color:#d4af37;">✝</div>'
 
