@@ -63,6 +63,7 @@ from app_features import (
     render_dashboard_section_start,
     quick_nav_css_class,
     render_escala_planner_panel,
+    render_escala_suggestions_panel,
     save_feed_image_file,
 )
 from feed_graphics import generate_novo_louvor_banner
@@ -7766,9 +7767,10 @@ def show_gerenciar_escalas(
         ]
     )
 
-    tab_montar, tab_sequencia, tab_pdf, tab_membros = st.tabs(
+    tab_montar, tab_sugestoes, tab_sequencia, tab_pdf, tab_membros = st.tabs(
         [
             "🎯 Montar / editar escala",
+            "💡 Sugestões",
             "🎼 Sequência do Culto",
             "📄 PDF WhatsApp",
             "👥 Integrantes",
@@ -7783,6 +7785,15 @@ def show_gerenciar_escalas(
             louvores_df,
             members_df,
             chat_ensaio_df,
+        )
+
+    with tab_sugestoes:
+        render_escala_suggestions_panel(
+            members_df,
+            escalas_df,
+            equipe_df,
+            programa_df,
+            louvores_df,
         )
 
     with tab_sequencia:
