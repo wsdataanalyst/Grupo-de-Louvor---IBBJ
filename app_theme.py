@@ -289,11 +289,12 @@ def ibbj_theme_css() -> str:
             display: flex;
             align-items: center;
             gap: 0.85rem;
-            padding: 0.35rem 0.35rem 0.9rem;
-            margin: 0 0 0.55rem;
-            background: transparent;
-            border: none;
-            box-shadow: none;
+            padding: 0.85rem 0.75rem;
+            margin: 0 0 0.65rem;
+            border-radius: 16px;
+            background: rgba(15, 23, 42, 0.72);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
         }
         .ig-sb-avatar-wrap {
             position: relative;

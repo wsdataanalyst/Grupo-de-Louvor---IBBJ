@@ -192,7 +192,7 @@ def ibbj_v3_css() -> str:
             font-style: normal;
         }
 
-        /* Metrics — cards via st.columns + st.html */
+        /* Metrics — cards via st.columns + markdown HTML */
         [data-testid="stHorizontalBlock"]:has([class*="st-key-ig_metric"]) {
             gap: 1rem !important;
             margin-bottom: 1.1rem !important;
@@ -200,7 +200,6 @@ def ibbj_v3_css() -> str:
         [data-testid="stHorizontalBlock"]:has([class*="st-key-ig_metric"]) [data-testid="stColumn"] {
             min-width: 0 !important;
         }
-        [data-testid="stHtml"] .ig-metric-card,
         .ig-metric-card {
             position: relative;
             width: 100%;
@@ -267,20 +266,6 @@ def ibbj_v3_css() -> str:
             color: #93c5fd !important;
             background: rgba(37, 99, 235, 0.08) !important;
         }
-        [data-testid="stHtml"] {
-            background: transparent !important;
-        }
-        [data-testid="stHtml"] iframe {
-            background: transparent !important;
-            border: none !important;
-        }
-        section[data-testid="stSidebar"] [data-testid="stHtml"] {
-            width: 100% !important;
-        }
-        section[data-testid="stSidebar"] [data-testid="stHtml"] > div {
-            width: 100% !important;
-        }
-
         /* Warning */
         .ig-warn-card {
             display: flex;

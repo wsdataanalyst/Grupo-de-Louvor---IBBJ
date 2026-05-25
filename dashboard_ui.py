@@ -240,14 +240,10 @@ def render_dashboard_hero(*, user_name: str, group_name: str) -> None:
     )
 
 
-def _inject_metric_html(fragment: str) -> None:
+def render_premium_metrics(stats: list[tuple[str, str, int, str]]) -> None:
+    """(icon_key, label, value, link_label) — cards premium + link por coluna."""
     from ui_html import inject_ui_html
 
-    inject_ui_html(fragment)
-
-
-def render_premium_metrics(stats: list[tuple[str, str, int, str]]) -> None:
-    """(icon_key, label, value, link_label) — um card por coluna Streamlit."""
     menu_by_key = {
         "members": "Membros",
         "louvores": "Repertório",
@@ -262,15 +258,15 @@ def render_premium_metrics(stats: list[tuple[str, str, int, str]]) -> None:
     for col, (icon_key, label, value, link_label) in zip(cols, stats):
         val = value if value > 0 else "—"
         card_html = (
-            f'<div class="ig-metric-card ig-metric-card--{_esc_html(icon_key)}">'
+            f'<div class="ig-metric-card ig-metric-card--{icon_key}">'
             f'<div class="ig-metric-bg" aria-hidden="true"></div>'
-            f'<span class="ig-metric-ico ig-metric-ico--{_esc_html(icon_key)}"></span>'
+            f'<span class="ig-metric-ico ig-metric-ico--{icon_key}"></span>'
             f'<span class="ig-metric-value">{_esc_html(val)}</span>'
             f'<span class="ig-metric-label">{_esc_html(label)}</span>'
             f"</div>"
         )
         with col:
-            _inject_metric_html(card_html)
+            inject_ui_html(card_html)
             if st.button(
                 f"{link_label} →",
                 key=btn_keys.get(icon_key, f"ig_metric_{icon_key}"),

@@ -1,4 +1,4 @@
-"""Injeção de HTML no Streamlit sem virar bloco de código (sem indentação extra)."""
+"""Injeção de HTML no Streamlit — dedent para não virar código; markdown para o CSS global aplicar."""
 
 from __future__ import annotations
 
@@ -8,16 +8,19 @@ import streamlit as st
 
 
 def html_block(raw: str) -> str:
-    """Remove indentação de strings multilinha para o Markdown não tratar como código."""
+    """Remove indentação de strings multilinha (evita bloco de código no Markdown)."""
     return textwrap.dedent(raw).strip()
 
 
 def inject_ui_html(fragment: str, *, sidebar: bool = False) -> None:
+    """
+    Renderiza HTML com estilos do app (app_theme.css).
+
+    Usa st.markdown + unsafe_allow_html (não st.html), para o CSS global
+    atingir marca, avatar, KPIs etc. st.html/isolamento quebrava sidebar e perfil.
+    """
     body = html_block(fragment) if "\n" in fragment else fragment.strip()
     if not body:
         return
     slot = st.sidebar if sidebar else st
-    try:
-        slot.html(body)
-    except Exception:
-        slot.markdown(body, unsafe_allow_html=True)
+    slot.markdown(body, unsafe_allow_html=True)
