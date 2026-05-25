@@ -1391,6 +1391,7 @@ def inject_ibbj_theme() -> None:
     from feed_ui import feed_page_css
     from gerenciar_escalas_ui import gerenciar_escalas_page_css
     from playlist_ui import playlist_page_css
+    from sugestao_louvor_ui import sugestao_louvor_page_css
     from repertorio_ui import repertorio_page_css
     from sidebar_icons import sidebar_nav_icons_css, sidebar_tool_icons_css
 
@@ -1407,6 +1408,7 @@ def inject_ibbj_theme() -> None:
         + gerenciar_escalas_page_css()
         + repertorio_page_css()
         + playlist_page_css()
+        + sugestao_louvor_page_css()
     )
     st.markdown(f"<style>{ibbj_theme_css()}{extra}</style>", unsafe_allow_html=True)
 

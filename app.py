@@ -3500,7 +3500,7 @@ def render_sidebar_footer(
 
 
 def page_header(menu: str):
-    if menu in ("Gerenciar Escalas", "Repertório", "Playlist"):
+    if menu in ("Gerenciar Escalas", "Repertório", "Playlist", "Sugestão de louvor"):
         return
     items, _, icons = get_menu_items_for_user(st.session_state.user_roles)
     icon = icons.get(menu, "🎵")
@@ -8569,129 +8569,298 @@ def _render_minhas_sugestoes_louvor(sugestoes_df: pd.DataFrame):
 def _render_gestao_sugestoes_lideranca(
     sugestoes_df: pd.DataFrame,
     louvores_df: pd.DataFrame,
+    *,
+    premium: bool = False,
+    tab_filter: str | None = None,
 ):
     """Painel da liderança: receber (em análise), aprovar ou recusar."""
-    st.markdown("---")
-    st.subheader("📋 Gestão de sugestões (liderança)")
-    st.caption(
-        "Use **Receber / em análise** ao ver a sugestão. Depois **Aprovar** (vai ao repertório e Feed) "
-        "ou **Recusar** (opcional: motivo para quem sugeriu)."
+    from sugestao_louvor_ui import (
+        build_suggestion_row_html,
+        parse_extra_from_notes,
+        render_gestao_card_close,
+        render_gestao_card_open,
     )
+    from ui_html import inject_ui_html
 
-    fila = sugestoes_df[
-        sugestoes_df["status"].astype(str).map(normalize_sugestao_status).isin(
-            (SUGESTAO_STATUS_PENDENTE, SUGESTAO_STATUS_EM_ANALISE)
-        )
-    ].copy()
-    if fila.empty:
-        st.info("Nenhuma sugestão aguardando análise.")
+    df = prepare_sugestoes(sugestoes_df).copy()
+    df["_st"] = df["status"].astype(str).map(normalize_sugestao_status)
+
+    if tab_filter and tab_filter != "todas":
+        df = df[df["_st"] == tab_filter]
+    elif not premium:
+        df = df[df["_st"].isin((SUGESTAO_STATUS_PENDENTE, SUGESTAO_STATUS_EM_ANALISE))]
+
+    if df.empty:
+        st.info("Nenhuma sugestão neste filtro.")
         return
 
-    fila["_ord"] = pd.to_datetime(fila["created_at"], errors="coerce")
-    fila = fila.sort_values("_ord", ascending=True).drop(columns=["_ord"])
+    df["_ord"] = pd.to_datetime(df["created_at"], errors="coerce")
+    df = df.sort_values("_ord", ascending=False).drop(columns=["_ord"])
 
-    for _, s in fila.iterrows():
+    if premium:
+        rows_html = []
+        for _, s in df.iterrows():
+            status = normalize_sugestao_status(str(s.get("status", "")))
+            artista = parse_extra_from_notes(str(s.get("review_notes", "")))
+            rows_html.append(
+                build_suggestion_row_html(
+                    str(s["title"]),
+                    artista,
+                    str(s.get("suggester_name", "")),
+                    str(s.get("created_at", "")),
+                    status,
+                    SUGESTAO_STATUS_LABELS.get(status, status),
+                )
+            )
+        inject_ui_html("".join(rows_html))
+
+    for _, s in df.iterrows():
         sid = str(s["id"])
         status = normalize_sugestao_status(str(s.get("status", "")))
-        with st.expander(
-            f"{s['title']} — {s['suggester_name']} · "
-            f"{SUGESTAO_STATUS_LABELS.get(status, status)}",
-            expanded=status == SUGESTAO_STATUS_PENDENTE,
-        ):
-            st.link_button("YouTube", str(s["youtube_url"]), key=f"yt_ld_{sid}")
-            st.markdown(
-                sugestao_status_badge_html(status),
-                unsafe_allow_html=True,
-            )
-            motivo = st.text_input(
-                "Observação para quem sugeriu (opcional)",
-                value=csv_cell_text(s.get("review_notes", "")),
-                key=f"nota_ld_{sid}",
-            )
-            c1, c2, c3 = st.columns(3)
-            with c1:
-                if status == SUGESTAO_STATUS_PENDENTE and st.button(
-                    "📥 Receber (em análise)",
-                    key=f"recv_{sid}",
-                    use_container_width=True,
-                ):
-                    mask = sugestoes_df["id"].astype(str) == sid
-                    sugestoes_df = prepare_sugestoes(sugestoes_df)
-                    sugestoes_df.loc[mask, "status"] = SUGESTAO_STATUS_EM_ANALISE
-                    nota = csv_cell_text(motivo)
-                    if nota:
-                        sugestoes_df.loc[mask, "review_notes"] = nota
-                    save_data(sugestoes_df, SUGESTOES_FILE)
-                    st.success("Sugestão marcada como **em análise**. Quem enviou vê o status aqui.")
-                    st.rerun()
-            with c2:
-                if st.button("✅ Aprovar", key=f"ap_{sid}", use_container_width=True):
-                    mask = sugestoes_df["id"].astype(str) == sid
-                    sugestoes_df = prepare_sugestoes(sugestoes_df)
-                    nota = csv_cell_text(motivo)
-                    if nota:
-                        sugestoes_df.loc[mask, "review_notes"] = nota
-                    _aprovar_sugestao_louvor(s, sugestoes_df, louvores_df)
-                    st.success("Aprovada! Publicada no Feed e no repertório.")
-                    st.rerun()
-            with c3:
-                if st.button("❌ Recusar", key=f"rj_{sid}", use_container_width=True):
-                    mask = sugestoes_df["id"].astype(str) == sid
-                    sugestoes_df = prepare_sugestoes(sugestoes_df)
-                    sugestoes_df.loc[mask, "status"] = SUGESTAO_STATUS_RECUSADA
-                    nota = csv_cell_text(motivo)
-                    if nota:
-                        sugestoes_df.loc[mask, "review_notes"] = nota
-                    save_data(sugestoes_df, SUGESTOES_FILE)
-                    st.rerun()
+        if not premium:
+            with st.expander(
+                f"{s['title']} — {s['suggester_name']} · "
+                f"{SUGESTAO_STATUS_LABELS.get(status, status)}",
+                expanded=status == SUGESTAO_STATUS_PENDENTE,
+            ):
+                st.link_button("YouTube", str(s["youtube_url"]), key=f"yt_ld_{sid}")
+                st.markdown(sugestao_status_badge_html(status), unsafe_allow_html=True)
+        else:
+            st.link_button("▶ YouTube", str(s["youtube_url"]), key=f"yt_ld_{sid}")
+        motivo = st.text_input(
+            "Observação para quem sugeriu (opcional)",
+            value=csv_cell_text(s.get("review_notes", "")),
+            key=f"nota_ld_{sid}",
+            label_visibility="collapsed" if premium else "visible",
+            placeholder="Observação (opcional)" if premium else None,
+        )
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            if status == SUGESTAO_STATUS_PENDENTE and st.button(
+                "📥 Receber (em análise)",
+                key=f"recv_{sid}",
+                use_container_width=True,
+            ):
+                mask = sugestoes_df["id"].astype(str) == sid
+                sugestoes_df = prepare_sugestoes(sugestoes_df)
+                sugestoes_df.loc[mask, "status"] = SUGESTAO_STATUS_EM_ANALISE
+                nota = csv_cell_text(motivo)
+                if nota:
+                    sugestoes_df.loc[mask, "review_notes"] = nota
+                save_data(sugestoes_df, SUGESTOES_FILE)
+                st.success("Sugestão marcada como **em análise**.")
+                st.rerun()
+        with c2:
+            if st.button("✅ Aprovar", key=f"ap_{sid}", use_container_width=True):
+                mask = sugestoes_df["id"].astype(str) == sid
+                sugestoes_df = prepare_sugestoes(sugestoes_df)
+                nota = csv_cell_text(motivo)
+                if nota:
+                    sugestoes_df.loc[mask, "review_notes"] = nota
+                _aprovar_sugestao_louvor(s, sugestoes_df, louvores_df)
+                st.success("Aprovada! Publicada no Feed e no repertório.")
+                st.rerun()
+        with c3:
+            if st.button("❌ Recusar", key=f"rj_{sid}", use_container_width=True):
+                mask = sugestoes_df["id"].astype(str) == sid
+                sugestoes_df = prepare_sugestoes(sugestoes_df)
+                sugestoes_df.loc[mask, "status"] = SUGESTAO_STATUS_RECUSADA
+                nota = csv_cell_text(motivo)
+                if nota:
+                    sugestoes_df.loc[mask, "review_notes"] = nota
+                save_data(sugestoes_df, SUGESTOES_FILE)
+                st.rerun()
+        if premium:
+            st.markdown("---")
 
 
 def show_sugestao_louvor(sugestoes_df: pd.DataFrame, louvores_df: pd.DataFrame):
+    from sugestao_louvor_ui import (
+        SUGESTAO_TAB_LABELS,
+        compute_sugestao_stats,
+        pack_extra_notes,
+        parse_extra_from_notes,
+        render_footer_banner,
+        render_form_card_checks_hint,
+        render_form_card_close,
+        render_form_card_open,
+        render_sugestao_banner,
+        render_sugestao_header,
+        render_sugestao_kpis,
+        render_sugestao_nova_button,
+        render_sugestao_page_close,
+        render_sugestao_page_open,
+        render_sugestao_sidebar,
+        build_suggestion_row_html,
+        render_gestao_card_open,
+        render_gestao_card_close,
+    )
+
     mark_user_sugestoes_seen(
         sugestoes_df, str(st.session_state.get("user_email", ""))
     )
-    st.markdown('<p class="music-panel-title">💡 Sugerir louvor</p>', unsafe_allow_html=True)
-    st.write(
-        "Envie o link do YouTube e o nome da música. "
-        "Acompanhe abaixo o **status** da sua sugestão (pendente, em análise, aprovada ou recusada)."
-    )
+    sugestoes_df = prepare_sugestoes(sugestoes_df)
+    mgr = is_scale_manager(st.session_state.user_roles)
+    my_email = str(st.session_state.get("user_email", "")).strip().lower()
 
-    with st.form(key="sugestao_form"):
-        titulo = st.text_input("Nome da música")
-        yt = st.text_input("Link do YouTube")
-        enviar = st.form_submit_button("Enviar sugestão", type="primary")
-    if enviar:
-        if not titulo.strip() or not yt.strip():
-            show_form_error("Informe nome e link do YouTube.")
-        elif "youtube" not in yt.lower() and "youtu.be" not in yt.lower():
-            st.warning("Use um link válido do YouTube.")
-        else:
-            nova = {
-                "id": new_id(),
-                "title": titulo.strip().title(),
-                "youtube_url": yt.strip(),
-                "suggester_email": st.session_state.user_email,
-                "suggester_name": st.session_state.user_full_name
-                or st.session_state.user_name,
-                "status": SUGESTAO_STATUS_PENDENTE,
-                "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "review_notes": "",
+    render_sugestao_page_open()
+    col_hdr, col_btn = st.columns([4, 1])
+    with col_hdr:
+        render_sugestao_header()
+    with col_btn:
+        st.markdown('<div style="padding-top:0.5rem">', unsafe_allow_html=True)
+        render_sugestao_nova_button()
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    render_sugestao_banner()
+    counts = compute_sugestao_stats(sugestoes_df, normalize_sugestao_status)
+    render_sugestao_kpis(counts, SUGESTAO_STATUS_LABELS)
+
+    col_main, col_side = st.columns([3, 1])
+
+    with col_main:
+        render_form_card_open()
+        with st.form(key="sugestao_form"):
+            r1a, r1b = st.columns(2)
+            with r1a:
+                titulo = st.text_input("Nome da música *", placeholder="Nome da música")
+            with r1b:
+                artista = st.text_input("Artista / Ministério", placeholder="Artista ou ministério")
+            yt = st.text_input("Link YouTube *", placeholder="https://youtube.com/...")
+            r2a, r2b, r2c = st.columns(3)
+            with r2a:
+                tema = st.text_input("Tema bíblico", placeholder="Ex.: Adoração")
+            with r2b:
+                categoria = st.selectbox(
+                    "Categoria",
+                    ["", "Adoração", "Louvor", "Missões", "Comunhão", "Outra"],
+                )
+            with r2c:
+                ministracao = st.text_input("Ministração sugerida", placeholder="Ex.: Abertura")
+            r3a, r3b = st.columns(2)
+            with r3a:
+                tom = st.selectbox("Tom original", ["", "C", "D", "E", "F", "G", "A", "Bb"])
+            with r3b:
+                observacoes = st.text_area(
+                    "Observações (opcional)",
+                    placeholder="Adicione contexto para a liderança.",
+                    height=80,
+                )
+            cc1, cc2, cc3, cc4 = st.columns(4)
+            with cc1:
+                tem_cifra = st.checkbox("Tem cifra")
+            with cc2:
+                tem_playback = st.checkbox("Tem playback")
+            with cc3:
+                tem_kit = st.checkbox("Tem kit voz")
+            with cc4:
+                tem_cong = st.checkbox("Versão congregacional")
+            render_form_card_checks_hint()
+            enviar = st.form_submit_button(
+                "✈ Enviar sugestão",
+                type="primary",
+                use_container_width=True,
+            )
+        render_form_card_close()
+
+        if enviar:
+            if not titulo.strip() or not yt.strip():
+                show_form_error("Informe nome e link do YouTube.")
+            elif "youtube" not in yt.lower() and "youtu.be" not in yt.lower():
+                st.warning("Use um link válido do YouTube.")
+            else:
+                extra = pack_extra_notes(
+                    artista=artista,
+                    tema=tema,
+                    categoria=categoria,
+                    ministracao=ministracao,
+                    tom=tom,
+                    observacoes=observacoes,
+                    tem_cifra=tem_cifra,
+                    tem_playback=tem_playback,
+                    tem_kit=tem_kit,
+                    tem_cong=tem_cong,
+                )
+                nova = {
+                    "id": new_id(),
+                    "title": titulo.strip().title(),
+                    "youtube_url": yt.strip(),
+                    "suggester_email": st.session_state.user_email,
+                    "suggester_name": st.session_state.user_full_name
+                    or st.session_state.user_name,
+                    "status": SUGESTAO_STATUS_PENDENTE,
+                    "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    "review_notes": extra,
+                }
+                save_data(
+                    prepare_sugestoes(
+                        pd.concat([sugestoes_df, pd.DataFrame([nova])], ignore_index=True)
+                    ),
+                    SUGESTOES_FILE,
+                )
+                st.success("Sugestão enviada! Acompanhe o status no painel à direita.")
+                st.rerun()
+
+        if not sugestoes_df.empty and my_email:
+            mine = sugestoes_df[
+                sugestoes_df["suggester_email"].astype(str).str.strip().str.lower()
+                == my_email
+            ].copy()
+            if not mine.empty:
+                mine["_ord"] = pd.to_datetime(mine["created_at"], errors="coerce")
+                mine = mine.sort_values("_ord", ascending=False).head(8)
+                from ui_html import inject_ui_html as _inject
+
+                _inject(
+                    '<div class="ig-sug-card"><div class="ig-sug-card-title">Acompanhe suas sugestões</div>'
+                )
+                for _, s in mine.iterrows():
+                    status = normalize_sugestao_status(str(s.get("status", "")))
+                    _inject(
+                        build_suggestion_row_html(
+                            str(s["title"]),
+                            parse_extra_from_notes(str(s.get("review_notes", ""))),
+                            "Você",
+                            str(s.get("created_at", "")),
+                            status,
+                            SUGESTAO_STATUS_LABELS.get(status, status),
+                        )
+                    )
+                    yt = str(s.get("youtube_url", "")).strip()
+                    if yt.startswith("http"):
+                        st.link_button("▶ YouTube", yt, key=f"yt_mine_{s['id']}")
+                _inject("</div>")
+
+        if mgr:
+            render_gestao_card_open()
+            tab_map = {
+                SUGESTAO_TAB_LABELS[0]: "todas",
+                SUGESTAO_TAB_LABELS[1]: SUGESTAO_STATUS_PENDENTE,
+                SUGESTAO_TAB_LABELS[2]: SUGESTAO_STATUS_EM_ANALISE,
+                SUGESTAO_TAB_LABELS[3]: SUGESTAO_STATUS_APROVADA,
+                SUGESTAO_TAB_LABELS[4]: SUGESTAO_STATUS_RECUSADA,
             }
-            save_data(
-                prepare_sugestoes(
-                    pd.concat([sugestoes_df, pd.DataFrame([nova])], ignore_index=True)
-                ),
-                SUGESTOES_FILE,
-            )
-            st.success(
-                "Sugestão enviada! Acompanhe o status em **Acompanhe suas sugestões** abaixo."
-            )
-            st.rerun()
+            tabs = st.tabs(list(SUGESTAO_TAB_LABELS))
+            for tab, label in zip(tabs, SUGESTAO_TAB_LABELS):
+                with tab:
+                    _render_gestao_sugestoes_lideranca(
+                        sugestoes_df,
+                        louvores_df,
+                        premium=True,
+                        tab_filter=tab_map[label],
+                    )
+            render_gestao_card_close()
 
-    if is_scale_manager(st.session_state.user_roles):
-        _render_gestao_sugestoes_lideranca(sugestoes_df, louvores_df)
+        render_footer_banner()
 
-    _render_minhas_sugestoes_louvor(sugestoes_df)
+    with col_side:
+        render_sugestao_sidebar(
+            sugestoes_df,
+            normalize_status=normalize_sugestao_status,
+            status_labels=SUGESTAO_STATUS_LABELS,
+        )
+
+    render_sugestao_page_close()
 
 
 def _run_app() -> None:
@@ -8828,6 +8997,7 @@ def _run_app() -> None:
         "Gerenciar Escalas",
         "Repertório",
         "Playlist",
+        "Sugestão de louvor",
     ):
         page_header(menu)
 
