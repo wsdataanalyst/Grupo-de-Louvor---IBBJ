@@ -3304,24 +3304,14 @@ def format_sidebar_role_display(roles: str) -> tuple[str, str]:
 
 
 def render_sidebar_profile(members_df: pd.DataFrame | None = None):
-    from sidebar_brand import sidebar_brand_mark_html
+    from sidebar_brand import sidebar_brand_header_html
     from sidebar_icons import sidebar_user_placeholder_svg
 
-    from ui_html import inject_ui_html
+    from ui_html import html_block, inject_ui_html
 
     cross_img = _login_cross_img_html()
-    mark_html = sidebar_brand_mark_html(cross_img)
     inject_ui_html(
-        f"""
-        <div class="ig-sb-brand">
-            {mark_html}
-            <div class="ig-sb-brand-text">
-                <h2 class="ig-sb-app-name">{html.escape(LOGIN_DISPLAY_TITLE)}</h2>
-                <p class="ig-sb-app-sub">Gestão Ministerial</p>
-            </div>
-        </div>
-        <div class="ig-sb-divider" aria-hidden="true"></div>
-        """,
+        sidebar_brand_header_html(cross_img, title=LOGIN_DISPLAY_TITLE),
         sidebar=True,
     )
 
@@ -3355,20 +3345,22 @@ def render_sidebar_profile(members_df: pd.DataFrame | None = None):
         else ""
     )
     inject_ui_html(
-        f"""
-        <div class="ig-sb-profile-card">
-            <div class="ig-sb-avatar-wrap">
-                <div class="ig-sb-avatar-glow" aria-hidden="true"></div>
-                <div class="ig-sb-avatar-ring" aria-hidden="true"></div>
-                <div class="ig-sb-avatar">{avatar_inner}</div>
+        html_block(
+            f"""
+            <div class="ig-sb-profile-card">
+                <div class="ig-sb-avatar-wrap">
+                    <div class="ig-sb-avatar-glow" aria-hidden="true"></div>
+                    <div class="ig-sb-avatar-ring" aria-hidden="true"></div>
+                    <div class="ig-sb-avatar">{avatar_inner}</div>
+                </div>
+                <div class="ig-sb-profile-text">
+                    <div class="ig-sb-user-name">{html.escape(display_name)}</div>
+                    <div class="ig-sb-user-role">{html.escape(role_main)}</div>
+                    {badge_html}
+                </div>
             </div>
-            <div class="ig-sb-profile-text">
-                <strong class="ig-sb-user-name">{html.escape(display_name)}</strong>
-                <span class="ig-sb-user-role">{html.escape(role_main)}</span>
-                {badge_html}
-            </div>
-        </div>
-        """,
+            """
+        ),
         sidebar=True,
     )
 

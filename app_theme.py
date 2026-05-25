@@ -356,7 +356,8 @@ def ibbj_theme_css() -> str:
             opacity: 1;
         }
         .ig-sb-profile-text { min-width: 0; flex: 1; }
-        .ig-sb-user-name {
+        .ig-sb-user-name,
+        section[data-testid="stSidebar"] .ig-sb-user-name {
             display: block;
             color: #f8fafc !important;
             font-size: 0.95rem;

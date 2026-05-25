@@ -19,7 +19,7 @@ def inject_ui_html(fragment: str, *, sidebar: bool = False) -> None:
     Usa st.markdown + unsafe_allow_html (não st.html), para o CSS global
     atingir marca, avatar, KPIs etc. st.html/isolamento quebrava sidebar e perfil.
     """
-    body = html_block(fragment) if "\n" in fragment else fragment.strip()
+    body = fragment.strip() if "\n" not in fragment else html_block(fragment)
     if not body:
         return
     slot = st.sidebar if sidebar else st
