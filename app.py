@@ -3352,8 +3352,6 @@ def render_sidebar_footer(
 ):
     inject_app_resume_listener()
     inject_app_notification_badges(chat_unread, sug_badge, swap_alert_count)
-    with st.sidebar:
-        _app_background_sync()
     render_mobile_and_push_panel()
     if st.sidebar.button("🚪  Sair", use_container_width=True, type="secondary"):
         session_logout(st.session_state)
@@ -3884,7 +3882,9 @@ def _escalas_global_sync_body():
 
     menu = st.session_state.get("app_menu", "")
     changed = old_rev is not None and new_rev != old_rev
+    # Só atualiza telas de escala/feed; rerun após o conteúdo já ter sido desenhado.
     if menu in MENUS_AUTO_REFRESH_ESCALA and changed:
+        st.session_state._escalas_live_dirty = True
         st.rerun()
 
 
@@ -3927,18 +3927,13 @@ def _chat_global_sync_body():
         return
 
     unread = count_unread_chat_messages(st.session_state.get("_chat_df_cache"))
-    prev = st.session_state.get("_chat_unread_prev")
     st.session_state.chat_unread_count = unread
-
-    if prev is not None and int(prev) != unread:
-        st.session_state._chat_unread_prev = unread
-        st.rerun()
     st.session_state._chat_unread_prev = unread
 
 
 @st.fragment(run_every=timedelta(seconds=ESCALA_POLL_SECONDS))
 def _app_background_sync():
-    """Poll de escalas/chat/feed na sidebar — não divide a área principal em colunas vazias."""
+    """Poll em segundo plano — roda após o conteúdo da página para não bloquear os menus."""
     if not st.session_state.get("authenticated"):
         return
     _escalas_global_sync_body()
@@ -8381,6 +8376,10 @@ def _run_app() -> None:
         f'<p class="ig-footer">© {year} IGREJA · Gestão Ministerial — {html.escape(GROUP_NAME)}</p>',
         unsafe_allow_html=True,
     )
+
+    # Sync ao final: evita st.rerun() antes de renderizar Feed, Escalas, etc.
+    with st.sidebar:
+        _app_background_sync()
 
 
 def main() -> None:

@@ -70,11 +70,11 @@ def ibbj_theme_css() -> str:
                 padding-right: 2.5rem !important;
             }
         }
-        /* Injeções invisíveis (scripts) não reservam coluna na área principal */
-        section.main div[data-testid="stHtml"],
-        [data-testid="stMain"] div[data-testid="stHtml"],
+        /* Só iframes de scripts (height 0/1) — não esconde widgets do Streamlit */
         section.main div[data-testid="element-container"]:has(iframe[height="0"]),
-        section.main div[data-testid="element-container"]:has(iframe[height="1"]) {
+        section.main div[data-testid="element-container"]:has(iframe[height="1"]),
+        [data-testid="stMain"] div[data-testid="element-container"]:has(iframe[height="0"]),
+        [data-testid="stMain"] div[data-testid="element-container"]:has(iframe[height="1"]) {
             height: 0 !important;
             min-height: 0 !important;
             max-height: 0 !important;
@@ -90,18 +90,6 @@ def ibbj_theme_css() -> str:
             margin: 0 !important;
             padding: 0 !important;
             overflow: hidden !important;
-        }
-        section.main div[data-testid="stHtml"] iframe,
-        [data-testid="stMain"] div[data-testid="stHtml"] iframe {
-            position: fixed !important;
-            left: 0 !important;
-            top: 0 !important;
-            width: 1px !important;
-            height: 1px !important;
-            border: none !important;
-            visibility: hidden !important;
-            pointer-events: none !important;
-            z-index: -1 !important;
         }
         [data-testid="stHorizontalBlock"] {
             width: 100% !important;
