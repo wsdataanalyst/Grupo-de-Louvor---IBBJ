@@ -37,7 +37,6 @@ def ibbj_theme_css() -> str:
             --radius-lg: var(--ig-radius);
             --radius-md: 10px;
             --shadow-card: var(--ig-shadow);
-            --ig-sidebar-w: 17.5rem;
             --ig-content-max: 1280px;
             --ig-content-pad-x: 1.25rem;
             /* Login — mobile-first (sobrescreve por breakpoint) */
@@ -64,28 +63,15 @@ def ibbj_theme_css() -> str:
             border: none !important;
         }
 
-        /* ========== Shell responsivo (app logado: celular / tablet / desktop) ========== */
+        /* ========== App logado: NÃO alterar flex/width da sidebar (layout nativo Streamlit) ========== */
         [data-testid="stAppViewContainer"]:not(:has(.login-page)) {
-            display: flex !important;
-            flex-direction: row !important;
-            align-items: stretch !important;
-            width: 100% !important;
-            max-width: 100vw !important;
             overflow-x: hidden !important;
-        }
-        [data-testid="stAppViewContainer"]:not(:has(.login-page)) section[data-testid="stSidebar"] {
-            flex: 0 0 var(--ig-sidebar-w) !important;
-            width: var(--ig-sidebar-w) !important;
-            min-width: var(--ig-sidebar-w) !important;
-            max-width: min(21rem, 38vw) !important;
+            max-width: 100vw !important;
         }
         [data-testid="stAppViewContainer"]:not(:has(.login-page)) section.main,
         [data-testid="stAppViewContainer"]:not(:has(.login-page)) [data-testid="stMain"],
         [data-testid="stAppViewContainer"]:not(:has(.login-page)) [data-testid="stMainBlockContainer"] {
-            flex: 1 1 auto !important;
             min-width: 0 !important;
-            width: auto !important;
-            max-width: 100% !important;
         }
         [data-testid="stAppViewContainer"]:not(:has(.login-page)) .main .block-container,
         [data-testid="stAppViewContainer"]:not(:has(.login-page)) [data-testid="stMain"] .block-container,
@@ -100,18 +86,8 @@ def ibbj_theme_css() -> str:
             margin-right: auto !important;
             box-sizing: border-box !important;
         }
-        /* Colunas Streamlit: não forçar 100% no bloco (evita faixa vazia / zoom estranho no PC) */
-        [data-testid="stAppViewContainer"]:not(:has(.login-page)) [data-testid="stHorizontalBlock"] {
-            width: 100% !important;
-            max-width: 100% !important;
-            gap: 0.75rem !important;
-            align-items: flex-start !important;
-            flex-wrap: nowrap !important;
-        }
         [data-testid="stAppViewContainer"]:not(:has(.login-page)) [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {
             min-width: 0 !important;
-            flex: 1 1 0% !important;
-            max-width: 100% !important;
         }
         [data-testid="stAppViewContainer"]:not(:has(.login-page)) section.main img,
         [data-testid="stAppViewContainer"]:not(:has(.login-page)) [data-testid="stMain"] img {
@@ -123,10 +99,9 @@ def ibbj_theme_css() -> str:
             max-width: 100% !important;
         }
 
-        /* Tablet (iPad etc.) — app logado + variáveis do login */
+        /* Tablet — conteúdo + login */
         @media (min-width: 769px) and (max-width: 1100px) {
             :root {
-                --ig-sidebar-w: 15.5rem;
                 --ig-content-max: 100%;
                 --ig-content-pad-x: 1.5rem;
                 --ig-login-card-w: min(400px, 88vw);
@@ -139,8 +114,7 @@ def ibbj_theme_css() -> str:
         /* Desktop */
         @media (min-width: 1101px) {
             :root {
-                --ig-sidebar-w: 18rem;
-                --ig-content-max: min(1280px, calc(100vw - var(--ig-sidebar-w) - 2.5rem));
+                --ig-content-max: 1280px;
                 --ig-content-pad-x: 2rem;
                 --ig-login-card-w: 420px;
                 --ig-login-card-max: 420px;
@@ -149,27 +123,23 @@ def ibbj_theme_css() -> str:
                 --ig-login-main-pad: 0 0 2rem;
             }
         }
-        /* Smartphone — app logado: layout nativo Streamlit (menu em gaveta) */
+        /* Smartphone — app logado: área principal em largura total; menu em gaveta (Streamlit) */
         @media (max-width: 768px) {
             :root {
                 --ig-content-max: 100%;
                 --ig-content-pad-x: 0.65rem;
             }
-            [data-testid="stAppViewContainer"]:not(:has(.login-page)) {
-                display: block !important;
-            }
-            [data-testid="stAppViewContainer"]:not(:has(.login-page)) section[data-testid="stSidebar"] {
-                flex: none !important;
-                width: auto !important;
-                min-width: 0 !important;
-                max-width: none !important;
+            [data-testid="stAppViewContainer"]:not(:has(.login-page)) section.main,
+            [data-testid="stAppViewContainer"]:not(:has(.login-page)) [data-testid="stMain"] {
+                width: 100% !important;
+                max-width: 100% !important;
             }
             [data-testid="stAppViewContainer"]:not(:has(.login-page)) [data-testid="stHorizontalBlock"] {
                 flex-wrap: wrap !important;
             }
             [data-testid="stAppViewContainer"]:not(:has(.login-page)) [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {
                 flex: 1 1 100% !important;
-                min-width: min(100%, 100%) !important;
+                min-width: 0 !important;
             }
         }
 
