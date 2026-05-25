@@ -41,9 +41,16 @@ CULTO_PARTES_5 = [
     "Louvor 1",
     "Louvor 2",
     "Louvor 3",
-    "Momento de adoração",
+    "Oferta",
 ]
-CULTO_PARTES_6 = CULTO_PARTES_5 + ["Oferta"]
+CULTO_PARTES_6 = [
+    "Abertura / Entrada",
+    "Louvor 1",
+    "Louvor 2",
+    "Louvor 3",
+    "Momento de adoração",
+    "Oferta",
+]
 
 
 @dataclass
