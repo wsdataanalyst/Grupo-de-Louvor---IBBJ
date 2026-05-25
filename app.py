@@ -363,13 +363,15 @@ MENU_ACCENTS = {
     "Perfil": "#d4af37",
 }
 
-# Organização do menu por áreas (sidebar)
+# Organização do menu por áreas (sidebar — layout premium v2)
 NAV_GROUP_ORDER = (
-    ("Início", ("Feed", "Dashboard")),
-    ("Culto & escalas", ("Escalas", "Gerenciar Escalas")),
-    ("Repertório", ("Repertório", "Playlist", "Sugestão de louvor")),
-    ("Comunidade", ("Chat", "Eventos", "Membros")),
-    ("Conta", ("Perfil",)),
+    ("Principal", ("Dashboard", "Feed")),
+    (
+        "Ministério",
+        ("Escalas", "Gerenciar Escalas", "Repertório", "Playlist", "Sugestão de louvor"),
+    ),
+    ("Comunicação", ("Chat", "Eventos")),
+    ("Pessoas", ("Membros", "Perfil")),
 )
 
 DASHBOARD_QUICK_LINKS = (
@@ -3035,9 +3037,9 @@ def inject_mobile_app_shell():
         )
 
 
-def render_mobile_and_push_panel():
+def render_mobile_and_push_panel(*, expander_title: str = "📲 App no celular e notificações"):
     """Instalação no celular + ativar notificações."""
-    with st.sidebar.expander("📲 App no celular e notificações", expanded=False):
+    with st.sidebar.expander(expander_title, expanded=False):
         st.markdown(
             """
             **Android:** abra no Chrome → menu **Instalar app** (ou use um **APK** gerado em
@@ -3238,32 +3240,118 @@ def render_data_loss_warning(members_df: pd.DataFrame):
     st.warning(f"**Poucos integrantes neste servidor.** {hint}")
 
 
-def render_sidebar_profile():
+def nav_sidebar_button_key(menu_name: str) -> str:
+    slug_map = {
+        "Dashboard": "dashboard",
+        "Feed": "feed",
+        "Escalas": "escalas",
+        "Gerenciar Escalas": "gerenciar_escalas",
+        "Repertório": "repertorio",
+        "Playlist": "playlist",
+        "Sugestão de louvor": "sugestao_louvor",
+        "Chat": "chat",
+        "Eventos": "eventos",
+        "Membros": "membros",
+        "Perfil": "perfil",
+    }
+    slug = slug_map.get(menu_name) or re.sub(r"[^a-z0-9]+", "_", menu_name.lower()).strip("_")
+    return f"ig_nav_{slug or 'item'}"
+
+
+def format_sidebar_role_display(roles: str) -> tuple[str, str]:
+    """Linha principal de funções + badge secundário (card do usuário na sidebar)."""
+    parts = [p.strip() for p in str(roles).split(",") if p.strip()]
+    if not parts:
+        return "Membro", ""
+    vocal = [p for p in parts if "vocal" in p.lower()]
+    leadership = [p for p in parts if p in LEADERSHIP_ROLES]
+    music = [
+        p
+        for p in parts
+        if p not in vocal and p not in leadership and p not in LEADERSHIP_ROLES
+    ]
+    if vocal:
+        main = " · ".join(vocal[:2])
+    elif leadership:
+        main = leadership[0]
+    else:
+        main = parts[0]
+    badge = ""
+    for pool in (music, parts):
+        for p in pool:
+            if p != main and p not in main:
+                badge = p
+                break
+        if badge:
+            break
+    return main, badge
+
+
+def render_sidebar_profile(members_df: pd.DataFrame | None = None):
+    cross_img = _login_cross_img_html()
     st.sidebar.markdown(
         f"""
-        <div class="sidebar-brand">
-            <div class="sidebar-brand-mark">
-                <span class="sidebar-brand-icon">✝</span>
-                <div>
-                    <h3>IGREJA</h3>
-                    <p class="brand-line2">Gestão ministerial</p>
+        <div class="ig-sb-brand">
+            <div class="ig-sb-logo-stack">
+                {cross_img}
+                <div class="login-eq" aria-hidden="true">
+                    <span></span><span></span><span></span><span></span>
+                    <span></span><span></span><span></span>
                 </div>
+            </div>
+            <h2 class="ig-sb-app-name">{html.escape(LOGIN_DISPLAY_TITLE)}</h2>
+            <p class="ig-sb-app-sub">Gestão Ministerial</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    email = str(st.session_state.get("user_email", "")).strip().lower()
+    stored_photo = str(st.session_state.get("user_profile_photo", "")).strip()
+    if members_df is not None and not members_df.empty and email:
+        match = members_df[members_df["email"].astype(str).str.lower() == email]
+        if not match.empty:
+            stored_photo = str(match.iloc[0].get("profile_photo", "")).strip() or stored_photo
+
+    display_name = (
+        str(st.session_state.get("user_full_name", "")).strip()
+        or str(st.session_state.get("user_name", "")).strip()
+        or "Integrante"
+    )
+    initial = display_name[:1].upper() if display_name else "?"
+    photo_uri = profile_photo_to_data_uri(email, stored_photo) if email else None
+    if photo_uri:
+        avatar_inner = f'<img src="{photo_uri}" alt="" />'
+    else:
+        avatar_inner = f'<span class="ig-sb-avatar-letter">{html.escape(initial)}</span>'
+
+    roles = str(st.session_state.get("user_roles", "")).strip()
+    role_main, role_badge = format_sidebar_role_display(roles)
+    badge_html = (
+        f'<span class="ig-sb-role-badge">{html.escape(role_badge)}</span>'
+        if role_badge
+        else ""
+    )
+    st.sidebar.markdown(
+        f"""
+        <div class="ig-sb-profile-card">
+            <div class="ig-sb-avatar-wrap">
+                <div class="ig-sb-avatar-glow"></div>
+                <div class="ig-sb-avatar">{avatar_inner}</div>
+            </div>
+            <div class="ig-sb-profile-text">
+                <strong class="ig-sb-user-name">{html.escape(display_name)}</strong>
+                <span class="ig-sb-user-role">{html.escape(role_main)}</span>
+                {badge_html}
             </div>
         </div>
         """,
         unsafe_allow_html=True,
     )
-    roles = str(st.session_state.user_roles).strip()
-    role_txt = roles_for_public_display(roles) if roles else "Membro"
-    st.sidebar.markdown(
-        f'<div class="sidebar-user-mini"><strong>{html.escape(st.session_state.user_name)}</strong>'
-        f"<br><span>{html.escape(role_txt)}</span></div>",
-        unsafe_allow_html=True,
-    )
 
 
 def render_sidebar_navigation() -> str:
-    """Menu lateral com seções visuais e seleção única."""
+    """Menu lateral por seções (botões) — compatível com badges e atalhos do Dashboard."""
     groups = build_nav_groups_for_user(st.session_state.user_roles)
     flat: list[tuple[str, str, str]] = []
     for _, section in groups:
@@ -3274,33 +3362,27 @@ def render_sidebar_navigation() -> str:
     if "app_menu" not in st.session_state or st.session_state.app_menu not in names:
         st.session_state.app_menu = "Feed" if "Feed" in names else (names[0] if names else "Dashboard")
 
-    st.sidebar.markdown(
-        '<p class="nav-group-label">NAVEGAÇÃO</p>',
-        unsafe_allow_html=True,
-    )
-    group_legend = " · ".join(g for g, _ in groups)
-    st.sidebar.markdown(
-        f'<p class="sidebar-nav-legend">{html.escape(group_legend)}</p>',
-        unsafe_allow_html=True,
-    )
-
-    try:
-        idx = names.index(st.session_state.app_menu)
-    except ValueError:
-        idx = 0
-
-    # Sem key no widget: navegação só via app_menu (compatível com atalhos do Dashboard)
-    picked = st.sidebar.radio(
-        "Ir para",
-        names,
-        index=idx,
-        format_func=lambda n, ic=icons: f"{ic.get(n, '🎵')}  {n}",
-        label_visibility="collapsed",
-    )
-    if picked != st.session_state.app_menu:
-        st.session_state.app_menu = picked
-        st.rerun()
-    return picked
+    current = str(st.session_state.app_menu)
+    st.sidebar.markdown('<nav class="ig-sb-nav" aria-label="Menu principal">', unsafe_allow_html=True)
+    for group_label, section in groups:
+        st.sidebar.markdown(
+            f'<p class="ig-sb-nav-group">{html.escape(group_label.upper())}</p>',
+            unsafe_allow_html=True,
+        )
+        for name, icon, _desc in section:
+            is_active = name == current
+            label = f"{icon}  {name}"
+            if st.sidebar.button(
+                label,
+                key=nav_sidebar_button_key(name),
+                use_container_width=True,
+                type="primary" if is_active else "secondary",
+            ):
+                if not is_active:
+                    st.session_state.app_menu = name
+                    st.rerun()
+    st.sidebar.markdown("</nav>", unsafe_allow_html=True)
+    return current
 
 
 def render_dashboard_quick_actions(roles: str):
@@ -3344,18 +3426,43 @@ def render_dashboard_quick_actions(roles: str):
     render_dashboard_section_end()
 
 
+def render_sidebar_tools_panel(members_df: pd.DataFrame | None = None):
+    """Ferramentas (dev/admin) + app no celular — card inferior da sidebar."""
+    dev = is_current_developer()
+    st.sidebar.markdown('<div class="ig-sb-tools-card">', unsafe_allow_html=True)
+    if dev:
+        st.sidebar.markdown('<p class="ig-sb-tools-title">Ferramentas</p>', unsafe_allow_html=True)
+        if members_df is not None:
+            render_push_admin_sidebar(members_df)
+        render_mobile_and_push_panel(expander_title="⚙️ Configurações")
+    else:
+        render_mobile_and_push_panel(expander_title="📲 App no celular e notificações")
+    st.sidebar.markdown("</div>", unsafe_allow_html=True)
+
+
 def render_sidebar_footer(
     *,
+    members_df: pd.DataFrame | None = None,
     chat_unread: int = 0,
     sug_badge: int = 0,
     swap_alert_count: int = 0,
 ):
     inject_app_resume_listener()
     inject_app_notification_badges(chat_unread, sug_badge, swap_alert_count)
-    render_mobile_and_push_panel()
-    if st.sidebar.button("🚪  Sair", use_container_width=True, type="secondary"):
+    render_sidebar_tools_panel(members_df)
+    if st.sidebar.button("🚪  Sair", key="ig_sidebar_logout", use_container_width=True, type="secondary"):
         session_logout(st.session_state)
         st.rerun()
+    st.sidebar.markdown(
+        """
+        <div class="ig-sb-footer-verse">
+            <span class="ig-sb-footer-heart" aria-hidden="true">♥</span>
+            <p class="ig-sb-footer-text">Tudo quanto tem fôlego louve ao Senhor.</p>
+            <p class="ig-sb-footer-ref">Salmos 150:6</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def page_header(menu: str):
@@ -8235,7 +8342,7 @@ def _run_app() -> None:
 
     session_touch(st.session_state)
 
-    render_sidebar_profile()
+    render_sidebar_profile(members_df)
     if "_escalas_bundle" not in st.session_state:
         try:
             refresh_escalas_bundle()
@@ -8262,11 +8369,11 @@ def _run_app() -> None:
     _feed_global_sync()
     _chat_global_sync()
     render_sidebar_footer(
+        members_df=members_df,
         chat_unread=chat_unread,
         sug_badge=sug_badge,
         swap_alert_count=swap_alert_count,
     )
-    render_push_admin_sidebar(members_df)
     render_data_loss_warning(members_df)
 
     page_header(menu)

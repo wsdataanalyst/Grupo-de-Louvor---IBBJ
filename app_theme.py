@@ -185,189 +185,230 @@ def ibbj_theme_css() -> str:
             box-shadow: 0 2px 6px rgba(255, 69, 58, 0.45);
         }
 
-        /* ========== Sidebar ========== */
+        /* ========== Sidebar premium v2 (IBBJ Louvor) ========== */
         section[data-testid="stSidebar"] {
-            background: linear-gradient(180deg, #0f0f0f 0%, var(--ig-bg-elevated) 100%) !important;
-            border-right: 1px solid var(--ig-border) !important;
-            box-shadow: 4px 0 24px rgba(0, 0, 0, 0.35) !important;
+            background: linear-gradient(180deg, #030712 0%, #0a0f1a 55%, #030712 100%) !important;
+            border-right: 1px solid rgba(37, 99, 235, 0.12) !important;
+            box-shadow: 4px 0 32px rgba(0, 0, 0, 0.45), inset -1px 0 0 rgba(37, 99, 235, 0.08) !important;
         }
         section[data-testid="stSidebar"] > div {
-            padding-top: 0.35rem !important;
-        }
-        section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p,
-        section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] strong,
-        section[data-testid="stSidebar"] label {
-            color: rgba(255, 255, 255, 0.82) !important;
+            padding: 0.65rem 0.55rem 1rem !important;
         }
         section[data-testid="stSidebar"] .stCaption {
-            color: var(--ig-text-dim) !important;
+            color: #94a3b8 !important;
             font-size: 0.72rem !important;
         }
 
-        .sidebar-brand {
-            padding: 1rem 0.65rem 1.1rem !important;
-            margin-bottom: 0.25rem !important;
-            border-bottom: 1px solid var(--ig-border) !important;
+        .ig-sb-brand {
+            text-align: center;
+            padding: 0.35rem 0.25rem 0.85rem;
+            margin-bottom: 0.5rem;
         }
-        .sidebar-brand-mark {
+        .ig-sb-logo-stack { display: flex; flex-direction: column; align-items: center; }
+        .ig-sb-brand .login-cross { width: 44px; height: auto; }
+        .ig-sb-brand .login-eq { height: 26px; margin-top: 4px; }
+        .ig-sb-app-name {
+            margin: 0.55rem 0 0.2rem;
+            font-size: 1.12rem;
+            font-weight: 700;
+            color: #f8fafc !important;
+            letter-spacing: -0.02em;
+        }
+        .ig-sb-app-sub {
+            margin: 0;
+            font-size: 0.62rem;
+            font-weight: 700;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: #d4a017 !important;
+        }
+
+        .ig-sb-profile-card {
             display: flex;
             align-items: center;
             gap: 0.75rem;
+            padding: 0.85rem 0.75rem;
+            margin: 0 0 0.65rem;
+            border-radius: 16px;
+            background: rgba(15, 23, 42, 0.72);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
         }
-        .sidebar-brand-icon {
-            width: 2.5rem;
-            height: 2.5rem;
+        .ig-sb-avatar-wrap { position: relative; flex-shrink: 0; }
+        .ig-sb-avatar-glow {
+            position: absolute;
+            inset: -6px;
             border-radius: 50%;
-            background: linear-gradient(145deg, #e8c547, var(--ig-gold));
-            color: #1a1208;
+            background: radial-gradient(circle, rgba(37, 99, 235, 0.45) 0%, transparent 70%);
+            filter: blur(6px);
+        }
+        .ig-sb-avatar {
+            position: relative;
+            width: 2.75rem;
+            height: 2.75rem;
+            border-radius: 50%;
+            overflow: hidden;
+            border: 2px solid rgba(37, 99, 235, 0.55);
+            background: #1e293b;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 1.05rem;
-            font-weight: 800;
-            box-shadow: 0 4px 16px rgba(212, 175, 55, 0.35);
-            flex-shrink: 0;
         }
-        .sidebar-brand h3 {
-            color: #fff !important;
-            font-size: 1.05rem !important;
-            font-weight: 800 !important;
-            margin: 0 !important;
-            line-height: 1.15 !important;
-            letter-spacing: 0.02em !important;
+        .ig-sb-avatar img { width: 100%; height: 100%; object-fit: cover; }
+        .ig-sb-avatar-letter {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: #93c5fd;
         }
-        .sidebar-brand .brand-line2 {
-            color: var(--ig-text-muted) !important;
-            font-size: 0.68rem !important;
-            font-weight: 600 !important;
-            letter-spacing: 0.14em !important;
-            text-transform: uppercase !important;
-            margin: 0.15rem 0 0 !important;
+        .ig-sb-profile-text { min-width: 0; flex: 1; }
+        .ig-sb-user-name {
+            display: block;
+            color: #f8fafc !important;
+            font-size: 0.88rem;
+            font-weight: 600;
+            line-height: 1.25;
         }
-        .sidebar-user-mini {
-            padding: 0.5rem 0.65rem 0.75rem !important;
-            border-bottom: 1px solid var(--ig-border) !important;
-            margin-bottom: 0.35rem !important;
+        .ig-sb-user-role {
+            display: block;
+            color: #94a3b8 !important;
+            font-size: 0.72rem;
+            margin-top: 0.12rem;
+            line-height: 1.3;
         }
-        .sidebar-user-mini strong {
-            color: var(--ig-text) !important;
-            font-size: 0.85rem !important;
-        }
-        .sidebar-user-mini span {
-            color: var(--ig-text-muted) !important;
-            font-size: 0.72rem !important;
+        .ig-sb-role-badge {
+            display: inline-block;
+            margin-top: 0.35rem;
+            padding: 0.15rem 0.5rem;
+            border-radius: 999px;
+            font-size: 0.62rem;
+            font-weight: 600;
+            color: #bfdbfe !important;
+            background: rgba(37, 99, 235, 0.25);
+            border: 1px solid rgba(37, 99, 235, 0.4);
         }
 
-        .nav-group-label {
-            color: var(--ig-gold) !important;
-            font-size: 0.62rem !important;
+        .ig-sb-nav-group {
+            color: #64748b !important;
+            font-size: 0.58rem !important;
             font-weight: 700 !important;
-            letter-spacing: 0.16em !important;
-            text-transform: uppercase !important;
-            margin: 0.85rem 0 0.35rem 0.5rem !important;
+            letter-spacing: 0.14em !important;
+            margin: 0.75rem 0 0.35rem 0.45rem !important;
+            padding: 0 !important;
         }
-        .sidebar-nav-legend {
-            color: var(--ig-text-dim) !important;
-            font-size: 0.68rem !important;
-            line-height: 1.45 !important;
-            padding: 0 0.5rem 0.65rem !important;
-            margin: 0 !important;
-        }
+        .ig-sb-nav { display: block; margin-bottom: 0.35rem; }
 
-        /* Menu lateral — lista moderna (sem bolinhas do radio) */
-        section[data-testid="stSidebar"] div[data-testid="stRadio"] {
-            gap: 0.28rem !important;
-        }
-        section[data-testid="stSidebar"] div[data-testid="stRadio"] > label {
+        section[data-testid="stSidebar"] [class*="st-key-ig_nav_"] {
             position: relative !important;
-            display: flex !important;
-            align-items: center !important;
-            min-height: 2.65rem !important;
-            margin: 0 0 0.12rem 0 !important;
-            padding: 0.62rem 2.35rem 0.62rem 0.95rem !important;
-            border-radius: 10px !important;
-            border: 1px solid transparent !important;
-            background: transparent !important;
-            color: rgba(255, 255, 255, 0.72) !important;
-            font-weight: 500 !important;
-            font-size: 0.86rem !important;
-            letter-spacing: 0.01em !important;
-            cursor: pointer !important;
-            transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease,
-                box-shadow 0.18s ease !important;
+            margin-bottom: 0.2rem !important;
         }
-        section[data-testid="stSidebar"] div[data-testid="stRadio"] > label:hover {
+        section[data-testid="stSidebar"] [class*="st-key-ig_nav_"] .stButton > button {
+            width: 100% !important;
+            min-height: 2.55rem !important;
+            justify-content: flex-start !important;
+            text-align: left !important;
+            padding: 0.55rem 2.1rem 0.55rem 0.85rem !important;
+            border-radius: 12px !important;
+            font-size: 0.84rem !important;
+            font-weight: 500 !important;
+            letter-spacing: 0.01em !important;
+            transition: background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease !important;
+        }
+        section[data-testid="stSidebar"] [class*="st-key-ig_nav_"] .stButton > button[kind="secondary"] {
+            background: transparent !important;
+            color: #cbd5e1 !important;
+            border: 1px solid transparent !important;
+            box-shadow: none !important;
+        }
+        section[data-testid="stSidebar"] [class*="st-key-ig_nav_"] .stButton > button[kind="secondary"]:hover {
             background: rgba(255, 255, 255, 0.05) !important;
             border-color: rgba(255, 255, 255, 0.08) !important;
-            color: #fff !important;
+            color: #f8fafc !important;
         }
-        section[data-testid="stSidebar"] div[data-testid="stRadio"] > label[data-checked="true"],
-        section[data-testid="stSidebar"] div[data-testid="stRadio"] label:has(input:checked) {
+        section[data-testid="stSidebar"] [class*="st-key-ig_nav_"] .stButton > button[kind="primary"] {
             background: linear-gradient(
-                90deg,
-                rgba(212, 175, 55, 0.22) 0%,
-                rgba(212, 175, 55, 0.06) 100%
+                135deg,
+                rgba(37, 99, 235, 0.92) 0%,
+                rgba(37, 99, 235, 0.45) 100%
             ) !important;
-            border: 1px solid rgba(212, 175, 55, 0.5) !important;
-            color: var(--ig-gold) !important;
+            color: #f8fafc !important;
+            border: 1px solid rgba(37, 99, 235, 0.65) !important;
+            box-shadow: 0 4px 18px rgba(37, 99, 235, 0.35), inset 0 1px 0 rgba(212, 160, 23, 0.25) !important;
             font-weight: 600 !important;
-            box-shadow: inset 3px 0 0 var(--ig-gold) !important;
         }
-        /* Oculta bolinha/indicador nativo do Streamlit */
-        section[data-testid="stSidebar"] div[data-testid="stRadio"] > label > div:first-child {
-            display: none !important;
-            width: 0 !important;
-            min-width: 0 !important;
-            height: 0 !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            opacity: 0 !important;
-            visibility: hidden !important;
-        }
-        section[data-testid="stSidebar"] div[data-testid="stRadio"] input[type="radio"] {
+        section[data-testid="stSidebar"] [class*="st-key-ig_nav_"] .nav-wa-badge {
             position: absolute !important;
-            opacity: 0 !important;
-            width: 0 !important;
-            height: 0 !important;
-            pointer-events: none !important;
-        }
-        section[data-testid="stSidebar"] div[data-testid="stRadio"] label p,
-        section[data-testid="stSidebar"] div[data-testid="stRadio"] label [data-testid="stMarkdownContainer"] p {
-            margin: 0 !important;
-            padding: 0 !important;
-            color: inherit !important;
-            font-size: inherit !important;
-            font-weight: inherit !important;
-            line-height: 1.35 !important;
-        }
-        section[data-testid="stSidebar"] div[data-testid="stRadio"] label .nav-wa-badge {
-            position: absolute !important;
-            right: 0.55rem !important;
+            right: 0.5rem !important;
             top: 50% !important;
-            left: auto !important;
             transform: translateY(-50%) !important;
-            border-color: var(--ig-bg-elevated) !important;
-            z-index: 5 !important;
+            border-color: #030712 !important;
+            z-index: 6 !important;
         }
-        section[data-testid="stSidebar"] div[data-testid="stRadio"] [role="radiogroup"] {
+
+        .ig-sb-tools-card {
+            margin: 0.85rem 0 0.5rem;
+            padding: 0.65rem 0.55rem;
+            border-radius: 16px;
+            background: rgba(15, 23, 42, 0.55);
+            border: 1px solid rgba(255, 255, 255, 0.07);
+        }
+        .ig-sb-tools-title {
+            color: #94a3b8 !important;
+            font-size: 0.58rem !important;
+            font-weight: 700 !important;
+            letter-spacing: 0.14em !important;
+            text-transform: uppercase !important;
+            margin: 0 0 0.4rem 0.35rem !important;
+        }
+        section[data-testid="stSidebar"] .ig-sb-tools-card [data-testid="stExpander"] {
+            background: rgba(15, 23, 42, 0.5) !important;
+            border: 1px solid rgba(255, 255, 255, 0.06) !important;
+            border-radius: 12px !important;
+            margin-bottom: 0.35rem !important;
+        }
+        section[data-testid="stSidebar"] .ig-sb-tools-card .streamlit-expanderHeader {
+            background: transparent !important;
             border: none !important;
-            gap: 0.28rem !important;
+            color: #e2e8f0 !important;
+            font-size: 0.78rem !important;
+            padding: 0.45rem 0.5rem !important;
+            border-radius: 12px !important;
         }
-        section[data-testid="stSidebar"] button[kind="secondary"] {
-            background: var(--ig-bg-card) !important;
-            color: var(--ig-text) !important;
-            border: 1px solid var(--ig-border-strong) !important;
+        section[data-testid="stSidebar"] .ig-sb-tools-card .streamlit-expanderHeader:hover {
+            background: rgba(255, 255, 255, 0.04) !important;
         }
-        section[data-testid="stSidebar"] .streamlit-expanderHeader {
-            background: var(--ig-bg-card) !important;
-            border: 1px solid var(--ig-border) !important;
-            border-radius: var(--ig-radius) !important;
-            color: var(--ig-text) !important;
+
+        section[data-testid="stSidebar"] [class*="st-key-ig_sidebar_logout"] .stButton > button {
+            min-height: 2.6rem !important;
+            border-radius: 12px !important;
+            background: rgba(127, 29, 29, 0.35) !important;
+            border: 1px solid rgba(239, 68, 68, 0.45) !important;
+            color: #fca5a5 !important;
+            font-weight: 600 !important;
         }
-        section[data-testid="stSidebar"] [data-testid="stExpander"] {
-            background: var(--ig-bg-card) !important;
-            border: 1px solid var(--ig-border) !important;
-            border-radius: var(--ig-radius) !important;
+        section[data-testid="stSidebar"] [class*="st-key-ig_sidebar_logout"] .stButton > button:hover {
+            background: rgba(185, 28, 28, 0.45) !important;
+            color: #fecaca !important;
+        }
+
+        .ig-sb-footer-verse {
+            text-align: center;
+            margin-top: 0.85rem;
+            padding: 0.65rem 0.35rem 0.25rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.06);
+        }
+        .ig-sb-footer-heart { color: #d4a017; font-size: 0.85rem; }
+        .ig-sb-footer-text {
+            margin: 0.35rem 0 0.15rem;
+            font-size: 0.68rem;
+            line-height: 1.45;
+            color: #94a3b8 !important;
+            font-style: italic;
+        }
+        .ig-sb-footer-ref {
+            margin: 0;
+            font-size: 0.72rem;
+            font-weight: 600;
+            color: #d4a017 !important;
         }
 
         /* ========== Área principal — dark ========== */

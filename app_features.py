@@ -107,13 +107,9 @@ def inject_app_notification_badges(
             var sidebar = doc.querySelector('[data-testid="stSidebar"]');
             if (!sidebar) return;
             sidebar.querySelectorAll('[class*="st-key-ig_nav_"]').forEach(function (wrap) {{
-              var raw = (wrap.innerText || "").trim();
-              var n = badgeForLabel(raw);
-              setWaBadge(wrap, n);
-            }});
-            sidebar.querySelectorAll('[data-testid="stRadio"] label').forEach(function (el) {{
-              var raw = (el.innerText || "").trim();
-              setWaBadge(el, badgeForLabel(raw));
+              var btn = wrap.querySelector("button");
+              var raw = ((btn && btn.innerText) || wrap.innerText || "").trim();
+              setWaBadge(wrap, badgeForLabel(raw));
             }});
           }}
 
