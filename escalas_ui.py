@@ -4,78 +4,20 @@ from __future__ import annotations
 
 import streamlit as st
 
-from sidebar_icons import _NAV_PATHS, svg_icon_uri
 from ui_html import inject_ui_html
 
-# Ícones das abas (mockup Escalas) — ordem igual a st.tabs em show_escalas_page
-_ESCALAS_TAB_ICON_PATHS: tuple[str, ...] = (
-    _NAV_PATHS["membros"],  # Minha equipe — pessoas
-    _NAV_PATHS["escalas"],  # Todas minhas escalas — calendário
-    _NAV_PATHS["repertorio"],  # Sequência do Culto — música
-    (
-        '<path d="M7 16V4"/>'
-        '<path d="M17 8v8"/>'
-        '<path d="M17 16l3 3-3 3"/>'
-        '<path d="M7 8 4 5 4 5"/>'
-    ),  # Trocar escala
-    (
-        '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>'
-        '<circle cx="9" cy="7" r="3"/>'
-        '<path d="M22 21v-2a4 4 0 0 0-3-3.87"/>'
-        '<path d="M16 3.13a4 4 0 0 1 0 7.75"/>'
-    ),  # Solicitações — grupo
-    _NAV_PATHS["chat"],  # Chat do ensaio
+# Rótulos das abas com ícones (Streamlit renderiza nativamente — evita CSS ::before quebrado)
+ESCALAS_TAB_LABELS = (
+    "👥  Minha equipe",
+    "📅  Todas minhas escalas",
+    "🎵  Sequência do Culto",
+    "🔄  Trocar escala",
+    "📬  Solicitações",
+    "💬  Chat do ensaio",
 )
 
 
-def escalas_tab_icons_css() -> str:
-    """Ícone Lucide antes do rótulo de cada aba."""
-    rules: list[str] = []
-    tab_sel = (
-        '[data-testid="stMain"]:has(.ig-escalas-page) div[data-testid="stTabs"] '
-        '[data-baseweb="tab-list"] [data-baseweb="tab"], '
-        '[data-testid="stMain"]:has(.ig-escalas-page) div[data-testid="stTabs"] '
-        '[data-baseweb="tab-list"] button, '
-        '[data-testid="stMain"]:has(.ig-escalas-page) div[data-testid="stTabs"] [role="tab"]'
-    )
-    for i, paths in enumerate(_ESCALAS_TAB_ICON_PATHS, start=1):
-        uri = svg_icon_uri(paths, stroke="#94a3b8", size=16)
-        uri_on = svg_icon_uri(paths, stroke="#a78bfa", size=16)
-        block = f"""
-        {tab_sel}:nth-child({i}) {{
-            display: inline-flex !important;
-            align-items: center !important;
-            gap: 0.42rem !important;
-            text-shadow: none !important;
-            -webkit-font-smoothing: antialiased !important;
-        }}
-        {tab_sel}:nth-child({i})::before {{
-            content: "";
-            display: inline-block;
-            width: 1.1rem;
-            height: 1.1rem;
-            flex-shrink: 0;
-            background: url("{uri}") center / contain no-repeat;
-            vertical-align: middle;
-        }}
-        {tab_sel}:nth-child({i})[aria-selected="true"]::before {{
-            background-image: url("{uri_on}");
-        }}
-        """
-        rules.append(block)
-    return "\n".join(rules)
-
-
 def escalas_page_css() -> str:
-    gerenciar_ico = svg_icon_uri(_NAV_PATHS["gerenciar_escalas"], stroke="#93c5fd", size=16)
-    gerenciar_btn_css = f"""
-        [data-testid="stMain"]:has(.ig-escalas-page) [class*="st-key-ig_esc_go_gerenciar"] .stButton > button::before {{
-            content: "";
-            width: 1rem;
-            height: 1rem;
-            background: url("{gerenciar_ico}") center/contain no-repeat;
-        }}
-    """
     return """
         .ig-escalas-page { max-width: 960px; margin: 0 auto; }
         .ig-escalas-header-card {
@@ -114,7 +56,7 @@ def escalas_page_css() -> str:
             align-items: flex-start;
             gap: 0.75rem;
             padding: 1rem 1.1rem;
-            margin-bottom: 1rem;
+            margin-bottom: 0.75rem;
             border-radius: 14px;
             background: rgba(15, 23, 42, 0.8);
             border: 1px solid rgba(37, 99, 235, 0.2);
@@ -123,9 +65,9 @@ def escalas_page_css() -> str:
             flex-shrink: 0;
             width: 1.5rem;
             height: 1.5rem;
-            border-radius: 50%;
-            background: rgba(37, 99, 235, 0.35)
-                url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2393c5fd' stroke-width='2'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpath d='M12 16v-4M12 8h.01'/%3E%3C/svg%3E")
+            border-radius: 8px;
+            background: rgba(212, 160, 23, 0.2)
+                url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23d4a017' stroke-width='2'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Ccircle cx='12' cy='12' r='6'/%3E%3Ccircle cx='12' cy='12' r='2'/%3E%3C/svg%3E")
                 center/12px no-repeat;
         }
         .ig-escalas-info p {
@@ -143,6 +85,11 @@ def escalas_page_css() -> str:
             margin-top: 0.25rem;
             font-size: 0.8rem;
             color: #94a3b8 !important;
+        }
+        .ig-escalas-tabs-gap {
+            height: 0.35rem;
+            margin: 0;
+            padding: 0;
         }
         .ig-escalas-warn {
             display: flex;
@@ -174,53 +121,42 @@ def escalas_page_css() -> str:
             font-size: 0.82rem;
             color: #94a3b8 !important;
         }
-        /* Abas Escalas — sublinhado roxo no ativo */
+        /* Abas — só cores e sublinhado roxo (sem ::before) */
         [data-testid="stMain"]:has(.ig-escalas-page) div[data-testid="stTabs"] {
-            margin-top: 0.25rem;
+            margin-top: 0.5rem !important;
+            margin-bottom: 0.5rem !important;
         }
         [data-testid="stMain"]:has(.ig-escalas-page) div[data-testid="stTabs"] [data-baseweb="tab-list"] {
-            gap: 0.35rem !important;
+            flex-wrap: wrap !important;
+            gap: 0.25rem 0.5rem !important;
             border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
-            padding-bottom: 0.15rem !important;
         }
-        [data-testid="stMain"]:has(.ig-escalas-page) div[data-testid="stTabs"] [data-baseweb="tab"],
-        [data-testid="stMain"]:has(.ig-escalas-page) div[data-testid="stTabs"] [data-baseweb="tab-list"] button {
+        [data-testid="stMain"]:has(.ig-escalas-page) div[data-testid="stTabs"] [data-baseweb="tab"] {
             color: #94a3b8 !important;
             font-weight: 600 !important;
             font-size: 0.8rem !important;
-            padding: 0.55rem 0.75rem 0.55rem 0.55rem !important;
+            padding: 0.5rem 0.55rem !important;
             background: transparent !important;
-            text-shadow: none !important;
-            letter-spacing: 0.01em !important;
-            -webkit-font-smoothing: antialiased !important;
+            white-space: nowrap !important;
         }
-        [data-testid="stMain"]:has(.ig-escalas-page) div[data-testid="stTabs"] [data-baseweb="tab"][aria-selected="true"],
-        [data-testid="stMain"]:has(.ig-escalas-page) div[data-testid="stTabs"] [data-baseweb="tab-list"] button[aria-selected="true"] {
+        [data-testid="stMain"]:has(.ig-escalas-page) div[data-testid="stTabs"] [data-baseweb="tab"][aria-selected="true"] {
             color: #c4b5fd !important;
             border-bottom: 3px solid #8b5cf6 !important;
         }
-        .ig-escalas-warn-title,
-        .ig-escalas-warn-sub,
-        .ig-escalas-header-title,
-        .ig-escalas-header-sub {
-            text-shadow: none !important;
-            -webkit-font-smoothing: antialiased !important;
+        [data-testid="stMain"]:has(.ig-escalas-page) [class*="st-key-ig_esc_go_gerenciar"] {
+            margin-bottom: 0.5rem !important;
         }
         [data-testid="stMain"]:has(.ig-escalas-page) [class*="st-key-ig_esc_go_gerenciar"] .stButton > button {
-            display: inline-flex !important;
-            align-items: center !important;
-            gap: 0.4rem !important;
-            margin: -0.5rem 0 1rem !important;
-            padding: 0.35rem 0.85rem 0.35rem 0.65rem !important;
-            min-height: 2rem !important;
-            font-size: 0.78rem !important;
+            margin: 0 !important;
+            padding: 0.4rem 0.9rem !important;
+            min-height: 2.15rem !important;
+            font-size: 0.8rem !important;
             border-radius: 8px !important;
             background: rgba(37, 99, 235, 0.15) !important;
             border: 1px solid rgba(37, 99, 235, 0.4) !important;
             color: #93c5fd !important;
-            text-shadow: none !important;
         }
-    """ + gerenciar_btn_css + escalas_tab_icons_css()
+    """
 
 
 def render_escalas_page_open() -> None:
@@ -264,6 +200,10 @@ def render_escalas_info_banner() -> None:
     )
 
 
+def render_escalas_tabs_spacer() -> None:
+    inject_ui_html('<div class="ig-escalas-tabs-gap" aria-hidden="true"></div>')
+
+
 def render_escalas_not_scheduled_warning() -> None:
     inject_ui_html(
         """
@@ -279,6 +219,6 @@ def render_escalas_not_scheduled_warning() -> None:
 
 
 def render_escalas_gerenciar_button() -> None:
-    if st.button("Abrir Gerenciar Escalas", key="ig_esc_go_gerenciar", type="secondary"):
+    if st.button("🎯  Abrir Gerenciar Escalas", key="ig_esc_go_gerenciar", type="secondary"):
         st.session_state.app_menu = "Gerenciar Escalas"
         st.rerun()

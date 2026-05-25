@@ -7377,12 +7377,14 @@ def show_escalas_page(
     chat_ensaio_df: pd.DataFrame,
 ):
     from escalas_ui import (
+        ESCALAS_TAB_LABELS,
         render_escalas_gerenciar_button,
         render_escalas_header,
         render_escalas_info_banner,
         render_escalas_not_scheduled_warning,
         render_escalas_page_close,
         render_escalas_page_open,
+        render_escalas_tabs_spacer,
     )
 
     escalas_df, programa_df, equipe_df, trocas_df = get_escalas_bundle()
@@ -7392,16 +7394,10 @@ def show_escalas_page(
     render_escalas_info_banner()
     if is_scale_manager(st.session_state.user_roles):
         render_escalas_gerenciar_button()
+    render_escalas_tabs_spacer()
 
     tab_equipe, tab_todas, tab_sequencia, tab_trocar, tab_pedidos, tab_ensaio = st.tabs(
-        [
-            "Minha equipe",
-            "Todas minhas escalas",
-            "Sequência do Culto",
-            "Trocar escala",
-            "Solicitações",
-            "Chat do ensaio",
-        ]
+        list(ESCALAS_TAB_LABELS)
     )
 
     member_map = members_options_escala(members_df)
