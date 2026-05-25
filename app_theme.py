@@ -40,6 +40,12 @@ def ibbj_theme_css() -> str:
             --ig-sidebar-w: 17.5rem;
             --ig-content-max: 1280px;
             --ig-content-pad-x: 1.25rem;
+            /* Login — mobile-first (sobrescreve por breakpoint) */
+            --ig-login-card-w: calc(100% - 1.5rem);
+            --ig-login-card-max: 100%;
+            --ig-login-card-pad: 1.35rem 1rem 1.15rem;
+            --ig-login-card-radius: 18px;
+            --ig-login-main-pad: 0.65rem 0 1rem;
         }
 
         html {
@@ -117,12 +123,17 @@ def ibbj_theme_css() -> str:
             max-width: 100% !important;
         }
 
-        /* Tablet (iPad etc.) */
+        /* Tablet (iPad etc.) — app logado + variáveis do login */
         @media (min-width: 769px) and (max-width: 1100px) {
             :root {
                 --ig-sidebar-w: 15.5rem;
                 --ig-content-max: 100%;
                 --ig-content-pad-x: 1.5rem;
+                --ig-login-card-w: min(400px, 88vw);
+                --ig-login-card-max: 400px;
+                --ig-login-card-pad: 1.75rem 1.35rem 1.35rem;
+                --ig-login-card-radius: 20px;
+                --ig-login-main-pad: 1.25rem 0 1.5rem;
             }
         }
         /* Desktop */
@@ -131,9 +142,14 @@ def ibbj_theme_css() -> str:
                 --ig-sidebar-w: 18rem;
                 --ig-content-max: min(1280px, calc(100vw - var(--ig-sidebar-w) - 2.5rem));
                 --ig-content-pad-x: 2rem;
+                --ig-login-card-w: 420px;
+                --ig-login-card-max: 420px;
+                --ig-login-card-pad: 2rem 1.65rem 1.5rem;
+                --ig-login-card-radius: 22px;
+                --ig-login-main-pad: 0 0 2rem;
             }
         }
-        /* Smartphone — mantém layout nativo do Streamlit (menu em gaveta) */
+        /* Smartphone — app logado: layout nativo Streamlit (menu em gaveta) */
         @media (max-width: 768px) {
             :root {
                 --ig-content-max: 100%;
@@ -150,6 +166,10 @@ def ibbj_theme_css() -> str:
             }
             [data-testid="stAppViewContainer"]:not(:has(.login-page)) [data-testid="stHorizontalBlock"] {
                 flex-wrap: wrap !important;
+            }
+            [data-testid="stAppViewContainer"]:not(:has(.login-page)) [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {
+                flex: 1 1 100% !important;
+                min-width: min(100%, 100%) !important;
             }
         }
 
@@ -868,31 +888,43 @@ def ibbj_login_v2_css() -> str:
                 radial-gradient(ellipse 60% 40% at 80% 100%, rgba(212, 175, 55, 0.08), transparent 50%),
                 #0b0e14 !important;
         }
+        [data-testid="stAppViewContainer"]:has(.login-page) {
+            overflow-x: hidden !important;
+        }
         [data-testid="stAppViewContainer"]:has(.login-page) [data-testid="stMain"] {
             display: flex !important;
             flex-direction: column !important;
             align-items: center !important;
-            justify-content: center !important;
+            justify-content: flex-start !important;
+            min-height: 100dvh !important;
             min-height: 100vh !important;
+            padding: var(--ig-login-main-pad) !important;
+            box-sizing: border-box !important;
+            overflow-x: hidden !important;
         }
-        /* Card único centralizado — largura confortável no PC, 92% no celular */
+        /* Card login: variáveis CSS mudam por breakpoint (celular / tablet / desktop) */
         [data-testid="stAppViewContainer"]:has(.login-page) .main .block-container,
         [data-testid="stAppViewContainer"]:has(.login-page) [data-testid="stMain"] .block-container {
-            width: min(420px, 92vw) !important;
-            max-width: min(420px, 92vw) !important;
-            min-width: 280px !important;
+            width: var(--ig-login-card-w) !important;
+            max-width: var(--ig-login-card-max) !important;
+            min-width: 0 !important;
             margin-left: auto !important;
             margin-right: auto !important;
-            padding: 2rem 1.65rem 1.5rem !important;
+            padding: var(--ig-login-card-pad) !important;
             box-sizing: border-box !important;
             background: rgba(15, 23, 42, 0.58) !important;
             border: 1px solid rgba(255, 255, 255, 0.1) !important;
-            border-radius: 22px !important;
+            border-radius: var(--ig-login-card-radius) !important;
             box-shadow:
                 0 24px 64px rgba(0, 0, 0, 0.55),
                 inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
             backdrop-filter: blur(18px);
             -webkit-backdrop-filter: blur(18px);
+        }
+        @media (min-width: 769px) {
+            [data-testid="stAppViewContainer"]:has(.login-page) [data-testid="stMain"] {
+                justify-content: center !important;
+            }
         }
         [data-testid="stAppViewContainer"]:has(.login-page) [data-testid="stMain"] [data-testid="element-container"],
         [data-testid="stAppViewContainer"]:has(.login-page) [data-testid="stMain"] [data-testid="stHorizontalBlock"],
@@ -1179,18 +1211,38 @@ def ibbj_login_v2_css() -> str:
             color: #e5e7eb !important;
             border-radius: 10px !important;
         }
+        /* Celular: botões sociais em 3 colunas compactas ou empilhados em telas muito estreitas */
         @media (max-width: 768px) {
-            [data-testid="stAppViewContainer"]:has(.login-page) .main .block-container,
-            [data-testid="stAppViewContainer"]:has(.login-page) [data-testid="stMain"] .block-container {
-                width: min(420px, 94vw) !important;
-                max-width: 94vw !important;
-                padding: 1.5rem 1.15rem 1.25rem !important;
-                border-radius: 18px !important;
+            .login-v2-title { font-size: 1.5rem; }
+            .login-v2-script { font-size: 1.2rem; }
+            .login-social-row {
+                grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+                gap: 0.4rem !important;
+            }
+            .login-social-btn {
+                font-size: 0.62rem !important;
+                padding: 0.5rem 0.2rem !important;
+            }
+            [data-testid="stAppViewContainer"]:has(.login-page) [data-testid="stMain"] .stFormSubmitButton > button,
+            [data-testid="stAppViewContainer"]:has(.login-page) [data-testid="stMain"] .stButton > button[kind="primary"] {
+                min-height: 44px !important;
+            }
+            [data-testid="stAppViewContainer"]:has(.login-page) [data-testid="stMain"] input,
+            [data-testid="stAppViewContainer"]:has(.login-page) [data-testid="stMain"] textarea,
+            [data-testid="stAppViewContainer"]:has(.login-page) [data-testid="stMain"] select {
+                font-size: 16px !important;
             }
         }
-        @media (max-width: 480px) {
-            .login-v2-title { font-size: 1.45rem; }
-            .login-social-row { grid-template-columns: 1fr; }
+        @media (max-width: 380px) {
+            .login-social-row { grid-template-columns: 1fr !important; }
+            .login-v2-title { font-size: 1.35rem; }
+        }
+        @supports (padding: max(0px)) {
+            [data-testid="stAppViewContainer"]:has(.login-page) .main .block-container,
+            [data-testid="stAppViewContainer"]:has(.login-page) [data-testid="stMain"] .block-container {
+                padding-left: max(1rem, env(safe-area-inset-left, 0px)) !important;
+                padding-right: max(1rem, env(safe-area-inset-right, 0px)) !important;
+            }
         }
     """
 
