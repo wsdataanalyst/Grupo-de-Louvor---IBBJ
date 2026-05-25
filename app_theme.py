@@ -37,8 +37,15 @@ def ibbj_theme_css() -> str:
             --radius-lg: var(--ig-radius);
             --radius-md: 10px;
             --shadow-card: var(--ig-shadow);
+            --ig-sidebar-w: 17.5rem;
+            --ig-content-max: 1280px;
+            --ig-content-pad-x: 1.25rem;
         }
 
+        html {
+            -webkit-text-size-adjust: 100%;
+            text-size-adjust: 100%;
+        }
         html, body, [class*="css"] {
             font-family: 'Inter', 'Segoe UI', system-ui, sans-serif !important;
         }
@@ -50,26 +57,102 @@ def ibbj_theme_css() -> str:
             background: transparent !important;
             border: none !important;
         }
-        .main .block-container,
-        [data-testid="stMain"] .block-container,
-        [data-testid="stMainBlockContainer"] .block-container {
-            max-width: none !important;
+
+        /* ========== Shell responsivo (app logado: celular / tablet / desktop) ========== */
+        [data-testid="stAppViewContainer"]:not(:has(.login-page)) {
+            display: flex !important;
+            flex-direction: row !important;
+            align-items: stretch !important;
             width: 100% !important;
+            max-width: 100vw !important;
+            overflow-x: hidden !important;
+        }
+        [data-testid="stAppViewContainer"]:not(:has(.login-page)) section[data-testid="stSidebar"] {
+            flex: 0 0 var(--ig-sidebar-w) !important;
+            width: var(--ig-sidebar-w) !important;
+            min-width: var(--ig-sidebar-w) !important;
+            max-width: min(21rem, 38vw) !important;
+        }
+        [data-testid="stAppViewContainer"]:not(:has(.login-page)) section.main,
+        [data-testid="stAppViewContainer"]:not(:has(.login-page)) [data-testid="stMain"],
+        [data-testid="stAppViewContainer"]:not(:has(.login-page)) [data-testid="stMainBlockContainer"] {
+            flex: 1 1 auto !important;
+            min-width: 0 !important;
+            width: auto !important;
+            max-width: 100% !important;
+        }
+        [data-testid="stAppViewContainer"]:not(:has(.login-page)) .main .block-container,
+        [data-testid="stAppViewContainer"]:not(:has(.login-page)) [data-testid="stMain"] .block-container,
+        [data-testid="stAppViewContainer"]:not(:has(.login-page)) [data-testid="stMainBlockContainer"] .block-container {
+            width: 100% !important;
+            max-width: var(--ig-content-max) !important;
             padding-top: 0.5rem !important;
             padding-bottom: 2.5rem !important;
-            padding-left: 1.25rem !important;
-            padding-right: 1.25rem !important;
+            padding-left: var(--ig-content-pad-x) !important;
+            padding-right: var(--ig-content-pad-x) !important;
             margin-left: auto !important;
             margin-right: auto !important;
+            box-sizing: border-box !important;
         }
-        @media (min-width: 769px) {
-            .main .block-container,
-            [data-testid="stMain"] .block-container,
-            [data-testid="stMainBlockContainer"] .block-container {
-                padding-left: 2.5rem !important;
-                padding-right: 2.5rem !important;
+        /* Colunas Streamlit: não forçar 100% no bloco (evita faixa vazia / zoom estranho no PC) */
+        [data-testid="stAppViewContainer"]:not(:has(.login-page)) [data-testid="stHorizontalBlock"] {
+            width: 100% !important;
+            max-width: 100% !important;
+            gap: 0.75rem !important;
+            align-items: flex-start !important;
+            flex-wrap: nowrap !important;
+        }
+        [data-testid="stAppViewContainer"]:not(:has(.login-page)) [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {
+            min-width: 0 !important;
+            flex: 1 1 0% !important;
+            max-width: 100% !important;
+        }
+        [data-testid="stAppViewContainer"]:not(:has(.login-page)) section.main img,
+        [data-testid="stAppViewContainer"]:not(:has(.login-page)) [data-testid="stMain"] img {
+            max-width: 100% !important;
+            height: auto !important;
+        }
+        [data-testid="stAppViewContainer"]:not(:has(.login-page)) [data-testid="stDataFrame"],
+        [data-testid="stAppViewContainer"]:not(:has(.login-page)) [data-testid="stDataFrame"] > div {
+            max-width: 100% !important;
+        }
+
+        /* Tablet (iPad etc.) */
+        @media (min-width: 769px) and (max-width: 1100px) {
+            :root {
+                --ig-sidebar-w: 15.5rem;
+                --ig-content-max: 100%;
+                --ig-content-pad-x: 1.5rem;
             }
         }
+        /* Desktop */
+        @media (min-width: 1101px) {
+            :root {
+                --ig-sidebar-w: 18rem;
+                --ig-content-max: min(1280px, calc(100vw - var(--ig-sidebar-w) - 2.5rem));
+                --ig-content-pad-x: 2rem;
+            }
+        }
+        /* Smartphone — mantém layout nativo do Streamlit (menu em gaveta) */
+        @media (max-width: 768px) {
+            :root {
+                --ig-content-max: 100%;
+                --ig-content-pad-x: 0.65rem;
+            }
+            [data-testid="stAppViewContainer"]:not(:has(.login-page)) {
+                display: block !important;
+            }
+            [data-testid="stAppViewContainer"]:not(:has(.login-page)) section[data-testid="stSidebar"] {
+                flex: none !important;
+                width: auto !important;
+                min-width: 0 !important;
+                max-width: none !important;
+            }
+            [data-testid="stAppViewContainer"]:not(:has(.login-page)) [data-testid="stHorizontalBlock"] {
+                flex-wrap: wrap !important;
+            }
+        }
+
         /* Só iframes de scripts (height 0/1) — não esconde widgets do Streamlit */
         section.main div[data-testid="element-container"]:has(iframe[height="0"]),
         section.main div[data-testid="element-container"]:has(iframe[height="1"]),
@@ -90,10 +173,6 @@ def ibbj_theme_css() -> str:
             margin: 0 !important;
             padding: 0 !important;
             overflow: hidden !important;
-        }
-        [data-testid="stHorizontalBlock"] {
-            width: 100% !important;
-            max-width: 100% !important;
         }
         #app-bell-notif {
             position: fixed; top: 0.65rem; right: 0.75rem; z-index: 9999;
@@ -763,8 +842,11 @@ def ibbj_theme_css() -> str:
 
         @media (max-width: 768px) {
             .ig-kpi-row { grid-template-columns: 1fr 1fr; }
-            .block-container { padding-left: 0.6rem !important; padding-right: 0.6rem !important; }
             input, textarea, select { font-size: 16px !important; }
+        }
+        @media (min-width: 1101px) {
+            .music-hero h2 { font-size: 1.45rem !important; }
+            .ig-kpi-row { grid-template-columns: repeat(4, minmax(0, 1fr)); }
         }
     """
 
@@ -1105,6 +1187,10 @@ def inject_login_v2_theme() -> None:
 def inject_ibbj_theme() -> None:
     import streamlit as st
 
+    st.markdown(
+        '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">',
+        unsafe_allow_html=True,
+    )
     st.markdown(f"<style>{ibbj_theme_css()}</style>", unsafe_allow_html=True)
 
 
