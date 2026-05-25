@@ -379,21 +379,6 @@ DASHBOARD_QUICK_LINKS = (
     "Perfil",
 )
 
-# Ícones do menu lateral (visual mais limpo que o radio nativo)
-SIDEBAR_NAV_ICONS = {
-    "Feed": "📰",
-    "Dashboard": "📊",
-    "Escalas": "🎤",
-    "Gerenciar Escalas": "📋",
-    "Repertório": "🎵",
-    "Playlist": "🎧",
-    "Sugestão de louvor": "✦",
-    "Chat": "💬",
-    "Eventos": "📅",
-    "Membros": "👥",
-    "Perfil": "👤",
-}
-
 ROLE_LIDER = "Líder"
 ROLE_ORG_MUSICAL = "Organizador Musical"
 ROLE_ORG_VOCAL = "Organizador Vocal"
@@ -2949,30 +2934,15 @@ def apply_music_theme():
 
 
 def inject_page_html(html_fragment: str, height: int = 0):
-    """Injeta HTML/JS sem iframes height=0 (evita layout encolhido no Cloud)."""
+    """Injeta HTML/JS — components.html (compatível com Streamlit Cloud)."""
     body = html_fragment.strip()
     if not body:
         return
-
-    if height <= 0:
-        try:
-            st.html(body, unsafe_allow_javascript=True)
-            return
-        except Exception:
-            pass
-        import streamlit.components.v1 as components
-
-        wrapped = (
-            '<div style="position:fixed;left:0;top:0;width:1px;height:1px;'
-            'overflow:hidden;opacity:0;pointer-events:none;z-index:-1;">'
-            f"{body}</div>"
-        )
-        components.html(wrapped, height=1, scrolling=False)
-        return
-
     import streamlit.components.v1 as components
 
-    components.html(body, height=height, scrolling=False)
+    # height=0 em st.html quebra em algumas versões do Streamlit Cloud
+    iframe_h = 0 if height <= 0 else height
+    components.html(body, height=iframe_h, scrolling=False)
 
 
 def inject_mobile_app_shell():
@@ -3274,17 +3244,18 @@ def render_sidebar_navigation() -> str:
     except ValueError:
         idx = 0
 
+    # Sem key no widget: navegação só via app_menu (compatível com atalhos do Dashboard)
     picked = st.sidebar.radio(
         "Ir para",
         names,
         index=idx,
-        format_func=lambda n, ic=icons: f"{SIDEBAR_NAV_ICONS.get(n, ic.get(n, '🎵'))}  {n}",
+        format_func=lambda n, ic=icons: f"{ic.get(n, '🎵')}  {n}",
         label_visibility="collapsed",
     )
     if picked != st.session_state.app_menu:
         st.session_state.app_menu = picked
         st.rerun()
-    return st.session_state.app_menu
+    return picked
 
 
 def render_dashboard_quick_actions(roles: str):
@@ -3450,10 +3421,7 @@ def paginate_dataframe(df: pd.DataFrame, page_size: int, key: str) -> pd.DataFra
 def render_login_brand():
     if CROSS_IMAGE.exists():
         cross_b64 = base64.b64encode(CROSS_IMAGE.read_bytes()).decode()
-        cross_img = (
-            f'<img src="data:image/svg+xml;base64,{cross_b64}" alt="Cruz" '
-            f'style="max-width:88px;width:100%;height:auto;display:block;"/>'
-        )
+        cross_img = f'<img src="data:image/svg+xml;base64,{cross_b64}" alt="Cruz"/>'
     else:
         cross_img = '<div style="font-size:4rem;color:#d4af37;">✝</div>'
 
@@ -3707,8 +3675,8 @@ MENUS_AUTO_REFRESH_ESCALA = frozenset(
     }
 )
 ESCALA_POLL_SECONDS = 8
-CHAT_POLL_SECONDS = 20
-CHAT_FORCE_RELOAD_EVERY_POLLS = 6
+CHAT_POLL_SECONDS = 4
+CHAT_FORCE_RELOAD_EVERY_POLLS = 2
 CHAT_LIVE_FILE_NAMES = frozenset({"chat.csv"})
 FEED_LIVE_FILE_NAMES = frozenset(
     {"feed_posts.csv", "feed_likes.csv", "feed_comments.csv"}
@@ -3854,6 +3822,9 @@ def _chat_global_sync():
     prev = st.session_state.get("_chat_unread_prev")
     st.session_state.chat_unread_count = unread
 
+    if prev is not None and int(prev) != unread:
+        st.session_state._chat_unread_prev = unread
+        st.rerun()
     st.session_state._chat_unread_prev = unread
 
 
@@ -4068,22 +4039,11 @@ def show_group_chat(chat_df: pd.DataFrame, members_df: pd.DataFrame):
     _chat_group_live(members_df)
 
 
-@st.fragment(run_every=timedelta(seconds=CHAT_POLL_SECONDS))
+@st.fragment(run_every=timedelta(seconds=4))
 def _chat_group_live(members_df: pd.DataFrame):
-    """Atualiza o histórico quando chat.csv mudar (poll leve)."""
-    try:
-        new_rev = chat_data_revision()
-    except Exception:
-        new_rev = None
-    old_rev = st.session_state.get("_chat_rev")
-    rev_changed = new_rev is not None and old_rev is not None and new_rev != old_rev
-    cached = st.session_state.get("_chat_df_cache")
-    if rev_changed or cached is None:
-        chat_df = refresh_chat_live()
-    else:
-        chat_df = cached
-        if new_rev is not None:
-            st.session_state._chat_rev = new_rev
+    """Atualiza o histórico a cada poucos segundos para refletir mensagens de outros integrantes."""
+    chat_df = load_chat_df()
+    st.session_state["_chat_df_cache"] = chat_df
     st.session_state.chat_unread_count = 0
 
     def _append(**kwargs):

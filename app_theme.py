@@ -39,67 +39,21 @@ def ibbj_theme_css() -> str:
             --shadow-card: var(--ig-shadow);
         }
 
-        html, body {
-            font-family: 'Inter', 'Segoe UI', system-ui, sans-serif !important;
-            width: 100% !important;
-            min-height: 100% !important;
-            zoom: 1 !important;
-        }
-        section[data-testid="stSidebar"],
-        section.main,
-        [data-testid="stMain"] {
+        html, body, [class*="css"] {
             font-family: 'Inter', 'Segoe UI', system-ui, sans-serif !important;
         }
 
         [data-testid="stAppViewContainer"] {
             background: var(--ig-bg) !important;
-            width: 100% !important;
-            max-width: 100% !important;
-            min-width: 0 !important;
-            zoom: 1 !important;
-            transform: none !important;
-        }
-        [data-testid="stAppViewContainer"] > section.main {
-            width: 100% !important;
-            flex: 1 1 auto !important;
         }
         [data-testid="stHeader"] {
             background: transparent !important;
             border: none !important;
         }
-        [data-testid="stMain"] {
-            width: 100% !important;
-            max-width: 100% !important;
-        }
-        .main .block-container,
-        [data-testid="stMain"] .block-container {
+        .block-container {
             max-width: 1280px !important;
-            width: 100% !important;
             padding-top: 0.5rem !important;
             padding-bottom: 2.5rem !important;
-            margin-left: auto !important;
-            margin-right: auto !important;
-        }
-        /* Iframes de scripts (badges/PWA) fora do fluxo — não encolhem o app */
-        div[data-testid="stHtml"] {
-            margin: 0 !important;
-            padding: 0 !important;
-            min-height: 0 !important;
-            height: 0 !important;
-            overflow: visible !important;
-            line-height: 0 !important;
-        }
-        div[data-testid="stHtml"] iframe {
-            position: fixed !important;
-            left: 0 !important;
-            top: 0 !important;
-            width: 1px !important;
-            height: 1px !important;
-            min-height: 0 !important;
-            border: none !important;
-            visibility: hidden !important;
-            pointer-events: none !important;
-            z-index: -1 !important;
         }
 
         /* ========== Sidebar ========== */
@@ -191,7 +145,7 @@ def ibbj_theme_css() -> str:
             margin: 0 !important;
         }
 
-        /* Menu lateral — lista (radio visível, sem bolinhas) */
+        /* Menu lateral — lista moderna (sem bolinhas do radio) */
         section[data-testid="stSidebar"] div[data-testid="stRadio"] {
             gap: 0.28rem !important;
         }
@@ -230,6 +184,7 @@ def ibbj_theme_css() -> str:
             font-weight: 600 !important;
             box-shadow: inset 3px 0 0 var(--ig-gold) !important;
         }
+        /* Oculta bolinha/indicador nativo do Streamlit */
         section[data-testid="stSidebar"] div[data-testid="stRadio"] > label > div:first-child {
             display: none !important;
             width: 0 !important;
@@ -262,22 +217,8 @@ def ibbj_theme_css() -> str:
             top: 50% !important;
             left: auto !important;
             transform: translateY(-50%) !important;
-            min-width: 1.2rem !important;
-            height: 1.2rem !important;
-            padding: 0 0.34rem !important;
-            border-radius: 999px !important;
-            background: #ff453a !important;
-            color: #fff !important;
-            font-size: 0.62rem !important;
-            font-weight: 800 !important;
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            border: 2px solid var(--ig-bg-elevated) !important;
-            box-shadow: 0 2px 6px rgba(255, 69, 58, 0.5) !important;
-            line-height: 1 !important;
-            z-index: 10 !important;
-            pointer-events: none !important;
+            border-color: var(--ig-bg-elevated) !important;
+            z-index: 5 !important;
         }
         section[data-testid="stSidebar"] div[data-testid="stRadio"] [role="radiogroup"] {
             border: none !important;
@@ -682,28 +623,6 @@ def ibbj_theme_css() -> str:
             border-color: var(--ig-gold-border) !important;
             color: var(--ig-gold) !important;
         }
-        .quick-nav-btn {
-            position: relative !important;
-        }
-        .quick-nav-btn .nav-wa-badge {
-            position: absolute !important;
-            right: 0.45rem !important;
-            top: 0.4rem !important;
-            min-width: 1.2rem !important;
-            height: 1.2rem !important;
-            padding: 0 0.34rem !important;
-            border-radius: 999px !important;
-            background: #ff453a !important;
-            color: #fff !important;
-            font-size: 0.62rem !important;
-            font-weight: 800 !important;
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            border: 2px solid var(--ig-bg-elevated) !important;
-            box-shadow: 0 2px 6px rgba(255, 69, 58, 0.5) !important;
-            z-index: 10 !important;
-        }
 
         .seq-cifra-panel, .seq-cifra-view, .seq-lyric-block {
             background: var(--ig-bg-card) !important;
@@ -728,13 +647,6 @@ def ibbj_theme_css() -> str:
         .login-hero {
             background: linear-gradient(165deg, #0f0f0f, var(--ig-bg-elevated)) !important;
             border: 1px solid var(--ig-border) !important;
-        }
-        .login-hero img {
-            max-width: 88px !important;
-            width: auto !important;
-            height: auto !important;
-            display: block !important;
-            margin: 0 auto 0.5rem !important;
         }
         .login-hero h1, .login-hero-quote { color: #fff !important; }
         .login-hero-ref { color: var(--ig-gold) !important; }
