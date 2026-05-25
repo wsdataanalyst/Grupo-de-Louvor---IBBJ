@@ -741,14 +741,24 @@ def profile_photo_file(email: str, stored_name: str = "") -> Path | None:
     return None
 
 
+def _profile_upload_bytes(uploaded_file) -> tuple[str, bytes]:
+    """Bytes + nome a partir de UploadedFile ou dict guardado na sessão."""
+    if isinstance(uploaded_file, dict):
+        name = str(uploaded_file.get("name") or "photo.jpg")
+        raw = bytes(uploaded_file.get("bytes") or b"")
+        return name, raw
+    name = str(getattr(uploaded_file, "name", None) or "photo.jpg")
+    return name, uploaded_file.getvalue()
+
+
 def save_profile_photo(email: str, uploaded_file) -> str:
     PROFILE_PHOTOS_DIR.mkdir(parents=True, exist_ok=True)
-    raw = uploaded_file.getvalue()
+    upload_name, raw = _profile_upload_bytes(uploaded_file)
     if not raw:
         raise ValueError("Arquivo de imagem vazio.")
     if len(raw) > 5 * 1024 * 1024:
         raise ValueError("Imagem muito grande (máx. 5 MB).")
-    ext = Path(uploaded_file.name).suffix.lower()
+    ext = Path(upload_name).suffix.lower()
     if ext not in (".jpg", ".jpeg", ".png", ".webp"):
         ext = ".jpg"
     slug = email_to_photo_slug(email)
@@ -4623,9 +4633,6 @@ def render_sidebar_profile():
         if roles:
             st.caption(roles_for_public_display(roles))
     st.sidebar.markdown("---")
-    if is_scale_manager(st.session_state.user_roles):
-        render_registration_link_box(compact=True)
-        st.sidebar.markdown("---")
 
 
 def render_sidebar_navigation() -> str:
@@ -5072,7 +5079,6 @@ MENUS_AUTO_REFRESH_ESCALA = frozenset(
     }
 )
 ESCALA_POLL_SECONDS = 8
-FEED_POLL_SECONDS = 10
 FEED_LIVE_FILE_NAMES = frozenset(
     {"feed_posts.csv", "feed_likes.csv", "feed_comments.csv"}
 )
@@ -5174,20 +5180,14 @@ def _escalas_global_sync():
         st.rerun()
 
 
-@st.fragment(run_every=timedelta(seconds=FEED_POLL_SECONDS))
 def _feed_global_sync():
+    """Atualiza revisão do feed sem rerun automático (evita avisos de formulário)."""
     if not st.session_state.get("authenticated"):
         return
     try:
-        new_rev = feed_data_revision()
+        st.session_state._feed_rev = feed_data_revision()
     except Exception:
-        return
-    old_rev = st.session_state.get("_feed_rev")
-    if old_rev == new_rev:
-        return
-    st.session_state._feed_rev = new_rev
-    if st.session_state.get("app_menu") == "Feed" and old_rev is not None:
-        st.rerun()
+        pass
 
 
 def append_chat_message(
@@ -5934,14 +5934,22 @@ def render_feed_post_card(
                     ):
                         delete_feed_comment(str(c["id"]))
                         st.rerun()
-        with st.form(key=f"{key_prefix}_cmt_{pid}", clear_on_submit=True):
-            msg = st.text_input("Comentar", placeholder="Escreva um comentário...")
-            if st.form_submit_button("Enviar", use_container_width=True) and msg.strip():
+        cmt_key = f"{key_prefix}_cmt_msg_{pid}"
+        msg = st.text_input(
+            "Comentar",
+            placeholder="Escreva um comentário...",
+            key=cmt_key,
+        )
+        if st.button("Enviar", key=f"{key_prefix}_cmt_btn_{pid}", use_container_width=True):
+            text = str(st.session_state.get(cmt_key, "")).strip()
+            if not text:
+                show_form_error("Escreva um comentário antes de enviar.")
+            else:
                 append_feed_comment(
                     pid,
                     my_email,
                     st.session_state.user_full_name or st.session_state.user_name,
-                    msg.strip(),
+                    text,
                     comments_df,
                 )
                 st.rerun()
@@ -6005,34 +6013,35 @@ def show_feed_page(
                 key="feed_post_img_up",
             )
             pub = st.form_submit_button("Publicar no feed", type="primary")
-        if pub:
-            if not titulo.strip() or not corpo.strip():
-                show_form_error("Informe título e mensagem.")
-            else:
-                image_ref = img_url.strip()
-                if img_file is not None:
-                    image_ref = save_feed_image_file(img_file, DATA_DIR, FEED_IMAGES_DIR)
-                append_feed_post(
-                    post_type=tipo,
-                    title=titulo.strip(),
-                    body=corpo.strip(),
-                    youtube_url=yt.strip(),
-                    author_email=st.session_state.user_email,
-                    author_name=st.session_state.user_full_name
-                    or st.session_state.user_name,
-                    image_url=image_ref,
-                )
-                st.success("Publicado no feed!")
-                st.rerun()
+            if pub:
+                if not titulo.strip() or not corpo.strip():
+                    show_form_error("Informe título e mensagem.")
+                else:
+                    image_ref = img_url.strip()
+                    if img_file is not None:
+                        image_ref = save_feed_image_file(img_file, DATA_DIR, FEED_IMAGES_DIR)
+                    append_feed_post(
+                        post_type=tipo,
+                        title=titulo.strip(),
+                        body=corpo.strip(),
+                        youtube_url=yt.strip(),
+                        author_email=st.session_state.user_email,
+                        author_name=st.session_state.user_full_name
+                        or st.session_state.user_name,
+                        image_url=image_ref,
+                    )
+                    st.success("Publicado no feed!")
+                    st.rerun()
 
     if posts_df.empty:
         st.info("Nenhuma publicação ainda. Músicas aprovadas aparecem aqui automaticamente.")
         return
 
+    if st.button("🔄 Atualizar feed", key="feed_manual_refresh", use_container_width=False):
+        st.rerun()
     _render_feed_posts_live()
 
 
-@st.fragment(run_every=timedelta(seconds=FEED_POLL_SECONDS))
 def _render_feed_posts_live():
     posts_df, likes_df, comments_df = load_feed_bundle()
     if posts_df.empty:
@@ -6397,29 +6406,45 @@ def show_user_profile(
             key="profile_photo_upload",
         )
         if uploaded is not None:
-            st.session_state["_pending_profile_photo"] = uploaded
+            st.session_state["_pending_profile_photo"] = {
+                "name": uploaded.name or "photo.jpg",
+                "bytes": uploaded.getvalue(),
+            }
         if st.button("💾 Salvar foto", use_container_width=True, key="save_profile_photo"):
-            pending = st.session_state.pop("_pending_profile_photo", None) or uploaded
+            pending = st.session_state.pop("_pending_profile_photo", None)
+            if pending is None and uploaded is not None:
+                pending = {
+                    "name": uploaded.name or "photo.jpg",
+                    "bytes": uploaded.getvalue(),
+                }
             if pending is None:
                 st.warning("Escolha uma imagem antes de salvar.")
             else:
                 try:
                     filename = save_profile_photo(email, pending)
-                    members_df.at[idx, "profile_photo"] = filename
-                    save_data(members_df, MEMBERS_FILE)
-                    st.session_state.user_profile_photo = filename
-                    st.success("Foto atualizada!")
-                    st.rerun()
+                    members_df.loc[idx, "profile_photo"] = filename
+                    if save_data(members_df, MEMBERS_FILE):
+                        st.session_state.user_profile_photo = filename
+                        st.success("Foto atualizada!")
+                        st.rerun()
+                    else:
+                        st.session_state["_pending_profile_photo"] = pending
                 except ValueError as exc:
                     show_form_error(str(exc))
-                except Exception:
-                    show_technical_error("Não foi possível salvar a foto.")
+                    st.session_state["_pending_profile_photo"] = pending
+                except Exception as exc:
+                    show_exception_error(
+                        exc,
+                        context="Salvar foto do perfil",
+                        user_hint="Não foi possível salvar a foto. Tente outra imagem (JPG ou PNG).",
+                    )
+                    st.session_state["_pending_profile_photo"] = pending
         if photo_path and st.button("🗑️ Remover foto", use_container_width=True, key="rm_profile_photo"):
             photo_path.unlink(missing_ok=True)
-            members_df.at[idx, "profile_photo"] = ""
-            save_data(members_df, MEMBERS_FILE)
-            st.session_state.user_profile_photo = ""
-            st.rerun()
+            members_df.loc[idx, "profile_photo"] = ""
+            if save_data(members_df, MEMBERS_FILE):
+                st.session_state.user_profile_photo = ""
+                st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
 
     with col_dados:
