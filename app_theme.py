@@ -145,51 +145,72 @@ def ibbj_theme_css() -> str:
             margin: 0 !important;
         }
 
-        /* Menu lateral — botões (sem radio / bolinhas) */
-        section[data-testid="stSidebar"] [class*="st-key-ig_nav_"] {
+        /* Menu lateral — lista (radio visível, sem bolinhas) */
+        section[data-testid="stSidebar"] div[data-testid="stRadio"] {
+            gap: 0.28rem !important;
+        }
+        section[data-testid="stSidebar"] div[data-testid="stRadio"] > label {
             position: relative !important;
-            margin-bottom: 0.1rem !important;
-        }
-        section[data-testid="stSidebar"] [class*="st-key-ig_nav_"] > div {
-            width: 100% !important;
-        }
-        section[data-testid="stSidebar"] [class*="st-key-ig_nav_"] button {
-            width: 100% !important;
+            display: flex !important;
+            align-items: center !important;
             min-height: 2.65rem !important;
-            padding: 0.62rem 2.5rem 0.62rem 0.9rem !important;
+            margin: 0 0 0.12rem 0 !important;
+            padding: 0.62rem 2.35rem 0.62rem 0.95rem !important;
             border-radius: 10px !important;
             border: 1px solid transparent !important;
+            background: transparent !important;
+            color: rgba(255, 255, 255, 0.72) !important;
             font-weight: 500 !important;
             font-size: 0.86rem !important;
             letter-spacing: 0.01em !important;
-            text-align: left !important;
-            justify-content: flex-start !important;
+            cursor: pointer !important;
             transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease,
                 box-shadow 0.18s ease !important;
         }
-        section[data-testid="stSidebar"] [class*="st-key-ig_nav_"] button[kind="secondary"] {
-            background: transparent !important;
-            color: rgba(255, 255, 255, 0.78) !important;
-            border-color: transparent !important;
-            box-shadow: none !important;
-        }
-        section[data-testid="stSidebar"] [class*="st-key-ig_nav_"] button[kind="secondary"]:hover {
-            background: rgba(255, 255, 255, 0.06) !important;
-            border-color: rgba(255, 255, 255, 0.1) !important;
+        section[data-testid="stSidebar"] div[data-testid="stRadio"] > label:hover {
+            background: rgba(255, 255, 255, 0.05) !important;
+            border-color: rgba(255, 255, 255, 0.08) !important;
             color: #fff !important;
         }
-        section[data-testid="stSidebar"] [class*="st-key-ig_nav_"] button[kind="primary"] {
+        section[data-testid="stSidebar"] div[data-testid="stRadio"] > label[data-checked="true"],
+        section[data-testid="stSidebar"] div[data-testid="stRadio"] label:has(input:checked) {
             background: linear-gradient(
                 90deg,
-                rgba(212, 175, 55, 0.24) 0%,
-                rgba(212, 175, 55, 0.07) 100%
+                rgba(212, 175, 55, 0.22) 0%,
+                rgba(212, 175, 55, 0.06) 100%
             ) !important;
+            border: 1px solid rgba(212, 175, 55, 0.5) !important;
             color: var(--ig-gold) !important;
-            border: 1px solid rgba(212, 175, 55, 0.55) !important;
             font-weight: 600 !important;
             box-shadow: inset 3px 0 0 var(--ig-gold) !important;
         }
-        section[data-testid="stSidebar"] [class*="st-key-ig_nav_"] .nav-wa-badge {
+        section[data-testid="stSidebar"] div[data-testid="stRadio"] > label > div:first-child {
+            display: none !important;
+            width: 0 !important;
+            min-width: 0 !important;
+            height: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            opacity: 0 !important;
+            visibility: hidden !important;
+        }
+        section[data-testid="stSidebar"] div[data-testid="stRadio"] input[type="radio"] {
+            position: absolute !important;
+            opacity: 0 !important;
+            width: 0 !important;
+            height: 0 !important;
+            pointer-events: none !important;
+        }
+        section[data-testid="stSidebar"] div[data-testid="stRadio"] label p,
+        section[data-testid="stSidebar"] div[data-testid="stRadio"] label [data-testid="stMarkdownContainer"] p {
+            margin: 0 !important;
+            padding: 0 !important;
+            color: inherit !important;
+            font-size: inherit !important;
+            font-weight: inherit !important;
+            line-height: 1.35 !important;
+        }
+        section[data-testid="stSidebar"] div[data-testid="stRadio"] label .nav-wa-badge {
             position: absolute !important;
             right: 0.55rem !important;
             top: 50% !important;
@@ -212,10 +233,9 @@ def ibbj_theme_css() -> str:
             z-index: 10 !important;
             pointer-events: none !important;
         }
-        /* Esconde radio legado se ainda existir em alguma tela */
-        section[data-testid="stSidebar"] div[data-testid="stRadio"],
-        section[data-testid="stSidebar"] [data-baseweb="radio"] {
-            display: none !important;
+        section[data-testid="stSidebar"] div[data-testid="stRadio"] [role="radiogroup"] {
+            border: none !important;
+            gap: 0.28rem !important;
         }
         section[data-testid="stSidebar"] button[kind="secondary"] {
             background: var(--ig-bg-card) !important;

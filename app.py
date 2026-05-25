@@ -3254,20 +3254,21 @@ def render_sidebar_navigation() -> str:
         unsafe_allow_html=True,
     )
 
-    current = st.session_state.app_menu
-    for name in names:
-        icon = SIDEBAR_NAV_ICONS.get(name, icons.get(name, "•"))
-        label = f"{icon}   {name}"
-        is_active = name == current
-        if st.sidebar.button(
-            label,
-            key=f"ig_nav_{name}",
-            use_container_width=True,
-            type="primary" if is_active else "secondary",
-        ):
-            if name != current:
-                st.session_state.app_menu = name
-                st.rerun()
+    try:
+        idx = names.index(st.session_state.app_menu)
+    except ValueError:
+        idx = 0
+
+    picked = st.sidebar.radio(
+        "Ir para",
+        names,
+        index=idx,
+        format_func=lambda n, ic=icons: f"{SIDEBAR_NAV_ICONS.get(n, ic.get(n, '🎵'))}  {n}",
+        label_visibility="collapsed",
+    )
+    if picked != st.session_state.app_menu:
+        st.session_state.app_menu = picked
+        st.rerun()
     return st.session_state.app_menu
 
 
@@ -3688,8 +3689,8 @@ MENUS_AUTO_REFRESH_ESCALA = frozenset(
     }
 )
 ESCALA_POLL_SECONDS = 8
-CHAT_POLL_SECONDS = 4
-CHAT_FORCE_RELOAD_EVERY_POLLS = 2
+CHAT_POLL_SECONDS = 20
+CHAT_FORCE_RELOAD_EVERY_POLLS = 6
 CHAT_LIVE_FILE_NAMES = frozenset({"chat.csv"})
 FEED_LIVE_FILE_NAMES = frozenset(
     {"feed_posts.csv", "feed_likes.csv", "feed_comments.csv"}
@@ -3835,9 +3836,6 @@ def _chat_global_sync():
     prev = st.session_state.get("_chat_unread_prev")
     st.session_state.chat_unread_count = unread
 
-    if prev is not None and int(prev) != unread:
-        st.session_state._chat_unread_prev = unread
-        st.rerun()
     st.session_state._chat_unread_prev = unread
 
 
@@ -4052,11 +4050,22 @@ def show_group_chat(chat_df: pd.DataFrame, members_df: pd.DataFrame):
     _chat_group_live(members_df)
 
 
-@st.fragment(run_every=timedelta(seconds=4))
+@st.fragment(run_every=timedelta(seconds=CHAT_POLL_SECONDS))
 def _chat_group_live(members_df: pd.DataFrame):
-    """Atualiza o histórico a cada poucos segundos para refletir mensagens de outros integrantes."""
-    chat_df = load_chat_df()
-    st.session_state["_chat_df_cache"] = chat_df
+    """Atualiza o histórico quando chat.csv mudar (poll leve)."""
+    try:
+        new_rev = chat_data_revision()
+    except Exception:
+        new_rev = None
+    old_rev = st.session_state.get("_chat_rev")
+    rev_changed = new_rev is not None and old_rev is not None and new_rev != old_rev
+    cached = st.session_state.get("_chat_df_cache")
+    if rev_changed or cached is None:
+        chat_df = refresh_chat_live()
+    else:
+        chat_df = cached
+        if new_rev is not None:
+            st.session_state._chat_rev = new_rev
     st.session_state.chat_unread_count = 0
 
     def _append(**kwargs):
