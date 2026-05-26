@@ -143,9 +143,13 @@ def mobile_lab_css() -> str:
       font-size: 16px;
       min-width: 56px;
       text-decoration: none;
+      background: transparent;
+      border: 0;
+      padding: 6px 8px;
+      border-radius: 16px;
     }
     .ml-navbtn span{ font-size: 11px; font-weight: 800; }
-    .ml-active{ color: rgba(167,139,250,.95); }
+    .ml-active{ color: rgba(167,139,250,.95); background: rgba(139,92,246,.10); border: 1px solid rgba(139,92,246,.20); }
 
     /* Drawer overlay */
     .ml-drawer-overlay{
@@ -169,19 +173,21 @@ def mobile_lab_css() -> str:
       box-shadow: 0 20px 60px rgba(0,0,0,.5);
     }
     .ml-drawer h3{ margin: 6px 0 12px 0; font-size: 16px; font-weight: 900; }
-    .ml-drawer a{
+    .ml-drawer-btn{
       display:flex;
       align-items:center;
       gap:10px;
       padding: 12px 12px;
       border-radius: 18px;
       color: rgba(226,232,240,.95);
-      text-decoration:none;
       border: 1px solid rgba(255,255,255,.08);
       margin-bottom: 10px;
       background: rgba(15,23,42,.55);
+      width: 100%;
+      text-align: left;
+      cursor: pointer;
     }
-    .ml-drawer a.active{
+    .ml-drawer-btn.active{
       border-color: rgba(139,92,246,.55);
       box-shadow: 0 0 20px rgba(139,92,246,.20);
       color: rgba(233,213,255,.98);

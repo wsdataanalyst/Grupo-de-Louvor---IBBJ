@@ -58,7 +58,7 @@ def _render_drawer(current: str) -> None:
         ("👤", "Perfil"),
     ]
     items = "\n".join(
-        f'<a class="{ "active" if name == current else "" }" href="?mobile_lab=1" data-page="{_esc(name)}">{icon} { _esc(name) }</a>'
+        f'<button class="ml-drawer-btn { "active" if name == current else "" }" type="button" data-page="{_esc(name)}">{icon} { _esc(name) }</button>'
         for icon, name in links
     )
     st.markdown(
@@ -67,7 +67,7 @@ def _render_drawer(current: str) -> None:
           <div class="ml-drawer">
             <h3>Menu</h3>
             {items}
-            <a class="ml-logout" href="?mobile_lab=1" data-page="logout">🚪 Sair do sistema</a>
+            <button class="ml-drawer-btn ml-logout" type="button" data-page="logout">🚪 Sair do sistema</button>
             <div style="margin-top:10px;color:rgba(148,163,184,.92);font-size:12px;">
               Mobile Lab (teste) · {datetime.now().strftime("%d/%m %H:%M")}
             </div>
@@ -82,14 +82,16 @@ def _render_drawer(current: str) -> None:
               if (ev.target === overlay) {{
                 var qs = new URLSearchParams(window.parent.location.search);
                 qs.set("mobile_lab", "1");
+                qs.delete("ml_page");
                 window.parent.location.search = qs.toString();
               }}
             }});
-            var links = overlay.querySelectorAll("a[data-page]");
-            links.forEach(function(a) {{
-              a.addEventListener("click", function(ev) {{
+            var btns = overlay.querySelectorAll("[data-page]");
+            btns.forEach(function(el) {{
+              el.addEventListener("click", function(ev) {{
                 ev.preventDefault();
-                var page = a.getAttribute("data-page");
+                ev.stopPropagation();
+                var page = el.getAttribute("data-page");
                 if (!page) return;
                 var qs = new URLSearchParams(window.parent.location.search);
                 qs.set("mobile_lab", "1");
@@ -124,20 +126,40 @@ def mobile_lab_current_page() -> str:
 
 
 def render_mobile_lab_nav(current: str, *, chat_unread: int = 0) -> None:
-    """Bottom navigation sempre visível (linka via query param)."""
+    """Bottom navigation sempre visível (sem <a> para evitar abrir navegador externo)."""
     inject_mobile_lab_theme()
     st.markdown(
         f"""
         <div class="ml-glass ml-bottom">
-          <a class="ml-navbtn {'ml-active' if current=='Início' else ''}" href="?mobile_lab=1&ml_page=In%C3%ADcio">🏠<span>Início</span></a>
-          <a class="ml-navbtn {'ml-active' if current=='Escalas' else ''}" href="?mobile_lab=1&ml_page=Escalas">📅<span>Escalas</span></a>
-          <a class="ml-navbtn {'ml-active' if current=='Repertório' else ''}" href="?mobile_lab=1&ml_page=Repert%C3%B3rio">🎵<span>Repertório</span></a>
-          <a class="ml-navbtn {'ml-active' if current=='Chat' else ''}" href="?mobile_lab=1&ml_page=Chat" style="position:relative;">
+          <button class="ml-navbtn {'ml-active' if current=='Início' else ''}" type="button" data-page="Início">🏠<span>Início</span></button>
+          <button class="ml-navbtn {'ml-active' if current=='Escalas' else ''}" type="button" data-page="Escalas">📅<span>Escalas</span></button>
+          <button class="ml-navbtn {'ml-active' if current=='Repertório' else ''}" type="button" data-page="Repertório">🎵<span>Repertório</span></button>
+          <button class="ml-navbtn {'ml-active' if current=='Chat' else ''}" type="button" data-page="Chat" style="position:relative;">
             💬<span>Chat</span>
             <div class="ml-badge" style="top:-8px;right:6px;background:rgba(139,92,246,1);color:#fff;border:none;width:18px;height:18px;font-size:11px;">{max(0,int(chat_unread))}</div>
-          </a>
-          <a class="ml-navbtn {'ml-active' if current=='Perfil' else ''}" href="?mobile_lab=1&ml_page=Perfil">👤<span>Perfil</span></a>
+          </button>
+          <button class="ml-navbtn {'ml-active' if current=='Perfil' else ''}" type="button" data-page="Perfil">👤<span>Perfil</span></button>
         </div>
+        <script>
+          (function() {{
+            var root = window.parent.document;
+            var bar = root.querySelector(".ml-bottom");
+            if (!bar) return;
+            var btns = bar.querySelectorAll("[data-page]");
+            btns.forEach(function(b) {{
+              b.addEventListener("click", function(ev) {{
+                ev.preventDefault();
+                ev.stopPropagation();
+                var page = b.getAttribute("data-page");
+                if (!page) return;
+                var qs = new URLSearchParams(window.parent.location.search);
+                qs.set("mobile_lab", "1");
+                qs.set("ml_page", page);
+                window.parent.location.search = qs.toString();
+              }});
+            }});
+          }})();
+        </script>
         """,
         unsafe_allow_html=True,
     )
