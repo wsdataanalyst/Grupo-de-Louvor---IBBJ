@@ -73,9 +73,10 @@ def purge_expired_device_sessions(df: pd.DataFrame) -> pd.DataFrame:
     if df.empty:
         return df
     now = now_local()
-    keep = []
+    keep: list[bool] = []
     for _, row in df.iterrows():
         if str(row.get("revoked_at", "")).strip():
+            keep.append(False)
             continue
         exp_raw = str(row.get("expires_at", "")).strip()
         if not exp_raw:
@@ -88,7 +89,8 @@ def purge_expired_device_sessions(df: pd.DataFrame) -> pd.DataFrame:
             keep.append(exp >= now)
         except Exception:
             keep.append(True)
-    return df.loc[df.index[keep]].copy() if any(keep) else df.iloc[0:0].copy()
+    mask = pd.Series(keep, index=df.index, dtype=bool)
+    return df.loc[mask].copy() if mask.any() else df.iloc[0:0].copy()
 
 
 def create_device_session_token(email: str, data_dir: Path) -> str:
