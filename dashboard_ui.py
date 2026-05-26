@@ -166,56 +166,14 @@ def render_global_header(
     photo_uri: str | None = None,
     notif_count: int = 0,
 ) -> None:
-    badge = (
-        f'<span class="ig-hdr-badge">{int(notif_count)}</span>'
-        if notif_count > 0
-        else ""
+    """Barra de busca global (Chat, notificações e perfil ficam só no menu lateral)."""
+    _ = (user_name, photo_uri, notif_count)
+    st.text_input(
+        "Busca global",
+        placeholder="Buscar louvores, membros, escalas...",
+        key="ig_global_search",
+        label_visibility="collapsed",
     )
-    avatar = (
-        f'<img src="{photo_uri}" alt="" />'
-        if photo_uri
-        else '<span class="ig-hdr-avatar-ph"></span>'
-    )
-    st.markdown(
-        f"""
-        <div class="ig-top-header">
-            <div class="ig-hdr-search-wrap">
-                <span class="ig-hdr-search-ico" aria-hidden="true"></span>
-            </div>
-            <div class="ig-hdr-actions">
-                <span class="ig-hdr-action ig-hdr-action--bell" title="Notificações">{badge}</span>
-                <span class="ig-hdr-action ig-hdr-action--chat" title="Chat"></span>
-                <span class="ig-hdr-avatar-wrap">
-                    <span class="ig-hdr-avatar">{avatar}</span>
-                    <span class="ig-hdr-online" aria-hidden="true"></span>
-                </span>
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-    c1, c2 = st.columns([5.5, 1], gap="small")
-    with c1:
-        st.text_input(
-            "Busca global",
-            placeholder="Buscar louvores, membros, escalas...",
-            key="ig_global_search",
-            label_visibility="collapsed",
-        )
-    with c2:
-        b_chat, b_bell, b_prof = st.columns(3)
-        with b_bell:
-            if st.button("🔔", key="hdr_go_notif", help="Notificações"):
-                st.session_state.app_menu = "Chat"
-                st.rerun()
-        with b_chat:
-            if st.button("💬", key="hdr_go_chat", help="Chat"):
-                st.session_state.app_menu = "Chat"
-                st.rerun()
-        with b_prof:
-            if st.button("👤", key="hdr_go_prof", help="Perfil"):
-                st.session_state.app_menu = "Perfil"
-                st.rerun()
     st.markdown('<div class="ig-hdr-spacer"></div>', unsafe_allow_html=True)
 
 

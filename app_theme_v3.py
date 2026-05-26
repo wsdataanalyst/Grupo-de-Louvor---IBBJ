@@ -137,14 +137,6 @@ def ibbj_v3_css() -> str:
             z-index: 2;
             pointer-events: none;
         }
-        .ig-hdr-actions { display: none; }
-        [class*="st-key-hdr_go"] .stButton > button {
-            min-height: 2.4rem !important;
-            border-radius: 12px !important;
-            background: var(--ig-card) !important;
-            border: 1px solid var(--ig-border) !important;
-        }
-
         /* Hero */
         .ig-hero-card {
             display: flex;

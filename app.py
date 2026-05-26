@@ -2566,7 +2566,12 @@ def register_user(
     return new_member, None
 
 
-def set_user_session(user_row, *, remember_me: bool = False):
+def set_user_session(
+    user_row,
+    *,
+    remember_me: bool = False,
+    device_token: str | None = None,
+):
     st.session_state.authenticated = True
     st.session_state.user_name = user_row["first_name"]
     st.session_state.user_full_name = member_display_name(user_row)
@@ -2575,7 +2580,112 @@ def set_user_session(user_row, *, remember_me: bool = False):
     st.session_state.user_primary_role = parse_primary_role(user_row["roles"])
     st.session_state.user_profile_photo = str(user_row.get("profile_photo", ""))
     st.session_state.remember_login = bool(remember_me)
+    if device_token:
+        st.session_state.device_session_token = str(device_token).strip()
     session_touch(st.session_state)
+
+
+def issue_device_session_token(email: str) -> str:
+    from device_session import create_device_session_token
+
+    return create_device_session_token(email, DATA_DIR)
+
+
+def inject_device_auth_token(token: str) -> None:
+    """Guarda token no navegador para restaurar login após reload (ex.: voltar do YouTube)."""
+    from device_session import AUTH_TOKEN_LS_KEY
+
+    safe = str(token).replace("\\", "\\\\").replace("'", "\\'")
+    inject_page_html(
+        f"""
+        <script>
+        (function () {{
+          try {{
+            localStorage.setItem("{AUTH_TOKEN_LS_KEY}", "{safe}");
+          }} catch (e) {{}}
+        }})();
+        </script>
+        """,
+        height=0,
+    )
+
+
+def inject_device_auth_clear() -> None:
+    from device_session import AUTH_TOKEN_LS_KEY
+
+    inject_page_html(
+        f"""
+        <script>
+        (function () {{
+          try {{
+            localStorage.removeItem("{AUTH_TOKEN_LS_KEY}");
+          }} catch (e) {{}}
+        }})();
+        </script>
+        """,
+        height=0,
+    )
+
+
+def inject_device_auth_restore_redirect() -> None:
+    """Se há token salvo, recarrega a URL com ?ibbj_auth= para o servidor restaurar a sessão."""
+    from device_session import AUTH_TOKEN_LS_KEY, AUTH_TOKEN_QUERY_PARAM
+
+    inject_page_html(
+        f"""
+        <script>
+        (function () {{
+          try {{
+            var w = window.parent;
+            var u = new URL(w.location.href);
+            if (u.searchParams.get("{AUTH_TOKEN_QUERY_PARAM}")) return;
+            var t = localStorage.getItem("{AUTH_TOKEN_LS_KEY}");
+            if (!t || t.length < 24) return;
+            u.searchParams.set("{AUTH_TOKEN_QUERY_PARAM}", t);
+            w.location.replace(u.toString());
+          }} catch (e) {{}}
+        }})();
+        </script>
+        """,
+        height=0,
+    )
+
+
+def try_restore_device_session(members_df: pd.DataFrame) -> bool:
+    """Restaura login a partir do token na URL (após voltar ao app / nova sessão Streamlit)."""
+    if st.session_state.get("authenticated"):
+        return False
+    from device_session import AUTH_TOKEN_QUERY_PARAM, validate_device_session_token
+
+    token = str(st.query_params.get(AUTH_TOKEN_QUERY_PARAM, "")).strip()
+    if not token:
+        return False
+    email = validate_device_session_token(token, DATA_DIR)
+    if not email:
+        return False
+    match = members_df[members_df["email"].astype(str).str.strip().str.lower() == email]
+    if match.empty:
+        return False
+    user = match.iloc[0]
+    set_user_session(user, remember_me=True, device_token=token)
+    try:
+        qp = dict(st.query_params)
+        qp.pop(AUTH_TOKEN_QUERY_PARAM, None)
+        st.query_params.from_dict(qp)
+    except Exception:
+        pass
+    return True
+
+
+def logout_user() -> None:
+    token = str(st.session_state.get("device_session_token", "")).strip()
+    if token:
+        from device_session import revoke_device_session_token
+
+        revoke_device_session_token(token, DATA_DIR)
+    session_logout(st.session_state)
+    inject_device_auth_clear()
+    inject_login_remember(False)
 
 
 def member_avatar_for_chat(email: str, members_df: pd.DataFrame) -> str | None:
@@ -2894,25 +3004,33 @@ def inject_auto_login_submit():
 
 
 def inject_app_resume_listener():
-    """Ao voltar ao app (aba visível), força atualização dos dados na nuvem."""
+    """Ao voltar ao app (aba visível), atualiza dados e preserva login via token no dispositivo."""
+    from device_session import AUTH_TOKEN_LS_KEY, AUTH_TOKEN_QUERY_PARAM
+
     inject_hidden_sidebar_script(
-        """
+        f"""
         <script>
-        (function () {
+        (function () {{
           var last = 0;
-          document.addEventListener("visibilitychange", function () {
+          var KL = "{AUTH_TOKEN_LS_KEY}";
+          var KP = "{AUTH_TOKEN_QUERY_PARAM}";
+          document.addEventListener("visibilitychange", function () {{
             if (document.visibilityState !== "visible") return;
             var now = Date.now();
             if (now - last < 8000) return;
             last = now;
-            try {
+            try {{
               var w = window.parent;
               var u = new URL(w.location.href);
               u.searchParams.set("ibbj_resume", String(now));
+              var t = localStorage.getItem(KL);
+              if (t && t.length >= 24) {{
+                u.searchParams.set(KP, t);
+              }}
               w.location.replace(u.toString());
-            } catch (e) {}
-          });
-        })();
+            }} catch (e) {{}}
+          }});
+        }})();
         </script>
         """
     )
@@ -3483,7 +3601,7 @@ def render_sidebar_footer(
         use_container_width=True,
         type="secondary",
     ):
-        session_logout(st.session_state)
+        logout_user()
         st.rerun()
     from ui_html import inject_ui_html
 
@@ -3703,16 +3821,19 @@ def render_login_v2_footer():
 
 
 def render_login_v2_form(members_df: pd.DataFrame):
+    inject_device_auth_restore_redirect()
     inject_login_restore_fields()
     inject_auto_login_submit()
     with st.form(key="login_form"):
         login_email = st.text_input("E-mail", placeholder="seu@email.com")
         login_password = st.text_input("Senha", type="password", placeholder="••••••••")
         remember_me = st.checkbox(
-            "Lembrar login neste dispositivo (até 30 dias)",
+            f"Lembrar login neste dispositivo (até {SESSION_REMEMBER_DAYS} dias)",
+            value=True,
             help=(
-                f"Mantém você logado por até {SESSION_REMEMBER_DAYS} dias neste aparelho "
-                "e preenche email/senha ao voltar. Use só em dispositivo pessoal."
+                f"Mantém você logado por até {SESSION_REMEMBER_DAYS} dias neste aparelho, "
+                "mesmo ao abrir links (YouTube) e voltar. Preenche email/senha se precisar. "
+                "Use só em dispositivo pessoal."
             ),
         )
         login_button = st.form_submit_button("Entrar", type="primary", use_container_width=True)
@@ -3734,7 +3855,13 @@ def render_login_v2_form(members_df: pd.DataFrame):
             ]
             if not refreshed.empty:
                 user = refreshed.iloc[0]
-            set_user_session(user, remember_me=remember_me)
+            dev_tok = issue_device_session_token(str(user["email"]))
+            set_user_session(
+                user,
+                remember_me=True,
+                device_token=dev_tok,
+            )
+            inject_device_auth_token(dev_tok)
             inject_login_remember(
                 remember_me,
                 login_email.strip(),
@@ -9187,6 +9314,10 @@ def _run_app() -> None:
     members_df = prepare_members(members_df)
     ensure_local_profile_photos(members_df)
     members_df = sync_recognized_member_roles(members_df)
+
+    if try_restore_device_session(members_df):
+        st.rerun()
+
     chat_df = prepare_chat(load_data(CHAT_FILE, CHAT_COLUMNS))
     escalas_df = prepare_escalas(load_data(ESCALAS_FILE, ESCALA_COLUMNS))
     trocas_df = prepare_trocas(load_data(TROCAS_FILE, TROCA_COLUMNS))
@@ -9229,15 +9360,22 @@ def _run_app() -> None:
         return
 
     if not session_is_valid(st.session_state):
-        session_logout(st.session_state)
+        logout_user()
         st.warning(session_expired_user_message(st.session_state))
         show_login_page(members_df)
         return
 
     if handle_app_resume_query_params():
+        if not st.session_state.get("authenticated"):
+            try_restore_device_session(members_df)
         st.rerun()
 
     session_touch(st.session_state)
+
+    dev_tok = str(st.session_state.get("device_session_token", "")).strip()
+    if dev_tok and not st.session_state.get("_device_auth_injected"):
+        inject_device_auth_token(dev_tok)
+        st.session_state._device_auth_injected = True
 
     render_sidebar_profile(members_df)
     if "_escalas_bundle" not in st.session_state:

@@ -8,10 +8,10 @@ from zoneinfo import ZoneInfo
 import pandas as pd
 
 LOCAL_TZ = ZoneInfo("America/Sao_Paulo")
-# Sessão deslizante (sem "lembrar"): renova a cada interação.
-SESSION_IDLE_MINUTES = 60 * 12  # 12 horas
-# Com "Lembrar login" no dispositivo: permanece logado por dias.
-SESSION_REMEMBER_DAYS = 30
+# Sessão deslizante (renova a cada uso no app).
+SESSION_IDLE_MINUTES = 60 * 24 * 7  # 7 dias sem abrir o app
+# Com token no dispositivo / «Lembrar login»: permanece logado por muito tempo.
+SESSION_REMEMBER_DAYS = 90
 # Compatibilidade com mensagens antigas
 SESSION_MINUTES = SESSION_IDLE_MINUTES
 REMEMBER_EMAIL_KEY = "ibbj_remember_email"
@@ -119,15 +119,10 @@ def session_is_valid(session_state) -> bool:
 
 
 def session_expired_user_message(session_state) -> str:
-    if session_state.get("remember_login"):
-        return (
-            "Sessão expirada neste aparelho. Use **Entrar** — email e senha podem "
-            "ser preenchidos automaticamente se você marcou «Lembrar login»."
-        )
-    hours = max(1, SESSION_IDLE_MINUTES // 60)
     return (
-        f"Sessão encerrada após cerca de {hours} hora(s) sem uso. "
-        "Entre novamente ou marque «Lembrar login» para permanecer conectado por mais tempo."
+        "Sessão expirada neste aparelho. Toque **Entrar** — o app deve reconectar "
+        "automaticamente se este for seu dispositivo habitual. "
+        "Email e senha também podem ser preenchidos se você marcou «Lembrar login»."
     )
 
 
@@ -142,6 +137,7 @@ def session_logout(session_state) -> None:
         "user_profile_photo",
         "session_expires_at",
         "remember_login",
+        "device_session_token",
         "app_menu",
     ):
         session_state.pop(key, None)
