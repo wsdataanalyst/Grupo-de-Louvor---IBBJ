@@ -156,7 +156,7 @@ def render_mobile_lab_nav(current: str, *, chat_unread: int = 0) -> None:
     ]
 
     visual = "".join(
-        _nav_btn_html(icon, label, active=(current == page), badge=badge)
+        _nav_btn_html(icon, page, active=(current == page), badge=badge)
         for page, icon, badge in items
     )
     st.markdown(
