@@ -20,6 +20,8 @@ def mobile_lab_css() -> str:
       --ml-purple: rgba(139,92,246,.25);
       --ml-gold: rgba(212,160,23,.20);
       --ml-text-dim: rgba(148,163,184,.92);
+      --ml-nav-height: 60px;
+      --ml-nav-offset: max(16px, env(safe-area-inset-bottom, 0px));
     }
 
     /* Hide Streamlit chrome for "app" feel */
@@ -40,7 +42,16 @@ def mobile_lab_css() -> str:
     body:has(.ml-page) [data-testid="stAppViewContainer"] .main .block-container{
       max-width: 28rem !important;
       margin: 0 auto !important;
-      padding: 0.5rem 0.85rem 6.8rem !important;
+      padding: 0.5rem 0.85rem calc(var(--ml-nav-height) + var(--ml-nav-offset) + 20px) !important;
+    }
+    /* fixed relativo à viewport (evita corte no fim do .main do Streamlit) */
+    body:has(#ml-bottom-nav-start) [data-testid="stAppViewContainer"],
+    body:has(#ml-bottom-nav-start) [data-testid="stAppViewContainer"] > section,
+    body:has(#ml-bottom-nav-start) [data-testid="stMain"],
+    body:has(#ml-bottom-nav-start) .main {
+      transform: none !important;
+      filter: none !important;
+      perspective: none !important;
     }
 
     /* Page container */
@@ -154,8 +165,11 @@ def mobile_lab_css() -> str:
     body:has(#ml-bottom-nav-start) [data-testid="stHorizontalBlock"]:has([class*="st-key-ml_nav_"]){
       position: fixed !important;
       left: 50% !important;
+      right: auto !important;
+      bottom: auto !important;
+      top: calc(100vh - var(--ml-nav-height) - var(--ml-nav-offset)) !important;
+      top: calc(100svh - var(--ml-nav-height) - var(--ml-nav-offset)) !important;
       transform: translateX(-50%) !important;
-      bottom: max(12px, env(safe-area-inset-bottom, 0px)) !important;
       width: min(420px, calc(100vw - 16px)) !important;
       max-width: 420px !important;
       z-index: 9999 !important;
@@ -165,9 +179,10 @@ def mobile_lab_css() -> str:
       -webkit-backdrop-filter: blur(20px) !important;
       border: 1px solid rgba(255,255,255,.08) !important;
       border-radius: 30px !important;
-      padding: 8px 6px !important;
+      padding: 6px 6px !important;
       box-shadow: 0 0 30px rgba(139,92,246,.12) !important;
       gap: 0 !important;
+      box-sizing: border-box !important;
     }
     body:has(#ml-bottom-nav-start) [data-testid="stHorizontalBlock"]:has([class*="st-key-ml_nav_"]) [data-testid="column"]{
       padding: 0 2px !important;
@@ -179,8 +194,8 @@ def mobile_lab_css() -> str:
     }
     body:has(#ml-bottom-nav-start) [class*="st-key-ml_nav_"] [data-testid="stButton"] > button{
       width: 100% !important;
-      min-height: 54px !important;
-      padding: 6px 4px 8px !important;
+      min-height: 48px !important;
+      padding: 4px 4px 6px !important;
       margin: 0 !important;
       border: none !important;
       border-radius: 16px !important;
