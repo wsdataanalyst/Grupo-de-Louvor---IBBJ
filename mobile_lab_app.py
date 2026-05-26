@@ -8,7 +8,7 @@ from datetime import datetime
 import pandas as pd
 import streamlit as st
 
-from mobile_lab_ui import inject_mobile_lab_theme, render_mobile_lab_dashboard
+from mobile_lab_ui import inject_mobile_lab_theme
 
 
 LAB_PAGES = (
@@ -116,6 +116,31 @@ def _sync_page_from_query() -> None:
             st.session_state._ml_logout = True
     except Exception:
         pass
+
+
+def mobile_lab_current_page() -> str:
+    _sync_page_from_query()
+    return _get_page()
+
+
+def render_mobile_lab_nav(current: str, *, chat_unread: int = 0) -> None:
+    """Bottom navigation sempre visível (linka via query param)."""
+    inject_mobile_lab_theme()
+    st.markdown(
+        f"""
+        <div class="ml-glass ml-bottom">
+          <a class="ml-navbtn {'ml-active' if current=='Início' else ''}" href="?mobile_lab=1&ml_page=In%C3%ADcio">🏠<span>Início</span></a>
+          <a class="ml-navbtn {'ml-active' if current=='Escalas' else ''}" href="?mobile_lab=1&ml_page=Escalas">📅<span>Escalas</span></a>
+          <a class="ml-navbtn {'ml-active' if current=='Repertório' else ''}" href="?mobile_lab=1&ml_page=Repert%C3%B3rio">🎵<span>Repertório</span></a>
+          <a class="ml-navbtn {'ml-active' if current=='Chat' else ''}" href="?mobile_lab=1&ml_page=Chat" style="position:relative;">
+            💬<span>Chat</span>
+            <div class="ml-badge" style="top:-8px;right:6px;background:rgba(139,92,246,1);color:#fff;border:none;width:18px;height:18px;font-size:11px;">{max(0,int(chat_unread))}</div>
+          </a>
+          <a class="ml-navbtn {'ml-active' if current=='Perfil' else ''}" href="?mobile_lab=1&ml_page=Perfil">👤<span>Perfil</span></a>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def _render_page_header(title: str) -> None:
@@ -275,53 +300,7 @@ def render_mobile_lab_chat_list(*, chat_df: pd.DataFrame) -> None:
         )
 
 
-def render_mobile_lab_shell(
-    *,
-    members_df: pd.DataFrame,
-    louvores_df: pd.DataFrame,
-    escalas_df: pd.DataFrame,
-    playlist_df: pd.DataFrame,
-    chat_df: pd.DataFrame,
-    user_name: str,
-    photo_uri: str,
-    notif_count: int,
-    chat_unread: int,
-) -> None:
-    inject_mobile_lab_theme()
+def mobile_lab_request_logout() -> bool:
     _sync_page_from_query()
-    current = _get_page()
-
-    # Drawer logic via query param (links set ml_page)
-    if st.session_state.pop("_ml_logout", False):
-        st.session_state.request_logout = True
-        st.rerun()
-
-    # Page body
-    if current == "Início":
-        render_mobile_lab_dashboard(
-            members_df=members_df,
-            louvores_df=louvores_df,
-            escalas_df=escalas_df,
-            chat_unread=chat_unread,
-            user_full_name=user_name,
-            photo_uri=photo_uri,
-            notif_count=notif_count,
-        )
-    elif current == "Escalas":
-        render_mobile_lab_escalas(escalas_df=escalas_df, my_role=str(st.session_state.get("user_primary_role", "")))
-    elif current == "Repertório":
-        render_mobile_lab_repertorio(louvores_df=louvores_df)
-    elif current == "Playlist":
-        render_mobile_lab_playlist(playlist_df=playlist_df)
-    elif current == "Chat":
-        render_mobile_lab_chat_list(chat_df=chat_df)
-    else:
-        # Placeholder: próximas telas (Sugestões, Notificações, Perfil)
-        inject_mobile_lab_theme()
-        _render_page_header(current)
-        st.info("Tela em implementação no Mobile Lab.")
-
-    # Drawer overlay (visual). O botão ☰ na header do mock atual é HTML,
-    # mas a navegação principal já funciona via URL ml_page + bottom nav no dashboard.
-    _render_drawer(current)
+    return bool(st.session_state.pop("_ml_logout", False))
 

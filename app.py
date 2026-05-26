@@ -9632,7 +9632,11 @@ def _run_app() -> None:
     from mobile_lab import is_mobile_lab_enabled
 
     if is_mobile_lab_enabled():
-        from mobile_lab_app import render_mobile_lab_shell
+        from mobile_lab_app import (
+            mobile_lab_current_page,
+            mobile_lab_request_logout,
+            render_mobile_lab_nav,
+        )
 
         email_hdr = str(st.session_state.get("user_email", "")).strip().lower()
         photo_hdr = profile_photo_to_data_uri(
@@ -9646,19 +9650,63 @@ def _run_app() -> None:
         )
         notif_hdr = int(chat_unread) + int(sug_badge)
 
-        render_mobile_lab_shell(
-            members_df=members_df,
-            louvores_df=louvores_df,
-            escalas_df=escalas_df,
-            playlist_df=playlist_df,
-            chat_df=chat_df,
-            user_name=str(st.session_state.get("user_full_name", "")).strip()
-            or str(st.session_state.user_name),
-            photo_uri=photo_hdr or "",
-            notif_count=notif_hdr,
-            chat_unread=chat_unread,
-        )
-        if st.session_state.pop("request_logout", False):
+        ml_page = mobile_lab_current_page()
+
+        # Renderiza a página real (mesmas funções do web) em modo mobile-lab.
+        if ml_page == "Início":
+            show_dashboard(
+                escalas_df,
+                programa_df,
+                equipe_df,
+                louvores_df,
+                members_df,
+                playlist_df,
+                trocas_df,
+                eventos_df,
+                feed_posts_df=feed_posts_df,
+            )
+        elif ml_page == "Escalas":
+            show_escalas_page(
+                escalas_df,
+                trocas_df,
+                members_df,
+                programa_df,
+                equipe_df,
+                louvores_df,
+                chat_ensaio_df,
+            )
+        elif ml_page == "Repertório":
+            show_louvores_catalog(
+                louvores_df,
+                programa_df=programa_df,
+                sugestoes_df=sugestoes_df,
+                playlist_df=playlist_df,
+            )
+        elif ml_page == "Playlist":
+            show_playlist_page(louvores_df, playlist_df, members_df)
+        elif ml_page == "Chat":
+            show_group_chat(chat_df, members_df)
+        elif ml_page == "Sugestões":
+            show_sugestao_louvor(sugestoes_df, louvores_df)
+        elif ml_page == "Notificações":
+            show_feed_page(feed_posts_df, feed_likes_df, feed_comments_df)
+        elif ml_page == "Perfil":
+            show_user_profile(members_df, escalas_df, equipe_df)
+        else:
+            show_dashboard(
+                escalas_df,
+                programa_df,
+                equipe_df,
+                louvores_df,
+                members_df,
+                playlist_df,
+                trocas_df,
+                eventos_df,
+                feed_posts_df=feed_posts_df,
+            )
+
+        render_mobile_lab_nav(ml_page, chat_unread=chat_unread)
+        if mobile_lab_request_logout() or st.session_state.pop("request_logout", False):
             logout_user()
         return
 

@@ -142,6 +142,7 @@ def mobile_lab_css() -> str:
       color: rgba(148,163,184,.95);
       font-size: 16px;
       min-width: 56px;
+      text-decoration: none;
     }
     .ml-navbtn span{ font-size: 11px; font-weight: 800; }
     .ml-active{ color: rgba(167,139,250,.95); }
