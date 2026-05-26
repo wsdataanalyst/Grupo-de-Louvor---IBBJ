@@ -25,12 +25,42 @@ def mobile_lab_css() -> str:
     }
 
     /* Hide Streamlit chrome for "app" feel */
+    body:has(#ml-mobile-lab-mode) [data-testid="stSidebar"],
     body:has(#ml-bottom-nav-start) [data-testid="stSidebar"],
     body:has(.ml-page) [data-testid="stSidebar"] { display:none !important; }
+    body:has(#ml-mobile-lab-mode) [data-testid="stHeader"],
     body:has(#ml-bottom-nav-start) [data-testid="stHeader"],
     body:has(.ml-page) [data-testid="stHeader"] { display:none !important; }
+    body:has(#ml-mobile-lab-mode) [data-testid="stToolbar"],
     body:has(#ml-bottom-nav-start) [data-testid="stToolbar"],
     body:has(.ml-page) [data-testid="stToolbar"] { display:none !important; }
+    /* Widgets fixos no canto (status + Manage app no Cloud) — não cobrir Perfil */
+    body:has(#ml-mobile-lab-mode) [data-testid="stStatusWidget"],
+    body:has(#ml-mobile-lab-mode) [data-testid="stDecoration"],
+    body:has(#ml-mobile-lab-mode) footer,
+    body:has(#ml-mobile-lab-mode) .stAppDeployButton,
+    body:has(#ml-mobile-lab-mode) .stDeployButton,
+    body:has(#ml-mobile-lab-mode) [data-testid="stToolbarActions"],
+    body:has(#ml-bottom-nav-start) [data-testid="stStatusWidget"],
+    body:has(#ml-bottom-nav-start) [data-testid="stDecoration"],
+    body:has(#ml-bottom-nav-start) footer,
+    body:has(#ml-bottom-nav-start) .stAppDeployButton,
+    body:has(#ml-bottom-nav-start) .stDeployButton {
+      display: none !important;
+      visibility: hidden !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
+      width: 0 !important;
+      height: 0 !important;
+      max-width: 0 !important;
+      max-height: 0 !important;
+      overflow: hidden !important;
+      position: fixed !important;
+      left: -9999px !important;
+      top: auto !important;
+      bottom: auto !important;
+      z-index: -1 !important;
+    }
     body:has(#ml-bottom-nav-start) [data-testid="stAppViewContainer"],
     body:has(.ml-page) [data-testid="stAppViewContainer"] {
       background:
@@ -295,6 +325,15 @@ def mobile_lab_css() -> str:
       background: rgba(239,68,68,.10);
     }
     """
+
+
+def inject_mobile_lab_app_shell() -> None:
+    """Marca o modo mobile lab cedo e injeta CSS (widgets Streamlit fora da nav)."""
+    st.markdown(
+        '<span id="ml-mobile-lab-mode" aria-hidden="true"></span>',
+        unsafe_allow_html=True,
+    )
+    inject_mobile_lab_theme()
 
 
 def inject_mobile_lab_theme() -> None:

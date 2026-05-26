@@ -1,5 +1,6 @@
 [client]
-toolbarMode = "minimal"
+# viewer: oculta Deploy/Manage app e opções de dev (incl. dono no Streamlit Cloud)
+toolbarMode = "viewer"
 showErrorDetails = false
 
 [browser]

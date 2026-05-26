@@ -9637,6 +9637,9 @@ def _run_app() -> None:
             mobile_lab_request_logout,
             render_mobile_lab_nav,
         )
+        from mobile_lab_ui import inject_mobile_lab_app_shell
+
+        inject_mobile_lab_app_shell()
 
         email_hdr = str(st.session_state.get("user_email", "")).strip().lower()
         photo_hdr = profile_photo_to_data_uri(
