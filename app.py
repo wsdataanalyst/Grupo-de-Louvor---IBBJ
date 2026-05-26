@@ -5820,11 +5820,11 @@ def show_dashboard(
         render_warning_card,
         render_week_culto_cards,
     )
+    from mobile_lab import is_mobile_lab_enabled
+    from mobile_dashboard_ui import show_mobile_dashboard
 
     escalas_df, programa_df, equipe_df, trocas_df = get_escalas_bundle()
     feed_posts_df = feed_posts_df if feed_posts_df is not None else pd.DataFrame()
-
-    inject_dashboard_ambient()
 
     if "week_offset" not in st.session_state:
         st.session_state.week_offset = 0
@@ -5838,7 +5838,42 @@ def show_dashboard(
     my_email = st.session_state.user_email.strip().lower()
     minhas = user_on_escala_semana(escalas_df, equipe_df, my_email, start, end)
 
-    from mobile_ui import mobile_stack_open, mobile_stack_close
+    if is_mobile_lab_enabled():
+        items, _, icons = get_menu_items_for_user(st.session_state.user_roles)
+        available = {name for name, _, _ in items}
+        quick = [
+            (n, icons.get(n, "🎵"))
+            for n in ("Repertório", "Playlist", "Chat", "Sugestão de louvor", "Escalas")
+            if n in available
+        ]
+        chat_unread = int(st.session_state.get("chat_unread_count", 0))
+        pend = chat_unread + (
+            count_pending_sugestoes(st.session_state.get("_sugestoes_df_cache", pd.DataFrame()))
+            if is_mgr
+            else 0
+        )
+        show_mobile_dashboard(
+            escalas_df=escalas_df,
+            equipe_df=equipe_df,
+            louvores_df=louvores_df,
+            members_df=members_df,
+            playlist_df=playlist_df,
+            feed_posts_df=feed_posts_df,
+            members_visible_count=len(members_visible_to_group(members_df)),
+            user_name=nome,
+            my_email=my_email,
+            photo_uri=profile_photo_to_data_uri(
+                my_email, str(st.session_state.get("user_profile_photo", ""))
+            ),
+            chat_unread=chat_unread,
+            pendencias=pend,
+            quick_links=quick,
+        )
+        return
+
+    inject_dashboard_ambient()
+
+    from mobile_ui import mobile_stack_close, mobile_stack_open
 
     mobile_stack_open()
     col_main, col_right = st.columns([2.2, 1], gap="large")
@@ -9500,6 +9535,15 @@ def _run_app() -> None:
     apply_music_theme()
     ensure_session_state()
 
+    try:
+        raw_ml = st.query_params.get("mobile_lab", "")
+        if isinstance(raw_ml, list):
+            raw_ml = raw_ml[0] if raw_ml else ""
+        if str(raw_ml).strip().lower() in ("1", "true", "yes", "on", "sim"):
+            st.session_state.mobile_lab = True
+    except Exception:
+        pass
+
     if st.session_state.get("_feed_purge_v") != FEED_ONE_TIME_PURGE_VERSION:
         try:
             purge_all_feed_data()
@@ -9555,6 +9599,7 @@ def _run_app() -> None:
     louvores_df["title"] = louvores_df["title"].astype(str).apply(fix_louvor_display_title)
     eventos_df = prepare_eventos(load_data(EVENTOS_FILE, EVENTO_COLUMNS))
     sugestoes_df = prepare_sugestoes(load_data(SUGESTOES_FILE, SUGESTAO_COLUMNS))
+    st.session_state["_sugestoes_df_cache"] = sugestoes_df
     chat_ensaio_df = prepare_chat_ensaio(load_data(CHAT_ENSAIO_FILE, CHAT_ENSAIO_COLUMNS))
 
     inject_mobile_app_shell()
@@ -9584,6 +9629,9 @@ def _run_app() -> None:
         st.session_state._device_auth_injected = True
 
     render_sidebar_profile(members_df)
+    from mobile_lab import render_mobile_lab_sidebar_toggle
+
+    render_mobile_lab_sidebar_toggle()
     if "_escalas_bundle" not in st.session_state:
         try:
             refresh_escalas_bundle()
