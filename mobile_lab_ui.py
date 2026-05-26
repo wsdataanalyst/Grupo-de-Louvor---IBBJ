@@ -10,6 +10,8 @@ import streamlit as st
 
 def mobile_lab_css() -> str:
     return r"""
+    @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
+
     :root{
       --ml-bg:#030712;
       --ml-glass: rgba(15,23,42,.72);
@@ -21,9 +23,20 @@ def mobile_lab_css() -> str:
     }
 
     /* Hide Streamlit chrome for "app" feel */
+    body:has(#ml-bottom-nav) [data-testid="stSidebar"],
     body:has(.ml-page) [data-testid="stSidebar"] { display:none !important; }
+    body:has(#ml-bottom-nav) [data-testid="stHeader"],
     body:has(.ml-page) [data-testid="stHeader"] { display:none !important; }
+    body:has(#ml-bottom-nav) [data-testid="stToolbar"],
     body:has(.ml-page) [data-testid="stToolbar"] { display:none !important; }
+    body:has(#ml-bottom-nav) [data-testid="stAppViewContainer"],
+    body:has(.ml-page) [data-testid="stAppViewContainer"] {
+      background:
+        radial-gradient(circle at top left, var(--ml-blue), transparent 30%),
+        radial-gradient(circle at top right, var(--ml-purple), transparent 30%),
+        var(--ml-bg) !important;
+    }
+    body:has(#ml-bottom-nav) [data-testid="stAppViewContainer"] .main .block-container,
     body:has(.ml-page) [data-testid="stAppViewContainer"] .main .block-container{
       max-width: 28rem !important;
       margin: 0 auto !important;
@@ -124,37 +137,90 @@ def mobile_lab_css() -> str:
     .ml-quick .ml-q .ml-qe{ font-size: 26px; margin-bottom: 10px; }
     .ml-quick .ml-q .ml-qt{ font-size: 14px; font-weight: 900; }
 
-    /* Bottom nav (Streamlit buttons, fixed) */
+    /* Bottom nav premium (visual + click layer) */
+    .ml-bottom-visual{
+      position: fixed;
+      left: 50%;
+      transform: translateX(-50%);
+      bottom: max(12px, env(safe-area-inset-bottom, 0px));
+      width: min(420px, 95vw);
+      z-index: 1000;
+      border-radius: 30px;
+      padding: 10px 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      pointer-events: none;
+      box-shadow: 0 0 30px rgba(139,92,246,.12);
+    }
+    .ml-navbtn{
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      min-width: 56px;
+      color: rgba(148,163,184,.95);
+      font-family: 'Manrope', system-ui, sans-serif;
+    }
+    .ml-navbtn .ml-nav-icon{ font-size: 20px; line-height: 1; }
+    .ml-navbtn .ml-nav-label{ font-size: 11px; font-weight: 800; letter-spacing: 0.01em; }
+    .ml-navbtn.ml-active{
+      color: rgba(167,139,250,.98);
+    }
+    .ml-navbtn.ml-active .ml-nav-label{
+      color: rgba(233,213,255,.98);
+    }
+    .ml-nav-badge{
+      position: absolute;
+      top: -6px;
+      right: 6px;
+      min-width: 18px;
+      height: 18px;
+      padding: 0 5px;
+      border-radius: 999px;
+      background: rgba(139,92,246,1);
+      color: #fff;
+      font-size: 10px;
+      font-weight: 900;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 2px solid var(--ml-bg);
+    }
     #ml-bottom-nav{
       position: fixed;
       left: 50%;
       transform: translateX(-50%);
-      bottom: 12px;
+      bottom: max(12px, env(safe-area-inset-bottom, 0px));
       width: min(420px, 95vw);
-      z-index: 1000;
-      border-radius: 30px;
-      padding: 10px 10px;
-      border: 1px solid rgba(255,255,255,.10);
+      z-index: 1001;
+      background: transparent !important;
+      border: none !important;
+      box-shadow: none !important;
+      padding: 10px 6px !important;
+    }
+    #ml-bottom-nav [data-testid="column"]{
+      padding: 0 2px !important;
+    }
+    #ml-bottom-nav [data-testid="stVerticalBlock"]{
+      gap: 0 !important;
+    }
+    #ml-bottom-nav [data-testid="stButton"]{
+      margin: 0 !important;
     }
     #ml-bottom-nav [data-testid="stButton"] button{
-      border-radius: 18px !important;
-      min-height: 52px !important;
-      font-weight: 900 !important;
-      font-size: 12px !important;
-      line-height: 1.1 !important;
-      padding: 10px 8px !important;
-      white-space: pre-line !important;
+      opacity: 0 !important;
+      min-height: 58px !important;
+      height: 58px !important;
+      padding: 0 !important;
+      margin: 0 !important;
+      border: none !important;
+      background: transparent !important;
+      box-shadow: none !important;
     }
-    #ml-bottom-nav [data-testid="stButton"] button[kind="secondary"]{
-      background: rgba(15,23,42,.25) !important;
-      border: 1px solid rgba(255,255,255,.08) !important;
-      color: rgba(148,163,184,.95) !important;
-    }
-    #ml-bottom-nav [data-testid="stButton"] button[kind="primary"]{
-      background: rgba(139,92,246,.22) !important;
-      border: 1px solid rgba(139,92,246,.35) !important;
-      box-shadow: 0 0 24px rgba(139,92,246,.18) !important;
-      color: rgba(233,213,255,.98) !important;
+    #ml-bottom-nav [data-testid="stButton"] button p{
+      display: none !important;
     }
 
     /* Drawer overlay */
@@ -344,17 +410,6 @@ def render_mobile_lab_dashboard(
             </div>
             <div class="ml-glass ml-q ml-glow-gold"><div class="ml-qe">💡</div><div class="ml-qt">Sugestões</div></div>
           </div>
-        </div>
-
-        <div class="ml-glass ml-bottom">
-          <div class="ml-navbtn ml-active">🏠<span>Início</span></div>
-          <div class="ml-navbtn">📅<span>Escalas</span></div>
-          <div class="ml-navbtn">🎵<span>Repertório</span></div>
-          <div class="ml-navbtn" style="position:relative;">
-            💬<span>Chat</span>
-            <div class="ml-badge" style="top:-8px;right:6px;background:rgba(139,92,246,1);color:#fff;border:none;width:18px;height:18px;font-size:11px;">{max(0,int(chat_unread))}</div>
-          </div>
-          <div class="ml-navbtn">👤<span>Perfil</span></div>
         </div>
         """,
         unsafe_allow_html=True,

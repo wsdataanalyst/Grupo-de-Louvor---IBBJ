@@ -125,38 +125,57 @@ def mobile_lab_current_page() -> str:
     return _get_page()
 
 
+def _nav_btn_html(icon: str, label: str, *, active: bool, badge: int = 0) -> str:
+    active_cls = " ml-active" if active else ""
+    badge_html = (
+        f'<span class="ml-nav-badge">{badge}</span>' if badge and badge > 0 else ""
+    )
+    return (
+        f'<div class="ml-navbtn{active_cls}">'
+        f'<span class="ml-nav-icon">{icon}</span>'
+        f'<span class="ml-nav-label">{_esc(label)}</span>'
+        f"{badge_html}"
+        f"</div>"
+    )
+
+
 def render_mobile_lab_nav(current: str, *, chat_unread: int = 0) -> None:
     """
-    Bottom navigation sempre visível.
+    Bottom navigation premium (visual HTML) + botões invisíveis (session_state).
 
-    Importante (iPhone/Chrome/WebKit): navegação precisa ser interna (session_state),
-    sem depender de URL, para não "abrir em outro navegador".
+    iPhone/Chrome: não usa links/URL — só st.session_state + st.rerun().
     """
     inject_mobile_lab_theme()
 
-    st.markdown('<div id="ml-bottom-nav" class="ml-glass">', unsafe_allow_html=True)
-    col1, col2, col3, col4, col5 = st.columns(5, gap="small")
+    items = [
+        ("Início", "🏠", 0),
+        ("Escalas", "📅", 0),
+        ("Repertório", "🎵", 0),
+        ("Chat", "💬", max(0, int(chat_unread))),
+        ("Perfil", "👤", 0),
+    ]
 
-    def _nav_btn(col, *, page: str, icon: str, label: str, key: str):
+    visual = "".join(
+        _nav_btn_html(icon, label, active=(current == page), badge=badge)
+        for page, icon, badge in items
+    )
+    st.markdown(
+        f'<div class="ml-bottom-visual ml-glass">{visual}</div>',
+        unsafe_allow_html=True,
+    )
+
+    st.markdown('<div id="ml-bottom-nav">', unsafe_allow_html=True)
+    cols = st.columns(5, gap="small")
+    for col, (page, _icon, _badge) in zip(cols, items):
         with col:
-            active = current == page
             if st.button(
-                f"{icon}\n{label}",
-                key=key,
+                " ",
+                key=f"ml_nav_{page.replace(' ', '_')}",
                 use_container_width=True,
-                type="primary" if active else "secondary",
+                type="secondary",
             ):
                 st.session_state.ml_page = page
                 st.rerun()
-
-    _nav_btn(col1, page="Início", icon="🏠", label="Início", key="ml_nav_home")
-    _nav_btn(col2, page="Escalas", icon="📅", label="Escalas", key="ml_nav_escalas")
-    _nav_btn(
-        col3, page="Repertório", icon="🎵", label="Repertório", key="ml_nav_rep"
-    )
-    _nav_btn(col4, page="Chat", icon="💬", label="Chat", key="ml_nav_chat")
-    _nav_btn(col5, page="Perfil", icon="👤", label="Perfil", key="ml_nav_profile")
-
     st.markdown("</div>", unsafe_allow_html=True)
 
 
