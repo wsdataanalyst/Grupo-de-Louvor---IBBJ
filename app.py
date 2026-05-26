@@ -9628,6 +9628,40 @@ def _run_app() -> None:
         inject_device_auth_token(dev_tok)
         st.session_state._device_auth_injected = True
 
+    # Mobile Lab: modo app-style com navegação própria (somente quando ativado).
+    from mobile_lab import is_mobile_lab_enabled
+
+    if is_mobile_lab_enabled():
+        from mobile_lab_app import render_mobile_lab_shell
+
+        email_hdr = str(st.session_state.get("user_email", "")).strip().lower()
+        photo_hdr = profile_photo_to_data_uri(
+            email_hdr, str(st.session_state.get("user_profile_photo", "")).strip()
+        )
+        chat_unread = int(st.session_state.get("chat_unread_count", 0))
+        sug_badge = (
+            count_pending_sugestoes(sugestoes_df)
+            if is_scale_manager(st.session_state.user_roles)
+            else count_sugestoes_news_for_user(sugestoes_df, email_hdr)
+        )
+        notif_hdr = int(chat_unread) + int(sug_badge)
+
+        render_mobile_lab_shell(
+            members_df=members_df,
+            louvores_df=louvores_df,
+            escalas_df=escalas_df,
+            playlist_df=playlist_df,
+            chat_df=chat_df,
+            user_name=str(st.session_state.get("user_full_name", "")).strip()
+            or str(st.session_state.user_name),
+            photo_uri=photo_hdr or "",
+            notif_count=notif_hdr,
+            chat_unread=chat_unread,
+        )
+        if st.session_state.pop("request_logout", False):
+            logout_user()
+        return
+
     render_sidebar_profile(members_df)
     from mobile_lab import render_mobile_lab_sidebar_toggle
 

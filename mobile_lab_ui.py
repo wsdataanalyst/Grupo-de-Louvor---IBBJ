@@ -20,6 +20,16 @@ def mobile_lab_css() -> str:
       --ml-text-dim: rgba(148,163,184,.92);
     }
 
+    /* Hide Streamlit chrome for "app" feel */
+    body:has(.ml-page) [data-testid="stSidebar"] { display:none !important; }
+    body:has(.ml-page) [data-testid="stHeader"] { display:none !important; }
+    body:has(.ml-page) [data-testid="stToolbar"] { display:none !important; }
+    body:has(.ml-page) [data-testid="stAppViewContainer"] .main .block-container{
+      max-width: 28rem !important;
+      margin: 0 auto !important;
+      padding: 0.5rem 0.85rem 6.8rem !important;
+    }
+
     /* Page container */
     .ml-page {
       color: #fff;
@@ -135,6 +145,51 @@ def mobile_lab_css() -> str:
     }
     .ml-navbtn span{ font-size: 11px; font-weight: 800; }
     .ml-active{ color: rgba(167,139,250,.95); }
+
+    /* Drawer overlay */
+    .ml-drawer-overlay{
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.55);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      z-index: 1200;
+      display:flex;
+      align-items: stretch;
+    }
+    .ml-drawer{
+      width: min(320px, 86vw);
+      height: 100%;
+      padding: 14px 14px 18px;
+      border-top-right-radius: 26px;
+      border-bottom-right-radius: 26px;
+      background: rgba(15,23,42,.88);
+      border-right: 1px solid rgba(255,255,255,.10);
+      box-shadow: 0 20px 60px rgba(0,0,0,.5);
+    }
+    .ml-drawer h3{ margin: 6px 0 12px 0; font-size: 16px; font-weight: 900; }
+    .ml-drawer a{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      padding: 12px 12px;
+      border-radius: 18px;
+      color: rgba(226,232,240,.95);
+      text-decoration:none;
+      border: 1px solid rgba(255,255,255,.08);
+      margin-bottom: 10px;
+      background: rgba(15,23,42,.55);
+    }
+    .ml-drawer a.active{
+      border-color: rgba(139,92,246,.55);
+      box-shadow: 0 0 20px rgba(139,92,246,.20);
+      color: rgba(233,213,255,.98);
+    }
+    .ml-drawer .ml-logout{
+      margin-top: 10px;
+      border-color: rgba(239,68,68,.35);
+      background: rgba(239,68,68,.10);
+    }
     """
 
 
