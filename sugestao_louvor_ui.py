@@ -212,6 +212,29 @@ def sugestao_louvor_page_css() -> str:
             background: rgba(139, 92, 246, 0.06);
         }
         .ig-sug-row:last-child { border-bottom: none; }
+        .ig-sug-item {
+            padding: 0.65rem 0.7rem;
+            margin-bottom: 0.5rem;
+            border-radius: 12px;
+            background: rgba(3, 7, 18, 0.45);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+        }
+        .ig-sug-item:hover {
+            border-color: rgba(139, 92, 246, 0.25);
+            background: rgba(139, 92, 246, 0.05);
+        }
+        .ig-sug-item-note {
+            margin: 0.35rem 0 0;
+            padding: 0.45rem 0.55rem;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.04);
+            font-size: 0.72rem;
+            color: #94a3b8 !important;
+            line-height: 1.4;
+        }
+        [data-testid="stMain"]:has(.ig-sug-page) .ig-sug-item + div[data-testid="stHorizontalBlock"] {
+            margin-top: -0.25rem !important;
+        }
         .ig-sug-cover {
             width: 42px;
             height: 42px;
@@ -488,9 +511,26 @@ def build_suggestion_row_html(
         f'<div class="ig-sug-row-meta">{html.escape(artist)} · Sugerido por {html.escape(suggester)} · {html.escape(date_str)}</div>'
         f"</div>"
         f"{badge_html(status_key, status_label)}"
-        f'<span style="color:#64748b;margin-left:0.35rem">⋯</span>'
         f"</div>"
     )
+
+
+def user_facing_review_note(notes: str) -> str:
+    """Texto livre para exibir (sem metadados Artista/Tema embutidos no envio)."""
+    n = str(notes or "").strip()
+    if not n:
+        return ""
+    meta_prefixes = (
+        "Artista:",
+        "Tema:",
+        "Categoria:",
+        "Ministração:",
+        "Tom:",
+        "Recursos:",
+    )
+    parts = [p.strip() for p in n.split("|")]
+    free = [p for p in parts if p and not any(p.startswith(m) for m in meta_prefixes)]
+    return " ".join(free).strip()
 
 
 def render_gestao_card_open() -> None:

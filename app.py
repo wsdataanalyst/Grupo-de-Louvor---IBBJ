@@ -8566,12 +8566,81 @@ def _render_minhas_sugestoes_louvor(sugestoes_df: pd.DataFrame):
             st.link_button("▶ YouTube", yt, key=f"yt_mine_{s['id']}")
 
 
+def _gestao_salvar_nota(sugestoes_df: pd.DataFrame, sid: str, nota: str) -> pd.DataFrame:
+    sugestoes_df = prepare_sugestoes(sugestoes_df)
+    mask = sugestoes_df["id"].astype(str) == sid
+    if nota:
+        sugestoes_df.loc[mask, "review_notes"] = nota
+    return sugestoes_df
+
+
+def _gestao_receber(sid: str, sugestoes_df: pd.DataFrame, nota: str) -> None:
+    sugestoes_df = _gestao_salvar_nota(sugestoes_df, sid, csv_cell_text(nota))
+    mask = sugestoes_df["id"].astype(str) == sid
+    sugestoes_df.loc[mask, "status"] = SUGESTAO_STATUS_EM_ANALISE
+    save_data(sugestoes_df, SUGESTOES_FILE)
+    st.success("Sugestão marcada como **em análise**.")
+
+
+def _gestao_aprovar(
+    s: pd.Series,
+    sid: str,
+    sugestoes_df: pd.DataFrame,
+    louvores_df: pd.DataFrame,
+    nota: str,
+) -> None:
+    sugestoes_df = _gestao_salvar_nota(sugestoes_df, sid, csv_cell_text(nota))
+    _aprovar_sugestao_louvor(s, sugestoes_df, louvores_df)
+    st.success("Aprovada! Publicada no Feed e no repertório.")
+
+
+def _gestao_recusar(sid: str, sugestoes_df: pd.DataFrame, nota: str) -> None:
+    sugestoes_df = _gestao_salvar_nota(sugestoes_df, sid, csv_cell_text(nota))
+    mask = sugestoes_df["id"].astype(str) == sid
+    sugestoes_df.loc[mask, "status"] = SUGESTAO_STATUS_RECUSADA
+    save_data(sugestoes_df, SUGESTOES_FILE)
+    st.success("Sugestão **recusada**.")
+
+
+def _gestao_acoes_botoes(
+    c_recv,
+    c_ap,
+    c_rj,
+    status: str,
+    sid: str,
+    s: pd.Series,
+    sugestoes_df: pd.DataFrame,
+    louvores_df: pd.DataFrame,
+    motivo: str,
+    kp: str,
+    i: int,
+) -> None:
+    if c_recv is not None:
+        with c_recv:
+            if status == SUGESTAO_STATUS_PENDENTE and st.button(
+                "📥 Receber (em análise)",
+                key=f"recv_{kp}_{i}_{sid}",
+                use_container_width=True,
+            ):
+                _gestao_receber(sid, sugestoes_df, motivo)
+                st.rerun()
+    with c_ap:
+        if st.button("✅ Aprovar", key=f"ap_{kp}_{i}_{sid}", use_container_width=True):
+            _gestao_aprovar(s, sid, sugestoes_df, louvores_df, motivo)
+            st.rerun()
+    with c_rj:
+        if st.button("❌ Recusar", key=f"rj_{kp}_{i}_{sid}", use_container_width=True):
+            _gestao_recusar(sid, sugestoes_df, motivo)
+            st.rerun()
+
+
 def _render_gestao_sugestoes_lideranca(
     sugestoes_df: pd.DataFrame,
     louvores_df: pd.DataFrame,
     *,
     premium: bool = False,
     tab_filter: str | None = None,
+    key_prefix: str = "gest",
 ):
     """Painel da liderança: receber (em análise), aprovar ou recusar."""
     from sugestao_louvor_ui import (
@@ -8597,12 +8666,41 @@ def _render_gestao_sugestoes_lideranca(
     df["_ord"] = pd.to_datetime(df["created_at"], errors="coerce")
     df = df.sort_values("_ord", ascending=False).drop(columns=["_ord"])
 
-    if premium:
-        rows_html = []
-        for _, s in df.iterrows():
-            status = normalize_sugestao_status(str(s.get("status", "")))
-            artista = parse_extra_from_notes(str(s.get("review_notes", "")))
-            rows_html.append(
+    from sugestao_louvor_ui import user_facing_review_note
+
+    kp = f"{key_prefix}_{tab_filter or 'fila'}"
+    for i, (_, s) in enumerate(df.iterrows()):
+        sid = str(s["id"])
+        status = normalize_sugestao_status(str(s.get("status", "")))
+        artista = parse_extra_from_notes(str(s.get("review_notes", "")))
+        yt_url = str(s.get("youtube_url", "")).strip()
+        can_act = status in (SUGESTAO_STATUS_PENDENTE, SUGESTAO_STATUS_EM_ANALISE)
+        msg_usuario = user_facing_review_note(str(s.get("review_notes", "")))
+
+        if not premium:
+            with st.expander(
+                f"{s['title']} — {s['suggester_name']} · "
+                f"{SUGESTAO_STATUS_LABELS.get(status, status)}",
+                expanded=status == SUGESTAO_STATUS_PENDENTE,
+            ):
+                if yt_url.startswith("http"):
+                    st.link_button("YouTube", yt_url, key=f"yt_ld_{kp}_{i}_{sid}")
+                st.markdown(sugestao_status_badge_html(status), unsafe_allow_html=True)
+                motivo = st.text_input(
+                    "Observação para quem sugeriu (opcional)",
+                    value=csv_cell_text(s.get("review_notes", "")),
+                    key=f"nota_ld_{kp}_{i}_{sid}",
+                )
+                c1, c2, c3 = st.columns(3)
+                _gestao_acoes_botoes(
+                    c1, c2, c3, status, sid, s, sugestoes_df, louvores_df, motivo, kp, i
+                )
+            continue
+
+        inject_ui_html('<div class="ig-sug-item">')
+        c_info, c_yt = st.columns([5.2, 1])
+        with c_info:
+            st.markdown(
                 build_suggestion_row_html(
                     str(s["title"]),
                     artista,
@@ -8610,68 +8708,51 @@ def _render_gestao_sugestoes_lideranca(
                     str(s.get("created_at", "")),
                     status,
                     SUGESTAO_STATUS_LABELS.get(status, status),
-                )
+                ),
+                unsafe_allow_html=True,
             )
-        inject_ui_html("".join(rows_html))
+        with c_yt:
+            if yt_url.startswith("http"):
+                st.link_button(
+                    "▶ YouTube",
+                    yt_url,
+                    key=f"yt_ld_{kp}_{i}_{sid}",
+                    use_container_width=True,
+                )
+            else:
+                st.caption("—")
 
-    for _, s in df.iterrows():
-        sid = str(s["id"])
-        status = normalize_sugestao_status(str(s.get("status", "")))
-        if not premium:
-            with st.expander(
-                f"{s['title']} — {s['suggester_name']} · "
-                f"{SUGESTAO_STATUS_LABELS.get(status, status)}",
-                expanded=status == SUGESTAO_STATUS_PENDENTE,
-            ):
-                st.link_button("YouTube", str(s["youtube_url"]), key=f"yt_ld_{sid}")
-                st.markdown(sugestao_status_badge_html(status), unsafe_allow_html=True)
-        else:
-            st.link_button("▶ YouTube", str(s["youtube_url"]), key=f"yt_ld_{sid}")
-        motivo = st.text_input(
-            "Observação para quem sugeriu (opcional)",
-            value=csv_cell_text(s.get("review_notes", "")),
-            key=f"nota_ld_{sid}",
-            label_visibility="collapsed" if premium else "visible",
-            placeholder="Observação (opcional)" if premium else None,
-        )
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            if status == SUGESTAO_STATUS_PENDENTE and st.button(
-                "📥 Receber (em análise)",
-                key=f"recv_{sid}",
-                use_container_width=True,
-            ):
-                mask = sugestoes_df["id"].astype(str) == sid
-                sugestoes_df = prepare_sugestoes(sugestoes_df)
-                sugestoes_df.loc[mask, "status"] = SUGESTAO_STATUS_EM_ANALISE
-                nota = csv_cell_text(motivo)
-                if nota:
-                    sugestoes_df.loc[mask, "review_notes"] = nota
-                save_data(sugestoes_df, SUGESTOES_FILE)
-                st.success("Sugestão marcada como **em análise**.")
-                st.rerun()
-        with c2:
-            if st.button("✅ Aprovar", key=f"ap_{sid}", use_container_width=True):
-                mask = sugestoes_df["id"].astype(str) == sid
-                sugestoes_df = prepare_sugestoes(sugestoes_df)
-                nota = csv_cell_text(motivo)
-                if nota:
-                    sugestoes_df.loc[mask, "review_notes"] = nota
-                _aprovar_sugestao_louvor(s, sugestoes_df, louvores_df)
-                st.success("Aprovada! Publicada no Feed e no repertório.")
-                st.rerun()
-        with c3:
-            if st.button("❌ Recusar", key=f"rj_{sid}", use_container_width=True):
-                mask = sugestoes_df["id"].astype(str) == sid
-                sugestoes_df = prepare_sugestoes(sugestoes_df)
-                sugestoes_df.loc[mask, "status"] = SUGESTAO_STATUS_RECUSADA
-                nota = csv_cell_text(motivo)
-                if nota:
-                    sugestoes_df.loc[mask, "review_notes"] = nota
-                save_data(sugestoes_df, SUGESTOES_FILE)
-                st.rerun()
-        if premium:
-            st.markdown("---")
+        if can_act:
+            motivo = st.text_input(
+                "Observação (opcional)",
+                value=msg_usuario or csv_cell_text(s.get("review_notes", "")),
+                key=f"nota_ld_{kp}_{i}_{sid}",
+                label_visibility="collapsed",
+                placeholder="Observação para quem sugeriu (opcional)",
+            )
+            if status == SUGESTAO_STATUS_PENDENTE:
+                c_recv, c_ap, c_rj = st.columns(3)
+            else:
+                c_recv = None
+                c_ap, c_rj = st.columns(2)
+            _gestao_acoes_botoes(
+                c_recv,
+                c_ap,
+                c_rj,
+                status,
+                sid,
+                s,
+                sugestoes_df,
+                louvores_df,
+                motivo,
+                kp,
+                i,
+            )
+        elif msg_usuario:
+            inject_ui_html(
+                f'<p class="ig-sug-item-note">{html.escape(msg_usuario)}</p>'
+            )
+        inject_ui_html("</div>")
 
 
 def show_sugestao_louvor(sugestoes_df: pd.DataFrame, louvores_df: pd.DataFrame):
@@ -8814,21 +8895,42 @@ def show_sugestao_louvor(sugestoes_df: pd.DataFrame, louvores_df: pd.DataFrame):
                 _inject(
                     '<div class="ig-sug-card"><div class="ig-sug-card-title">Acompanhe suas sugestões</div>'
                 )
-                for _, s in mine.iterrows():
+                from sugestao_louvor_ui import user_facing_review_note
+
+                for mi, (_, s) in enumerate(mine.iterrows()):
                     status = normalize_sugestao_status(str(s.get("status", "")))
-                    _inject(
-                        build_suggestion_row_html(
-                            str(s["title"]),
-                            parse_extra_from_notes(str(s.get("review_notes", ""))),
-                            "Você",
-                            str(s.get("created_at", "")),
-                            status,
-                            SUGESTAO_STATUS_LABELS.get(status, status),
-                        )
-                    )
+                    sid_m = str(s["id"])
                     yt = str(s.get("youtube_url", "")).strip()
-                    if yt.startswith("http"):
-                        st.link_button("▶ YouTube", yt, key=f"yt_mine_{s['id']}")
+                    msg = user_facing_review_note(str(s.get("review_notes", "")))
+                    _inject('<div class="ig-sug-item">')
+                    c_row, c_yt = st.columns([5.2, 1])
+                    with c_row:
+                        st.markdown(
+                            build_suggestion_row_html(
+                                str(s["title"]),
+                                parse_extra_from_notes(str(s.get("review_notes", ""))),
+                                "Você",
+                                str(s.get("created_at", "")),
+                                status,
+                                SUGESTAO_STATUS_LABELS.get(status, status),
+                            ),
+                            unsafe_allow_html=True,
+                        )
+                    with c_yt:
+                        if yt.startswith("http"):
+                            st.link_button(
+                                "▶ YouTube",
+                                yt,
+                                key=f"yt_mine_{mi}_{sid_m}",
+                                use_container_width=True,
+                            )
+                        else:
+                            st.caption("—")
+                    if msg:
+                        _inject(
+                            f'<p class="ig-sug-item-note">{html.escape(msg)}</p>'
+                        )
+                    _inject("</div>")
                 _inject("</div>")
 
         if mgr:
@@ -8843,11 +8945,13 @@ def show_sugestao_louvor(sugestoes_df: pd.DataFrame, louvores_df: pd.DataFrame):
             tabs = st.tabs(list(SUGESTAO_TAB_LABELS))
             for tab, label in zip(tabs, SUGESTAO_TAB_LABELS):
                 with tab:
+                    tf = tab_map[label]
                     _render_gestao_sugestoes_lideranca(
                         sugestoes_df,
                         louvores_df,
                         premium=True,
-                        tab_filter=tab_map[label],
+                        tab_filter=tf,
+                        key_prefix=f"gest_tab_{tf}",
                     )
             render_gestao_card_close()
 
