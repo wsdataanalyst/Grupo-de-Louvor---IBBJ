@@ -148,21 +148,14 @@ def mobile_lab_css() -> str:
     .ml-quick .ml-q .ml-qe{ font-size: 26px; margin-bottom: 10px; }
     .ml-quick .ml-q .ml-qt{ font-size: 14px; font-weight: 900; }
 
-    /* Bottom nav — barra fixa (botões ml_nav_*; sem camada duplicada) */
+    /* Bottom nav — container fixo; 5 colunas iguais (override mobile stack) */
     #ml-bottom-nav-start{
       display: none !important;
       height: 0 !important;
       margin: 0 !important;
       padding: 0 !important;
     }
-    body:has(#ml-bottom-nav-start) [data-testid="stVerticalBlock"]:has([class*="st-key-ml_nav_"]){
-      height: 0 !important;
-      min-height: 0 !important;
-      margin: 0 !important;
-      padding: 0 !important;
-      overflow: visible !important;
-    }
-    body:has(#ml-bottom-nav-start) [data-testid="stHorizontalBlock"]:has([class*="st-key-ml_nav_"]){
+    body:has(#ml-bottom-nav-start) [class*="st-key-ml_bottom_nav"]{
       position: fixed !important;
       left: 50% !important;
       right: auto !important;
@@ -174,52 +167,84 @@ def mobile_lab_css() -> str:
       max-width: 420px !important;
       z-index: 9999 !important;
       margin: 0 !important;
-      background: rgba(15,23,42,.72) !important;
+      padding: 6px 8px !important;
+      box-sizing: border-box !important;
+      background: rgba(15,23,42,.88) !important;
       backdrop-filter: blur(20px) !important;
       -webkit-backdrop-filter: blur(20px) !important;
       border: 1px solid rgba(255,255,255,.08) !important;
       border-radius: 30px !important;
-      padding: 6px 6px !important;
       box-shadow: 0 0 30px rgba(139,92,246,.12) !important;
+      pointer-events: auto !important;
+    }
+    body:has(#ml-bottom-nav-start) [class*="st-key-ml_bottom_nav"] [data-testid="stHorizontalBlock"]{
+      display: flex !important;
+      flex-direction: row !important;
+      flex-wrap: nowrap !important;
+      align-items: stretch !important;
       gap: 0 !important;
-      box-sizing: border-box !important;
+      width: 100% !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      position: static !important;
+      transform: none !important;
+      background: transparent !important;
+      border: none !important;
+      box-shadow: none !important;
     }
-    body:has(#ml-bottom-nav-start) [data-testid="stHorizontalBlock"]:has([class*="st-key-ml_nav_"]) [data-testid="column"]{
-      padding: 0 2px !important;
+    body:has(#ml-bottom-nav-start) [class*="st-key-ml_bottom_nav"] [data-testid="stHorizontalBlock"] > [data-testid="column"]{
+      flex: 1 1 0 !important;
+      width: 20% !important;
+      max-width: 20% !important;
       min-width: 0 !important;
+      padding: 0 1px !important;
     }
-    body:has(#ml-bottom-nav-start) [class*="st-key-ml_nav_"] [data-testid="stButton"]{
+    body:has(#ml-bottom-nav-start) [class*="st-key-ml_bottom_nav"] [data-testid="stVerticalBlock"]{
+      gap: 0 !important;
+    }
+    body:has(#ml-bottom-nav-start) [class*="st-key-ml_bottom_nav"] [data-testid="stButton"]{
       margin: 0 !important;
       width: 100% !important;
     }
-    body:has(#ml-bottom-nav-start) [class*="st-key-ml_nav_"] [data-testid="stButton"] > button{
+    body:has(#ml-bottom-nav-start) [class*="st-key-ml_bottom_nav"] .stButton > button{
       width: 100% !important;
-      min-height: 48px !important;
-      padding: 4px 4px 6px !important;
+      min-height: 46px !important;
+      height: auto !important;
+      padding: 5px 2px 6px !important;
       margin: 0 !important;
       border: none !important;
-      border-radius: 16px !important;
+      border-radius: 14px !important;
       background: transparent !important;
       box-shadow: none !important;
       color: rgba(148,163,184,.95) !important;
       font-family: 'Manrope', system-ui, sans-serif !important;
-      font-size: 18px !important;
-      line-height: 1.1 !important;
+      font-size: 1.15rem !important;
+      line-height: 1.05 !important;
       white-space: pre-line !important;
+      overflow: hidden !important;
+      text-overflow: ellipsis !important;
     }
-    body:has(#ml-bottom-nav-start) [class*="st-key-ml_nav_"] [data-testid="stButton"] > button p{
-      font-size: 11px !important;
+    body:has(#ml-bottom-nav-start) [class*="st-key-ml_bottom_nav"] .stButton > button p{
+      font-size: 0.62rem !important;
       font-weight: 800 !important;
-      margin: 0.2rem 0 0 0 !important;
-      line-height: 1.1 !important;
+      margin: 0.15rem 0 0 0 !important;
+      line-height: 1 !important;
+      letter-spacing: -0.02em !important;
     }
-    body:has(#ml-bottom-nav-start) [class*="st-key-ml_nav_"] [data-testid="stButton"] > button[kind="primary"]{
+    body:has(#ml-bottom-nav-start) [class*="st-key-ml_bottom_nav"] .stButton > button[kind="primary"],
+    body:has(#ml-bottom-nav-start) [class*="st-key-ml_bottom_nav"] .stButton > button[kind="secondary"]{
+      background: transparent !important;
+      border: none !important;
+      color: rgba(148,163,184,.95) !important;
+      box-shadow: none !important;
+    }
+    body:has(#ml-bottom-nav-start) [class*="st-key-ml_bottom_nav"] .stButton > button[kind="primary"]{
       color: rgba(196,181,253,.98) !important;
-      background: rgba(139,92,246,.14) !important;
-      border: 1px solid rgba(139,92,246,.28) !important;
-      box-shadow: 0 0 18px rgba(139,92,246,.15) !important;
+      background: rgba(139,92,246,.16) !important;
+      border: 1px solid rgba(139,92,246,.32) !important;
+      box-shadow: 0 0 16px rgba(139,92,246,.18) !important;
     }
-    body:has(#ml-bottom-nav-start) [class*="st-key-ml_nav_"] [data-testid="stButton"] > button[kind="primary"] p{
+    body:has(#ml-bottom-nav-start) [class*="st-key-ml_bottom_nav"] .stButton > button[kind="primary"] p{
       color: rgba(233,213,255,.98) !important;
     }
 

@@ -145,20 +145,28 @@ def render_mobile_lab_nav(current: str, *, chat_unread: int = 0) -> None:
         '<span id="ml-bottom-nav-start" aria-hidden="true"></span>',
         unsafe_allow_html=True,
     )
-    cols = st.columns(5, gap="small")
-    for col, (page, icon, badge) in zip(cols, items):
-        with col:
-            label = f"{icon}\n{page}"
-            if page == "Chat" and badge > 0:
-                label = f"{icon} ·{badge}\n{page}"
-            if st.button(
-                label,
-                key=f"ml_nav_{page.replace(' ', '_')}",
-                use_container_width=True,
-                type="primary" if current == page else "secondary",
-            ):
-                st.session_state.ml_page = page
-                st.rerun()
+    with st.container(key="ml_bottom_nav"):
+        cols = st.columns(5, gap="small")
+        for col, (page, icon, badge) in zip(cols, items):
+            with col:
+                short = {
+                    "Início": "Início",
+                    "Escalas": "Escalas",
+                    "Repertório": "Música",
+                    "Chat": "Chat",
+                    "Perfil": "Perfil",
+                }.get(page, page)
+                label = f"{icon}\n{short}"
+                if page == "Chat" and badge > 0:
+                    label = f"{icon}\n{short}"
+                if st.button(
+                    label,
+                    key=f"ml_nav_{page.replace(' ', '_')}",
+                    use_container_width=True,
+                    type="primary" if current == page else "secondary",
+                ):
+                    st.session_state.ml_page = page
+                    st.rerun()
 
 
 def _render_page_header(title: str) -> None:

@@ -50,6 +50,18 @@ def mobile_first_css() -> str:
                 max-width: 100% !important;
             }}
 
+            /* Mobile Lab: bottom nav — 5 itens em linha (não empilhar) */
+            body:has(#ml-bottom-nav-start) [class*="st-key-ml_bottom_nav"] [data-testid="stHorizontalBlock"] {{
+                flex-wrap: nowrap !important;
+                width: 100% !important;
+            }}
+            body:has(#ml-bottom-nav-start) [class*="st-key-ml_bottom_nav"] [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {{
+                flex: 1 1 0 !important;
+                width: 20% !important;
+                max-width: 20% !important;
+                min-width: 0 !important;
+            }}
+
             /* Linhas que devem ficar lado a lado (2 colunas no máximo) */
             .ig-m-row-2 [data-testid="stHorizontalBlock"] {{
                 flex-wrap: nowrap !important;
