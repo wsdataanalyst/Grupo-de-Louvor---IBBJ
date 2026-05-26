@@ -3500,7 +3500,13 @@ def render_sidebar_footer(
 
 
 def page_header(menu: str):
-    if menu in ("Gerenciar Escalas", "Repertório", "Playlist", "Sugestão de louvor"):
+    if menu in (
+        "Gerenciar Escalas",
+        "Repertório",
+        "Playlist",
+        "Sugestão de louvor",
+        "Chat",
+    ):
         return
     items, _, icons = get_menu_items_for_user(st.session_state.user_roles)
     icon = icons.get(menu, "🎵")
@@ -4158,6 +4164,17 @@ def pending_text_key(key_prefix: str) -> str:
     return f"{key_prefix}_pending_text"
 
 
+def _member_roles_lookup(members_df: pd.DataFrame) -> dict[str, str]:
+    out: dict[str, str] = {}
+    if members_df is None or members_df.empty:
+        return out
+    for _, row in members_df.iterrows():
+        em = str(row.get("email", "")).strip().lower()
+        if em:
+            out[em] = str(row.get("roles", ""))
+    return out
+
+
 def render_chat_messages(
     chat_df: pd.DataFrame,
     members_df: pd.DataFrame,
@@ -4165,23 +4182,29 @@ def render_chat_messages(
     delete_fn=None,
     update_fn=None,
     key_prefix: str = "chat",
+    premium: bool = False,
 ):
     if chat_df.empty:
         st.caption("💬 Nenhuma mensagem ainda — use o campo abaixo.")
         return
 
+    from chat_ui import premium_message_html, role_badge_meta
+
     my_email = st.session_state.user_email.strip().lower()
     chat_sorted = sort_chat_messages(chat_df)
     delete_fn = delete_fn or delete_own_chat_message
     update_fn = update_fn or update_own_chat_message
+    roles_map = _member_roles_lookup(members_df)
 
-    st.markdown('<div id="chat-scroll-box" class="chat-feed">', unsafe_allow_html=True)
+    feed_cls = "chat-feed ig-chat-feed" if premium else "chat-feed"
+    st.markdown(f'<div id="chat-scroll-box" class="{feed_cls}">', unsafe_allow_html=True)
+    show_reaction_once = True
     for _, row in chat_sorted.iterrows():
         is_me = str(row.get("email", "")).strip().lower() == my_email
         display_name = "Você" if is_me else str(row.get("name", "Integrante"))
         time_str = format_local(row.get("timestamp"), "%d/%m %H:%M")
         email = str(row.get("email", "")).strip().lower()
-        foto = member_photo_html(email, members_df, 32)
+        foto = member_photo_html(email, members_df, 34 if premium else 32)
         css = "me" if is_me else "other"
         mtype = str(row.get("message_type", "text") or "text").strip().lower()
         ts = str(row.get("timestamp", ""))
@@ -4191,6 +4214,68 @@ def render_chat_messages(
             body = _chat_media_html("image", str(row.get("media_file", "")))
         else:
             body = f'<p class="chat-text">{_escape_chat_html(row.get("message", ""))}</p>'
+
+        if premium:
+            role_label, role_cls = role_badge_meta(roles_map.get(email, ""))
+            if is_me:
+                role_label, role_cls = role_badge_meta(
+                    str(st.session_state.get("user_roles", ""))
+                )
+            react = show_reaction_once and not is_me and mtype == "text"
+            if react:
+                show_reaction_once = False
+            st.markdown(
+                premium_message_html(
+                    is_me=is_me,
+                    display_name=display_name,
+                    role_label=role_label,
+                    role_cls=role_cls,
+                    time_str=time_str,
+                    body_html=body,
+                    avatar_html=foto,
+                    show_reaction=react,
+                ),
+                unsafe_allow_html=True,
+            )
+            if is_me and mtype == "text":
+                with st.popover("⋮", use_container_width=True):
+                    st.caption("Sua mensagem")
+                    edit_key = f"{key_prefix}_edit_{ts}"
+                    if st.button(
+                        "✏️ Editar",
+                        key=f"{key_prefix}_edbtn_{ts}",
+                        use_container_width=True,
+                    ):
+                        st.session_state[edit_key] = str(row.get("message", ""))
+                    if st.button(
+                        "🗑️ Apagar",
+                        key=f"{key_prefix}_del_{ts}",
+                        use_container_width=True,
+                    ):
+                        delete_fn(ts, my_email)
+                        st.rerun()
+                if st.session_state.get(f"{key_prefix}_edit_{ts}") is not None:
+                    novo = st.text_input(
+                        "Editar mensagem",
+                        value=st.session_state.get(f"{key_prefix}_edit_{ts}", ""),
+                        key=f"{key_prefix}_editinp_{ts}",
+                    )
+                    ec1, ec2 = st.columns(2)
+                    with ec1:
+                        if st.button(
+                            "Salvar",
+                            key=f"{key_prefix}_save_{ts}",
+                            type="primary",
+                        ):
+                            if novo.strip():
+                                update_fn(ts, my_email, novo.strip())
+                            st.session_state.pop(f"{key_prefix}_edit_{ts}", None)
+                            st.rerun()
+                    with ec2:
+                        if st.button("Cancelar", key=f"{key_prefix}_cancel_{ts}"):
+                            st.session_state.pop(f"{key_prefix}_edit_{ts}", None)
+                            st.rerun()
+            continue
 
         if is_me and mtype == "text":
             c_msg, c_act = st.columns([11, 1])
@@ -4207,9 +4292,17 @@ def render_chat_messages(
                 with st.popover("⋮", use_container_width=True):
                     st.caption("Sua mensagem")
                     edit_key = f"{key_prefix}_edit_{ts}"
-                    if st.button("✏️ Editar", key=f"{key_prefix}_edbtn_{ts}", use_container_width=True):
+                    if st.button(
+                        "✏️ Editar",
+                        key=f"{key_prefix}_edbtn_{ts}",
+                        use_container_width=True,
+                    ):
                         st.session_state[edit_key] = str(row.get("message", ""))
-                    if st.button("🗑️ Apagar", key=f"{key_prefix}_del_{ts}", use_container_width=True):
+                    if st.button(
+                        "🗑️ Apagar",
+                        key=f"{key_prefix}_del_{ts}",
+                        use_container_width=True,
+                    ):
                         delete_fn(ts, my_email)
                         st.rerun()
             if st.session_state.get(f"{key_prefix}_edit_{ts}") is not None:
@@ -4269,18 +4362,115 @@ def render_chat_composer(
 
 
 def show_group_chat(chat_df: pd.DataFrame, members_df: pd.DataFrame):
+    from chat_ui import (
+        CHAT_LIST_TABS,
+        count_chat_media,
+        last_group_preview,
+        render_chat_page_close,
+        render_chat_page_open,
+        render_conv_items_after_search,
+        render_info_panel_html,
+        render_thread_header_html,
+        role_badge_meta,
+    )
+    from ui_html import inject_ui_html
+
     pending_key = pending_text_key("group_chat")
     pending = st.session_state.pop(pending_key, None)
     if pending and str(pending).strip():
         append_chat_message(message=str(pending).strip(), message_type="text", media_file="")
 
-    mark_chat_seen(load_chat_df())
-    st.markdown('<p class="music-panel-title">💬 Conversa do grupo</p>', unsafe_allow_html=True)
-    _chat_group_live(members_df)
+    chat_df = load_chat_df()
+    mark_chat_seen(chat_df)
+    unread = count_unread_chat_messages(chat_df)
+    preview, prev_time = last_group_preview(chat_df)
+    n_members = len(members_visible_to_group(members_df))
+    imgs, auds, _ = count_chat_media(chat_df)
+
+    render_chat_page_open()
+    hdr_l, hdr_r = st.columns([4, 1])
+    with hdr_l:
+        inject_ui_html(
+            """
+            <div class="ig-chat-header" style="margin-bottom:0.85rem;">
+                <div class="ig-chat-header-left">
+                    <div class="ig-chat-header-ico"></div>
+                    <div>
+                        <h1 class="ig-chat-header-title">Chat</h1>
+                        <p class="ig-chat-header-sub">Converse com sua equipe e ministério</p>
+                    </div>
+                </div>
+            </div>
+            """
+        )
+    with hdr_r:
+        st.markdown('<div style="padding-top:1.1rem">', unsafe_allow_html=True)
+        st.button(
+            "+ Novo grupo",
+            key="chat_new_group_btn",
+            disabled=True,
+            help="Criação de novos grupos em breve.",
+            use_container_width=True,
+        )
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    col_l, col_m, col_r = st.columns([0.92, 1.75, 0.95])
+
+    with col_l:
+        inject_ui_html('<div class="ig-chat-col ig-chat-col--list">')
+        list_tab = st.radio(
+            "Filtro",
+            list(CHAT_LIST_TABS),
+            horizontal=True,
+            label_visibility="collapsed",
+            key="chat_list_tab",
+        )
+        st.text_input(
+            "Buscar conversas",
+            placeholder="Buscar conversas...",
+            key="chat_search_conv",
+            label_visibility="collapsed",
+        )
+        render_conv_items_after_search(
+            preview=preview,
+            time_str=prev_time,
+            unread=unread,
+            list_tab=list_tab,
+        )
+        inject_ui_html("</div>")
+
+    with col_m:
+        inject_ui_html('<div class="ig-chat-col ig-chat-col--main">')
+        render_thread_header_html(n_members)
+        _chat_group_live(members_df, premium=True)
+        inject_ui_html("</div>")
+
+    with col_r:
+        member_rows: list[tuple[str, str, str, str]] = []
+        visible = members_visible_to_group(members_df)
+        online_n = min(6, len(visible)) if not visible.empty else 0
+        if not visible.empty:
+            for _, row in visible.sort_values(
+                by=["first_name", "last_name"],
+                key=lambda s: s.str.lower(),
+            ).head(8).iterrows():
+                email = str(row["email"]).strip().lower()
+                nome = member_display_name(row)
+                rl, rc = role_badge_meta(str(row.get("roles", "")))
+                av = member_photo_html(email, members_df, 28)
+                member_rows.append((av, nome, rl, rc))
+        render_info_panel_html(
+            member_rows,
+            media_images=imgs,
+            media_audio=auds,
+            online_label=str(online_n) if online_n else "0",
+        )
+
+    render_chat_page_close()
 
 
 @st.fragment(run_every=timedelta(seconds=4))
-def _chat_group_live(members_df: pd.DataFrame):
+def _chat_group_live(members_df: pd.DataFrame, *, premium: bool = False):
     """Atualiza o histórico a cada poucos segundos para refletir mensagens de outros integrantes."""
     chat_df = load_chat_df()
     st.session_state["_chat_df_cache"] = chat_df
@@ -4289,7 +4479,9 @@ def _chat_group_live(members_df: pd.DataFrame):
     def _append(**kwargs):
         append_chat_message(**kwargs)
 
-    render_chat_messages(chat_df, members_df)
+    render_chat_messages(chat_df, members_df, premium=premium)
+    if premium:
+        st.markdown('<div class="ig-chat-compose-wrap">', unsafe_allow_html=True)
     render_chat_composer(
         key_prefix="group_chat",
         append_fn=_append,
@@ -4298,6 +4490,8 @@ def _chat_group_live(members_df: pd.DataFrame):
         images_dir=CHAT_IMAGES_DIR,
         image_prefix="chat",
     )
+    if premium:
+        st.markdown("</div>", unsafe_allow_html=True)
 
 
 def render_team_grid_html(
@@ -9102,6 +9296,7 @@ def _run_app() -> None:
         "Repertório",
         "Playlist",
         "Sugestão de louvor",
+        "Chat",
     ):
         page_header(menu)
 
