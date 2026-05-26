@@ -126,43 +126,38 @@ def mobile_lab_current_page() -> str:
 
 
 def render_mobile_lab_nav(current: str, *, chat_unread: int = 0) -> None:
-    """Bottom navigation sempre visível (sem <a> para evitar abrir navegador externo)."""
+    """
+    Bottom navigation sempre visível.
+
+    Importante (iPhone/Chrome/WebKit): navegação precisa ser interna (session_state),
+    sem depender de URL, para não "abrir em outro navegador".
+    """
     inject_mobile_lab_theme()
-    st.markdown(
-        f"""
-        <div class="ml-glass ml-bottom">
-          <button class="ml-navbtn {'ml-active' if current=='Início' else ''}" type="button" data-page="Início">🏠<span>Início</span></button>
-          <button class="ml-navbtn {'ml-active' if current=='Escalas' else ''}" type="button" data-page="Escalas">📅<span>Escalas</span></button>
-          <button class="ml-navbtn {'ml-active' if current=='Repertório' else ''}" type="button" data-page="Repertório">🎵<span>Repertório</span></button>
-          <button class="ml-navbtn {'ml-active' if current=='Chat' else ''}" type="button" data-page="Chat" style="position:relative;">
-            💬<span>Chat</span>
-            <div class="ml-badge" style="top:-8px;right:6px;background:rgba(139,92,246,1);color:#fff;border:none;width:18px;height:18px;font-size:11px;">{max(0,int(chat_unread))}</div>
-          </button>
-          <button class="ml-navbtn {'ml-active' if current=='Perfil' else ''}" type="button" data-page="Perfil">👤<span>Perfil</span></button>
-        </div>
-        <script>
-          (function() {{
-            var root = window.parent.document;
-            var bar = root.querySelector(".ml-bottom");
-            if (!bar) return;
-            var btns = bar.querySelectorAll("[data-page]");
-            btns.forEach(function(b) {{
-              b.addEventListener("click", function(ev) {{
-                ev.preventDefault();
-                ev.stopPropagation();
-                var page = b.getAttribute("data-page");
-                if (!page) return;
-                var qs = new URLSearchParams(window.parent.location.search);
-                qs.set("mobile_lab", "1");
-                qs.set("ml_page", page);
-                window.parent.location.search = qs.toString();
-              }});
-            }});
-          }})();
-        </script>
-        """,
-        unsafe_allow_html=True,
+
+    st.markdown('<div id="ml-bottom-nav" class="ml-glass">', unsafe_allow_html=True)
+    col1, col2, col3, col4, col5 = st.columns(5, gap="small")
+
+    def _nav_btn(col, *, page: str, icon: str, label: str, key: str):
+        with col:
+            active = current == page
+            if st.button(
+                f"{icon}\n{label}",
+                key=key,
+                use_container_width=True,
+                type="primary" if active else "secondary",
+            ):
+                st.session_state.ml_page = page
+                st.rerun()
+
+    _nav_btn(col1, page="Início", icon="🏠", label="Início", key="ml_nav_home")
+    _nav_btn(col2, page="Escalas", icon="📅", label="Escalas", key="ml_nav_escalas")
+    _nav_btn(
+        col3, page="Repertório", icon="🎵", label="Repertório", key="ml_nav_rep"
     )
+    _nav_btn(col4, page="Chat", icon="💬", label="Chat", key="ml_nav_chat")
+    _nav_btn(col5, page="Perfil", icon="👤", label="Perfil", key="ml_nav_profile")
+
+    st.markdown("</div>", unsafe_allow_html=True)
 
 
 def _render_page_header(title: str) -> None:

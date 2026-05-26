@@ -124,7 +124,8 @@ def mobile_lab_css() -> str:
     .ml-quick .ml-q .ml-qe{ font-size: 26px; margin-bottom: 10px; }
     .ml-quick .ml-q .ml-qt{ font-size: 14px; font-weight: 900; }
 
-    .ml-bottom{
+    /* Bottom nav (Streamlit buttons, fixed) */
+    #ml-bottom-nav{
       position: fixed;
       left: 50%;
       transform: translateX(-50%);
@@ -132,24 +133,29 @@ def mobile_lab_css() -> str:
       width: min(420px, 95vw);
       z-index: 1000;
       border-radius: 30px;
-      padding: 12px 14px;
-      display:flex;
-      justify-content: space-between;
-      align-items: center;
+      padding: 10px 10px;
+      border: 1px solid rgba(255,255,255,.10);
     }
-    .ml-navbtn{
-      display:flex; flex-direction:column; gap:6px; align-items:center;
-      color: rgba(148,163,184,.95);
-      font-size: 16px;
-      min-width: 56px;
-      text-decoration: none;
-      background: transparent;
-      border: 0;
-      padding: 6px 8px;
-      border-radius: 16px;
+    #ml-bottom-nav [data-testid="stButton"] button{
+      border-radius: 18px !important;
+      min-height: 52px !important;
+      font-weight: 900 !important;
+      font-size: 12px !important;
+      line-height: 1.1 !important;
+      padding: 10px 8px !important;
+      white-space: pre-line !important;
     }
-    .ml-navbtn span{ font-size: 11px; font-weight: 800; }
-    .ml-active{ color: rgba(167,139,250,.95); background: rgba(139,92,246,.10); border: 1px solid rgba(139,92,246,.20); }
+    #ml-bottom-nav [data-testid="stButton"] button[kind="secondary"]{
+      background: rgba(15,23,42,.25) !important;
+      border: 1px solid rgba(255,255,255,.08) !important;
+      color: rgba(148,163,184,.95) !important;
+    }
+    #ml-bottom-nav [data-testid="stButton"] button[kind="primary"]{
+      background: rgba(139,92,246,.22) !important;
+      border: 1px solid rgba(139,92,246,.35) !important;
+      box-shadow: 0 0 24px rgba(139,92,246,.18) !important;
+      color: rgba(233,213,255,.98) !important;
+    }
 
     /* Drawer overlay */
     .ml-drawer-overlay{
