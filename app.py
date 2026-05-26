@@ -546,6 +546,24 @@ def is_register_page() -> bool:
     return page in ("cadastro", "cadastrar", "register", "signup")
 
 
+def _login_view_mode() -> str:
+    """login | register | forgot | reset — telas da página inicial."""
+    return str(st.session_state.get("login_view", "login")).strip().lower()
+
+
+def _set_login_view(mode: str) -> None:
+    st.session_state.login_view = mode
+
+
+def _sync_login_view_from_url() -> None:
+    if is_reset_password_page():
+        _set_login_view("reset")
+    elif is_forgot_password_page():
+        _set_login_view("forgot")
+    elif is_register_page():
+        _set_login_view("register")
+
+
 def is_forgot_password_page() -> bool:
     esqueci = _query_param_value(FORGOT_PASSWORD_QUERY_PARAM).lower()
     if esqueci in ("1", "true", "sim", "yes"):
@@ -667,6 +685,11 @@ def render_register_form(members_df: pd.DataFrame) -> pd.DataFrame:
                     "Agora faça login com seu email e senha."
                 )
                 members_df = load_data(MEMBERS_FILE, MEMBER_COLUMNS)
+                _set_login_view("login")
+                try:
+                    st.query_params.clear()
+                except Exception:
+                    pass
     return members_df
 
 
@@ -3768,36 +3791,63 @@ def render_login_v2_header():
     )
 
 
-def render_login_v2_social_section():
+def render_login_mode_switch(*, active: str) -> None:
+    """Abas Entrar / Criar conta na mesma tela (sem mudar de página)."""
+    active = active if active in ("login", "register") else "login"
     st.markdown(
-        """
-        <div class="login-divider"><span>ou entre com</span></div>
-        <div class="login-social-row" aria-hidden="true">
-            <div class="login-social-btn">
-                <span class="login-social-icon login-social-g">G</span> Google
-            </div>
-            <div class="login-social-btn">
-                <span class="login-social-icon login-social-f">f</span> Facebook
-            </div>
-            <div class="login-social-btn">
-                <span class="login-social-icon login-social-a">A</span> Apple
-            </div>
+        f"""
+        <div class="login-mode-switch" role="tablist" aria-label="Modo de acesso">
+            <span class="login-mode-tab {"is-active" if active == "login" else ""}">Entrar</span>
+            <span class="login-mode-tab {"is-active" if active == "register" else ""}">Criar conta</span>
         </div>
-        <p class="login-social-hint">
-            O acesso do ministério é feito com e-mail e senha cadastrados pela liderança.
-        </p>
         """,
         unsafe_allow_html=True,
     )
+    c1, c2 = st.columns(2)
+    with c1:
+        if st.button(
+            "Entrar",
+            key="login_mode_btn_login",
+            use_container_width=True,
+            type="primary" if active == "login" else "secondary",
+        ):
+            _set_login_view("login")
+            try:
+                st.query_params.clear()
+            except Exception:
+                pass
+            st.rerun()
+    with c2:
+        if st.button(
+            "Criar conta",
+            key="login_mode_btn_register",
+            use_container_width=True,
+            type="primary" if active == "register" else "secondary",
+        ):
+            _set_login_view("register")
+            st.rerun()
 
 
-def render_login_v2_register_link():
-    reg_url = html.escape(get_registration_url())
+def render_login_register_panel(members_df: pd.DataFrame) -> pd.DataFrame:
     st.markdown(
-        f'<p class="login-register-cta">Novo no ministério? '
-        f'<a href="{reg_url}">Cadastre-se</a></p>',
+        '<p class="login-panel-title">Cadastro de novo membro</p>',
         unsafe_allow_html=True,
     )
+    st.markdown(
+        '<p class="login-panel-sub">Preencha seus dados para participar do ministério de louvor.</p>',
+        unsafe_allow_html=True,
+    )
+    members_df = render_register_form(members_df)
+    st.markdown('<div class="login-back-row">', unsafe_allow_html=True)
+    if st.button("← Já tenho conta — voltar ao login", key="login_back_from_register", use_container_width=True):
+        _set_login_view("login")
+        try:
+            st.query_params.clear()
+        except Exception:
+            pass
+        st.rerun()
+    st.markdown("</div>", unsafe_allow_html=True)
+    return members_df
 
 
 def render_login_v2_footer():
@@ -3821,6 +3871,7 @@ def render_login_v2_footer():
 
 
 def render_login_v2_form(members_df: pd.DataFrame):
+    render_login_mode_switch(active="login")
     inject_device_auth_restore_redirect()
     inject_login_restore_fields()
     inject_auto_login_submit()
@@ -3840,6 +3891,7 @@ def render_login_v2_form(members_df: pd.DataFrame):
 
     st.markdown('<div class="login-forgot-row">', unsafe_allow_html=True)
     if st.button("Esqueci minha senha", key="login_forgot_pw"):
+        _set_login_view("forgot")
         st.query_params.clear()
         st.query_params[FORGOT_PASSWORD_QUERY_PARAM] = "1"
         st.rerun()
@@ -3873,9 +3925,6 @@ def render_login_v2_form(members_df: pd.DataFrame):
             st.rerun()
         else:
             show_form_error("Email ou senha incorretos.")
-
-    render_login_v2_social_section()
-    render_login_v2_register_link()
 
 
 def render_forgot_password_form(members_df: pd.DataFrame):
@@ -3984,6 +4033,7 @@ def render_reset_password_form(members_df: pd.DataFrame):
 
     st.markdown('<div class="login-back-row">', unsafe_allow_html=True)
     if st.button("← Voltar ao login", use_container_width=True):
+        _set_login_view("login")
         st.query_params.clear()
         st.rerun()
     st.markdown("</div>", unsafe_allow_html=True)
@@ -3994,31 +4044,19 @@ def show_login_page(members_df: pd.DataFrame):
 
     apply_music_theme()
     inject_login_v2_theme()
+    _sync_login_view_from_url()
     st.markdown('<div class="login-page">', unsafe_allow_html=True)
 
     render_login_v2_header()
 
-    if is_reset_password_page():
+    view = _login_view_mode()
+    if view == "reset" or is_reset_password_page():
         render_reset_password_form(members_df)
-    elif is_forgot_password_page():
+    elif view == "forgot" or is_forgot_password_page():
         render_forgot_password_form(members_df)
-    elif is_register_page():
-        st.markdown(
-            '<p class="login-panel-title">Cadastro de novo membro</p>',
-            unsafe_allow_html=True,
-        )
-        st.markdown(
-            '<p class="login-panel-sub">Preencha seus dados para entrar no ministério de louvor.</p>',
-            unsafe_allow_html=True,
-        )
-        render_register_form(members_df)
-        st.caption("Compartilhe este link com novos integrantes:")
-        st.code(get_registration_url(), language=None)
-        st.markdown('<div class="login-back-row">', unsafe_allow_html=True)
-        if st.button("← Já tenho conta — voltar ao login", use_container_width=True):
-            st.query_params.clear()
-            st.rerun()
-        st.markdown("</div>", unsafe_allow_html=True)
+    elif view == "register":
+        render_login_mode_switch(active="register")
+        members_df = render_login_register_panel(members_df)
     else:
         render_login_v2_form(members_df)
 
@@ -4311,20 +4349,32 @@ def render_chat_messages(
     key_prefix: str = "chat",
     premium: bool = False,
 ):
-    if chat_df.empty:
-        st.caption("💬 Nenhuma mensagem ainda — use o campo abaixo.")
-        return
-
     from chat_ui import premium_message_html, role_badge_meta
+
+    feed_cls = "chat-feed ig-chat-feed" if premium else "chat-feed"
+    st.markdown(f'<div id="chat-scroll-box" class="{feed_cls}">', unsafe_allow_html=True)
+    if chat_df.empty:
+        if premium:
+            st.markdown(
+                """
+                <div class="ig-chat-empty">
+                    <strong>💬 Nenhuma mensagem ainda</strong>
+                    <div>Envie a primeira mensagem para iniciar a conversa do grupo.</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+        else:
+            st.caption("💬 Nenhuma mensagem ainda — use o campo abaixo.")
+        st.markdown("</div>", unsafe_allow_html=True)
+        inject_chat_scroll_to_bottom()
+        return
 
     my_email = st.session_state.user_email.strip().lower()
     chat_sorted = sort_chat_messages(chat_df)
     delete_fn = delete_fn or delete_own_chat_message
     update_fn = update_fn or update_own_chat_message
     roles_map = _member_roles_lookup(members_df)
-
-    feed_cls = "chat-feed ig-chat-feed" if premium else "chat-feed"
-    st.markdown(f'<div id="chat-scroll-box" class="{feed_cls}">', unsafe_allow_html=True)
     show_reaction_once = True
     for _, row in chat_sorted.iterrows():
         is_me = str(row.get("email", "")).strip().lower() == my_email

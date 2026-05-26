@@ -281,11 +281,30 @@ def chat_page_css() -> str:
         #chat-scroll-box.ig-chat-feed {
             flex: 1;
             min-height: 42vh;
-            max-height: 52vh;
+            max-height: none;
             overflow-y: auto;
             padding: 1rem 1rem 0.5rem;
             background: transparent !important;
             border: none !important;
+        }
+        .ig-chat-empty {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            min-height: 34vh;
+            padding: 1.25rem;
+            border-radius: 16px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px dashed rgba(255, 255, 255, 0.09);
+            color: #94a3b8 !important;
+            text-align: center;
+        }
+        .ig-chat-empty strong {
+            color: #f8fafc !important;
+            font-size: 0.95rem;
+            margin-bottom: 0.35rem;
         }
         .ig-chat-msg {
             display: flex;

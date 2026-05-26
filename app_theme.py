@@ -1212,6 +1212,34 @@ def ibbj_login_v2_css() -> str:
             color: #93c5fd !important;
             text-decoration: underline !important;
         }
+        .login-mode-switch {
+            display: flex;
+            gap: 0.5rem;
+            margin: 0 0 0.65rem;
+            padding: 0.2rem;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .login-mode-tab {
+            flex: 1;
+            text-align: center;
+            font-size: 0.78rem;
+            font-weight: 600;
+            color: rgba(156, 163, 175, 0.95);
+            padding: 0.35rem 0.5rem;
+            border-radius: 8px;
+            pointer-events: none;
+        }
+        .login-mode-tab.is-active {
+            color: #fde68a !important;
+            background: rgba(212, 175, 55, 0.12);
+        }
+        [class*="st-key-login_mode_btn"] .stButton > button {
+            min-height: 2.5rem !important;
+            border-radius: 10px !important;
+            font-weight: 600 !important;
+        }
         .login-divider {
             display: flex;
             align-items: center;
