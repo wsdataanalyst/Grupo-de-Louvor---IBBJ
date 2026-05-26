@@ -38,6 +38,7 @@ from data_persistence import (
     latest_backup,
     load_csv_preserve_rows,
     members_save_allowed,
+    merge_members_remote_local,
     prepare_members,
     snapshot_data_folder,
 )
@@ -694,8 +695,11 @@ def render_register_form(members_df: pd.DataFrame) -> pd.DataFrame:
     return members_df
 
 
-@st.cache_data
-def load_data(file_path: Path, columns: tuple):
+def load_members_df() -> pd.DataFrame:
+    """
+    Carrega membros sem cache do Streamlit (login sempre vê lista atual).
+    Mescla nuvem + local; nunca sobrescreve com nuvem vazia; tenta backup.
+    """
     from remote_store import (
         dataframe_from_remote,
         is_remote_enabled,
@@ -703,56 +707,95 @@ def load_data(file_path: Path, columns: tuple):
         should_sync_file,
     )
 
-    df = None
+    file_path = MEMBERS_FILE
+    columns = MEMBER_COLUMNS
+    local_df = load_csv_preserve_rows(file_path, columns)
+    df = local_df
+    remote_err = ""
+
     if should_sync_file(file_path) and is_remote_enabled():
         remote_df = None
         try:
             remote_df = dataframe_from_remote(columns, file_path.name)
-        except Exception:
+        except Exception as exc:
+            remote_err = str(exc)
             remote_df = None
-        local_df = load_csv_preserve_rows(file_path, columns)
-        if remote_df is not None and not (
-            file_path == MEMBERS_FILE and remote_df.empty
-        ):
-            df = remote_df
+        if remote_df is not None and not remote_df.empty:
+            df = merge_members_remote_local(remote_df, local_df)
             file_path.parent.mkdir(parents=True, exist_ok=True)
             df.to_csv(file_path, index=False)
-        else:
+        elif remote_df is not None and remote_df.empty:
             df = local_df
-            if not df.empty and file_path != MEMBERS_FILE:
+            if not local_df.empty:
                 try:
                     push_file_from_disk(file_path)
-                except Exception:
-                    pass
-            elif (
-                file_path == MEMBERS_FILE
-                and not df.empty
-                and remote_df is not None
-                and remote_df.empty
-            ):
-                try:
-                    push_file_from_disk(file_path)
-                except Exception:
-                    pass
-    else:
-        df = load_csv_preserve_rows(file_path, columns)
+                except Exception as exc:
+                    remote_err = remote_err or str(exc)
+        elif remote_df is None and not local_df.empty:
+            df = local_df
 
-    if file_path == MEMBERS_FILE:
-        df = prepare_members(df)
-        if df.empty:
-            backup = latest_backup(file_path, DATA_DIR)
-            if backup:
-                recovered = prepare_members(load_csv_preserve_rows(backup, columns))
-                if not recovered.empty:
-                    df = recovered
-                    file_path.parent.mkdir(parents=True, exist_ok=True)
-                    df.to_csv(file_path, index=False)
-                    if is_remote_enabled():
-                        try:
-                            push_file_from_disk(file_path)
-                        except Exception:
-                            pass
+    df = prepare_members(df)
+    if df.empty:
+        backup = latest_backup(file_path, DATA_DIR)
+        if backup:
+            recovered = prepare_members(load_csv_preserve_rows(backup, columns))
+            if not recovered.empty:
+                df = recovered
+                file_path.parent.mkdir(parents=True, exist_ok=True)
+                df.to_csv(file_path, index=False)
+                if is_remote_enabled():
+                    try:
+                        push_file_from_disk(file_path)
+                    except Exception as exc:
+                        remote_err = remote_err or str(exc)
+
+    st.session_state["_members_count"] = len(df)
+    if remote_err:
+        st.session_state["_members_load_warn"] = remote_err
+    elif df.empty:
+        st.session_state["_members_load_warn"] = (
+            "Nenhuma conta encontrada em members.csv (nuvem e disco vazios). "
+            "Restaure data/backups/members_*.csv no Supabase (tabela data_files)."
+        )
     return df
+
+
+@st.cache_data
+def _load_data_cached(file_path: Path, columns: tuple):
+    from remote_store import (
+        dataframe_from_remote,
+        is_remote_enabled,
+        push_file_from_disk,
+        should_sync_file,
+    )
+
+    if should_sync_file(file_path) and is_remote_enabled():
+        try:
+            remote_df = dataframe_from_remote(columns, file_path.name)
+        except Exception:
+            remote_df = None
+        if remote_df is not None and not remote_df.empty:
+            file_path.parent.mkdir(parents=True, exist_ok=True)
+            remote_df.to_csv(file_path, index=False)
+            return remote_df
+        df = load_csv_preserve_rows(file_path, columns)
+        if not df.empty:
+            try:
+                push_file_from_disk(file_path)
+            except Exception:
+                pass
+        return df
+    return load_csv_preserve_rows(file_path, columns)
+
+
+def load_data(file_path: Path, columns: tuple):
+    if file_path == MEMBERS_FILE:
+        return load_members_df()
+    return _load_data_cached(file_path, columns)
+
+
+def clear_load_data_cache() -> None:
+    _load_data_cached.clear()
 
 
 def save_data(
@@ -792,7 +835,7 @@ def save_data(
                     "Salvo localmente; falha ao enviar para Supabase. Veja secrets [persistence]."
                 )
 
-    load_data.clear()
+    clear_load_data_cache()
     if file_path.name in ESCALA_LIVE_FILE_NAMES:
         try:
             refresh_escalas_bundle()
@@ -1058,7 +1101,7 @@ def purge_all_feed_data() -> int:
     pd.DataFrame(columns=list(FEED_QUEUE_COLUMNS)).to_csv(
         FEED_QUEUE_FILE, index=False, encoding="utf-8"
     )
-    load_data.clear()
+    clear_load_data_cache()
     try:
         st.session_state.pop("_feed_rev", None)
     except Exception:
@@ -3112,7 +3155,7 @@ def handle_app_resume_query_params() -> bool:
         st.query_params.from_dict(qp)
     except Exception:
         pass
-    load_data.clear()
+    clear_load_data_cache()
     st.session_state.pop("_escalas_bundle", None)
     st.session_state.pop("_feed_rev", None)
     st.session_state.pop("_chat_df_cache", None)
@@ -3365,7 +3408,7 @@ def render_data_backup_sidebar():
                 key="sync_all_to_remote",
             ):
                 n = sync_all_local_to_remote(DATA_DIR)
-                load_data.clear()
+                clear_load_data_cache()
                 st.success(f"{n} arquivo(s) enviado(s) ao Supabase.")
                 st.rerun()
         else:
@@ -3403,7 +3446,7 @@ def render_data_backup_sidebar():
             key="confirm_restore_data_zip",
         ):
             count, notes = restore_data_from_zip(DATA_DIR, uploaded.getvalue())
-            load_data.clear()
+            clear_load_data_cache()
             if count:
                 st.success(f"Restaurados {count} arquivo(s). A página vai recarregar.")
                 if notes:
@@ -3940,6 +3983,7 @@ def render_login_v2_form(members_df: pd.DataFrame):
     st.markdown("</div>", unsafe_allow_html=True)
 
     if login_button:
+        members_df = load_members_df()
         user = authenticate(login_email, login_password, members_df)
         if user is not None:
             members_df = sync_recognized_member_roles(members_df)
@@ -4081,6 +4125,25 @@ def render_reset_password_form(members_df: pd.DataFrame):
     st.markdown("</div>", unsafe_allow_html=True)
 
 
+def render_login_diagnostics(members_df: pd.DataFrame) -> None:
+    """Status visível na tela de login (diagnóstico / erros reais)."""
+    count = int(st.session_state.get("_members_count", len(members_df)))
+    warn = str(st.session_state.get("_members_load_warn", "")).strip()
+    boot = str(st.session_state.get("_boot_error", "")).strip()
+
+    if count == 0:
+        st.error(
+            f"**Nenhuma conta carregada** (0 membros). O login não funcionará até restaurar "
+            f"`members.csv` na nuvem (Supabase → tabela `data_files`) ou em `data/backups/`."
+        )
+    if warn:
+        st.warning(f"**Aviso ao carregar membros:** {warn}")
+    if boot:
+        st.error(f"**Erro ao iniciar o app:** {boot}")
+    if count > 0 and not warn and not boot:
+        st.caption(f"Contas disponíveis para login: **{count}**")
+
+
 def show_login_page(members_df: pd.DataFrame):
     from app_theme import inject_login_v2_theme
 
@@ -4102,6 +4165,7 @@ def show_login_page(members_df: pd.DataFrame):
     else:
         render_login_v2_form(members_df)
 
+    render_login_diagnostics(members_df)
     render_login_v2_footer()
 
     st.markdown("</div>", unsafe_allow_html=True)
@@ -4109,7 +4173,7 @@ def show_login_page(members_df: pd.DataFrame):
 
 def load_chat_df() -> pd.DataFrame:
     """Recarrega o chat do disco (evita DataFrame desatualizado na sessão)."""
-    load_data.clear()
+    clear_load_data_cache()
     return prepare_chat(load_data(CHAT_FILE, CHAT_COLUMNS))
 
 
@@ -6076,7 +6140,7 @@ def members_visible_to_group(members_df: pd.DataFrame) -> pd.DataFrame:
 
 def reload_members_df() -> pd.DataFrame:
     """Recarrega members.csv do disco (evita lista desatualizada no painel dev)."""
-    load_data.clear()
+    clear_load_data_cache()
     df = load_data(MEMBERS_FILE, MEMBER_COLUMNS)
     df = sync_recognized_member_roles(df)
     return ensure_developer_access(df)
@@ -9441,14 +9505,22 @@ def _run_app() -> None:
         snapshot_data_folder(DATA_DIR)
         st.session_state.data_guard_initialized = True
 
-    members_df = load_data(MEMBERS_FILE, MEMBER_COLUMNS)
-    members_df = ensure_developer_access(members_df)
-    members_df = prepare_members(members_df)
-    ensure_local_profile_photos(members_df)
-    members_df = sync_recognized_member_roles(members_df)
+    try:
+        members_df = load_members_df()
+        members_df = ensure_developer_access(members_df)
+        members_df = prepare_members(members_df)
+        ensure_local_profile_photos(members_df)
+        members_df = sync_recognized_member_roles(members_df)
+    except Exception as exc:
+        st.session_state["_boot_error"] = str(exc)
+        members_df = prepare_members(pd.DataFrame(columns=list(MEMBER_COLUMNS)))
 
     if try_restore_device_session(members_df):
         st.rerun()
+
+    if not st.session_state.authenticated:
+        show_login_page(members_df)
+        return
 
     chat_df = prepare_chat(load_data(CHAT_FILE, CHAT_COLUMNS))
     escalas_df = prepare_escalas(load_data(ESCALAS_FILE, ESCALA_COLUMNS))
@@ -9486,10 +9558,6 @@ def _run_app() -> None:
     _initial_unread = count_unread_chat_messages(chat_df)
     st.session_state.chat_unread_count = _initial_unread
     st.session_state._chat_unread_prev = _initial_unread
-
-    if not st.session_state.authenticated:
-        show_login_page(members_df)
-        return
 
     if not session_is_valid(st.session_state):
         logout_user()
@@ -9693,10 +9761,8 @@ def main() -> None:
             pass
         from user_feedback import is_dev_viewer
 
-        if is_dev_viewer():
-            show_exception_error(exc, context="Falha na aplicação")
-        else:
-            st.info(MSG_IMPROVEMENTS)
+        st.session_state["_boot_error"] = str(exc)
+        show_exception_error(exc, context="Falha na aplicação")
 
 
 if __name__ == "__main__":

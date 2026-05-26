@@ -121,6 +121,25 @@ def prepare_members(df: pd.DataFrame) -> pd.DataFrame:
     return out[list(MEMBER_STRING_COLUMNS)].copy()
 
 
+def merge_members_remote_local(
+    remote_df: pd.DataFrame, local_df: pd.DataFrame
+) -> pd.DataFrame:
+    """União por e-mail: nuvem + contas que existem só no disco local."""
+    remote_df = prepare_members(remote_df)
+    local_df = prepare_members(local_df)
+    if local_df.empty:
+        return remote_df
+    if remote_df.empty:
+        return local_df
+    remote_emails = set(remote_df["email"].astype(str).str.strip().str.lower())
+    extra = local_df[
+        ~local_df["email"].astype(str).str.strip().str.lower().isin(remote_emails)
+    ]
+    if extra.empty:
+        return remote_df
+    return pd.concat([remote_df, extra], ignore_index=True)
+
+
 def load_csv_preserve_rows(file_path: Path, columns: tuple) -> pd.DataFrame:
     """
     Carrega CSV sem descartar linhas por erro de coluna.

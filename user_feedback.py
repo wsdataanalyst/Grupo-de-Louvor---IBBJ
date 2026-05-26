@@ -38,23 +38,30 @@ def is_dev_viewer() -> bool:
     return "desenvolvedor" in roles
 
 
+def _show_explicit_errors() -> bool:
+    """Na tela de login (sem sessão) ou desenvolvedor: mostrar erro real, não mensagem genérica."""
+    if not st.session_state.get("authenticated"):
+        return True
+    return is_dev_viewer()
+
+
 def show_technical_error(detail: str = "") -> None:
-    """Falha de sistema / gravação — usuários veem mensagem leve."""
-    if is_dev_viewer():
-        st.error(detail.strip() or "Erro técnico.")
+    """Falha de sistema / gravação."""
+    text = (detail or "Erro técnico (sem detalhe).").strip()
+    if _show_explicit_errors():
+        st.error(text)
     else:
         st.info(MSG_IMPROVEMENTS)
+        with st.expander("Detalhe do erro (envie ao suporte)", expanded=False):
+            st.code(text)
 
 
 def show_form_error(detail: str) -> None:
-    """Validação de formulário — texto claro, sem caixa vermelha para integrantes."""
+    """Validação de formulário."""
     detail = detail.strip()
     if not detail:
         return
-    if is_dev_viewer():
-        st.error(detail)
-    else:
-        st.warning(detail)
+    st.warning(detail)
 
 
 def show_exception_error(
@@ -63,11 +70,14 @@ def show_exception_error(
     context: str = "",
     user_hint: str = "",
 ) -> None:
-    """Exceção inesperada — traceback só para dev."""
+    """Exceção inesperada."""
     detail = f"{context}: {exc}".strip(": ") if context else str(exc)
-    if is_dev_viewer():
-        st.error(detail or type(exc).__name__)
-        with st.expander("Traceback (dev)", expanded=False):
+    hint = (user_hint or detail or type(exc).__name__).strip()
+    if _show_explicit_errors():
+        st.error(hint)
+        with st.expander("Detalhes técnicos (traceback)", expanded=True):
             st.code(traceback.format_exc())
     else:
         st.info(user_hint.strip() or MSG_IMPROVEMENTS)
+        with st.expander("Detalhe do erro (envie ao suporte)", expanded=False):
+            st.code(traceback.format_exc())
