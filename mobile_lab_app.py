@@ -131,7 +131,10 @@ def render_mobile_lab_nav(current: str, *, chat_unread: int = 0) -> None:
 
     Navegação interna via session_state (sem links / sem abrir outro navegador).
     """
+    from mobile_lab_ui import inject_mobile_lab_hide_streamlit_chrome
+
     inject_mobile_lab_theme()
+    inject_mobile_lab_hide_streamlit_chrome()
 
     items = [
         ("Início", "🏠", 0),

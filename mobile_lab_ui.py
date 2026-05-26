@@ -34,18 +34,15 @@ def mobile_lab_css() -> str:
     body:has(#ml-mobile-lab-mode) [data-testid="stToolbar"],
     body:has(#ml-bottom-nav-start) [data-testid="stToolbar"],
     body:has(.ml-page) [data-testid="stToolbar"] { display:none !important; }
-    /* Widgets fixos no canto (status + Manage app no Cloud) — não cobrir Perfil */
-    body:has(#ml-mobile-lab-mode) [data-testid="stStatusWidget"],
-    body:has(#ml-mobile-lab-mode) [data-testid="stDecoration"],
-    body:has(#ml-mobile-lab-mode) footer,
-    body:has(#ml-mobile-lab-mode) .stAppDeployButton,
-    body:has(#ml-mobile-lab-mode) .stDeployButton,
-    body:has(#ml-mobile-lab-mode) [data-testid="stToolbarActions"],
-    body:has(#ml-bottom-nav-start) [data-testid="stStatusWidget"],
-    body:has(#ml-bottom-nav-start) [data-testid="stDecoration"],
-    body:has(#ml-bottom-nav-start) footer,
-    body:has(#ml-bottom-nav-start) .stAppDeployButton,
-    body:has(#ml-bottom-nav-start) .stDeployButton {
+    /* Widgets Streamlit no canto (status, deploy, footer) — ocultar no mobile lab */
+    [data-testid="stStatusWidget"],
+    [data-testid="stDecoration"],
+    footer,
+    .stAppDeployButton,
+    .stDeployButton,
+    [class*="stAppDeployButton"],
+    [class*="stDeployButton"],
+    [data-testid="stToolbarActions"] {
       display: none !important;
       visibility: hidden !important;
       opacity: 0 !important;
@@ -56,7 +53,7 @@ def mobile_lab_css() -> str:
       max-height: 0 !important;
       overflow: hidden !important;
       position: fixed !important;
-      left: -9999px !important;
+      left: -99999px !important;
       top: auto !important;
       bottom: auto !important;
       z-index: -1 !important;
@@ -195,9 +192,9 @@ def mobile_lab_css() -> str:
       transform: translateX(-50%) !important;
       width: min(420px, calc(100vw - 16px)) !important;
       max-width: 420px !important;
-      z-index: 9999 !important;
+      z-index: 2147483000 !important;
       margin: 0 !important;
-      padding: 6px 8px !important;
+      padding: 6px max(10px, env(safe-area-inset-right, 0px)) 6px 8px !important;
       box-sizing: border-box !important;
       background: rgba(15,23,42,.88) !important;
       backdrop-filter: blur(20px) !important;
@@ -327,6 +324,96 @@ def mobile_lab_css() -> str:
     """
 
 
+_ML_CHROME_HIDE_JS = r"""
+(function () {
+  var STYLE_ID = "ml-hide-streamlit-chrome-style";
+  var SEL =
+    '[data-testid="stStatusWidget"],' +
+    '[data-testid="stDecoration"],footer,' +
+    '.stAppDeployButton,.stDeployButton,' +
+    '[class*="stAppDeployButton"],[class*="stDeployButton"],' +
+    '[data-testid="stToolbarActions"],[data-testid="stToolbar"]';
+  var CSS =
+    SEL + "{display:none!important;visibility:hidden!important;opacity:0!important;" +
+    "pointer-events:none!important;width:0!important;height:0!important;" +
+    "overflow:hidden!important;position:fixed!important;left:-99999px!important;" +
+    "z-index:-1!important;}";
+  function docs() {
+    var out = [document];
+    try {
+      if (window.parent && window.parent.document) out.push(window.parent.document);
+    } catch (e) {}
+    try {
+      if (window.top && window.top.document && out.indexOf(window.top.document) < 0) {
+        out.push(window.top.document);
+      }
+    } catch (e) {}
+    return out;
+  }
+  function injectStyle(doc) {
+    if (!doc || !doc.head || doc.getElementById(STYLE_ID)) return;
+    var s = doc.createElement("style");
+    s.id = STYLE_ID;
+    s.textContent = CSS;
+    doc.head.appendChild(s);
+  }
+  function hideNodes(doc) {
+    if (!doc) return;
+    doc.querySelectorAll(SEL).forEach(function (el) {
+      el.style.setProperty("display", "none", "important");
+      el.style.setProperty("visibility", "hidden", "important");
+      el.setAttribute("aria-hidden", "true");
+    });
+  }
+  function liftNav() {
+    document.querySelectorAll('[class*="st-key-ml_bottom_nav"]').forEach(function (el) {
+      el.style.setProperty("z-index", "2147483000", "important");
+    });
+  }
+  function run() {
+    docs().forEach(function (d) {
+      injectStyle(d);
+      hideNodes(d);
+    });
+    liftNav();
+  }
+  run();
+  [80, 250, 700, 1500, 3200].forEach(function (ms) {
+    setTimeout(run, ms);
+  });
+  if (!window.__mlChromeHideInit) {
+    window.__mlChromeHideInit = true;
+    docs().forEach(function (d) {
+      try {
+        new MutationObserver(run).observe(d.documentElement, {
+          childList: true,
+          subtree: true,
+        });
+      } catch (e) {}
+    });
+    setInterval(run, 2000);
+  }
+})();
+"""
+
+
+def inject_mobile_lab_hide_streamlit_chrome() -> None:
+    """CSS + JS: remove status/deploy do Streamlit (iframe e parent no Cloud)."""
+    try:
+        st.html(
+            f"<script>{_ML_CHROME_HIDE_JS}</script>",
+            unsafe_allow_javascript=True,
+        )
+    except Exception:
+        import streamlit.components.v1 as components
+
+        components.html(
+            f'<div aria-hidden="true" style="display:none"><script>{_ML_CHROME_HIDE_JS}</script></div>',
+            height=0,
+            scrolling=False,
+        )
+
+
 def inject_mobile_lab_app_shell() -> None:
     """Marca o modo mobile lab cedo e injeta CSS (widgets Streamlit fora da nav)."""
     st.markdown(
@@ -334,6 +421,7 @@ def inject_mobile_lab_app_shell() -> None:
         unsafe_allow_html=True,
     )
     inject_mobile_lab_theme()
+    inject_mobile_lab_hide_streamlit_chrome()
 
 
 def inject_mobile_lab_theme() -> None:
