@@ -3993,13 +3993,19 @@ def render_login_v2_form(members_df: pd.DataFrame):
             ]
             if not refreshed.empty:
                 user = refreshed.iloc[0]
-            dev_tok = issue_device_session_token(str(user["email"]))
+            dev_tok = ""
+            try:
+                dev_tok = issue_device_session_token(str(user["email"]))
+            except Exception as exc:
+                show_technical_error(f"Sessão persistente indisponível: {exc}")
+                dev_tok = ""
             set_user_session(
                 user,
                 remember_me=True,
-                device_token=dev_tok,
+                device_token=dev_tok or None,
             )
-            inject_device_auth_token(dev_tok)
+            if dev_tok:
+                inject_device_auth_token(dev_tok)
             inject_login_remember(
                 remember_me,
                 login_email.strip(),
