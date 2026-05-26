@@ -23,20 +23,20 @@ def mobile_lab_css() -> str:
     }
 
     /* Hide Streamlit chrome for "app" feel */
-    body:has(#ml-bottom-nav) [data-testid="stSidebar"],
+    body:has(#ml-bottom-nav-start) [data-testid="stSidebar"],
     body:has(.ml-page) [data-testid="stSidebar"] { display:none !important; }
-    body:has(#ml-bottom-nav) [data-testid="stHeader"],
+    body:has(#ml-bottom-nav-start) [data-testid="stHeader"],
     body:has(.ml-page) [data-testid="stHeader"] { display:none !important; }
-    body:has(#ml-bottom-nav) [data-testid="stToolbar"],
+    body:has(#ml-bottom-nav-start) [data-testid="stToolbar"],
     body:has(.ml-page) [data-testid="stToolbar"] { display:none !important; }
-    body:has(#ml-bottom-nav) [data-testid="stAppViewContainer"],
+    body:has(#ml-bottom-nav-start) [data-testid="stAppViewContainer"],
     body:has(.ml-page) [data-testid="stAppViewContainer"] {
       background:
         radial-gradient(circle at top left, var(--ml-blue), transparent 30%),
         radial-gradient(circle at top right, var(--ml-purple), transparent 30%),
         var(--ml-bg) !important;
     }
-    body:has(#ml-bottom-nav) [data-testid="stAppViewContainer"] .main .block-container,
+    body:has(#ml-bottom-nav-start) [data-testid="stAppViewContainer"] .main .block-container,
     body:has(.ml-page) [data-testid="stAppViewContainer"] .main .block-container{
       max-width: 28rem !important;
       margin: 0 auto !important;
@@ -137,90 +137,75 @@ def mobile_lab_css() -> str:
     .ml-quick .ml-q .ml-qe{ font-size: 26px; margin-bottom: 10px; }
     .ml-quick .ml-q .ml-qt{ font-size: 14px; font-weight: 900; }
 
-    /* Bottom nav premium (visual + click layer) */
-    .ml-bottom-visual{
-      position: fixed;
-      left: 50%;
-      transform: translateX(-50%);
-      bottom: max(12px, env(safe-area-inset-bottom, 0px));
-      width: min(420px, 95vw);
-      z-index: 1000;
-      border-radius: 30px;
-      padding: 10px 14px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      pointer-events: none;
-      box-shadow: 0 0 30px rgba(139,92,246,.12);
+    /* Bottom nav — barra fixa (botões ml_nav_*; sem camada duplicada) */
+    #ml-bottom-nav-start{
+      display: none !important;
+      height: 0 !important;
+      margin: 0 !important;
+      padding: 0 !important;
     }
-    .ml-navbtn{
-      position: relative;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 6px;
-      min-width: 56px;
-      color: rgba(148,163,184,.95);
-      font-family: 'Manrope', system-ui, sans-serif;
+    body:has(#ml-bottom-nav-start) [data-testid="stVerticalBlock"]:has([class*="st-key-ml_nav_"]){
+      height: 0 !important;
+      min-height: 0 !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      overflow: visible !important;
     }
-    .ml-navbtn .ml-nav-icon{ font-size: 20px; line-height: 1; }
-    .ml-navbtn .ml-nav-label{ font-size: 11px; font-weight: 800; letter-spacing: 0.01em; }
-    .ml-navbtn.ml-active{
-      color: rgba(167,139,250,.98);
-    }
-    .ml-navbtn.ml-active .ml-nav-label{
-      color: rgba(233,213,255,.98);
-    }
-    .ml-nav-badge{
-      position: absolute;
-      top: -6px;
-      right: 6px;
-      min-width: 18px;
-      height: 18px;
-      padding: 0 5px;
-      border-radius: 999px;
-      background: rgba(139,92,246,1);
-      color: #fff;
-      font-size: 10px;
-      font-weight: 900;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      border: 2px solid var(--ml-bg);
-    }
-    #ml-bottom-nav{
-      position: fixed;
-      left: 50%;
-      transform: translateX(-50%);
-      bottom: max(12px, env(safe-area-inset-bottom, 0px));
-      width: min(420px, 95vw);
-      z-index: 1001;
-      background: transparent !important;
-      border: none !important;
-      box-shadow: none !important;
-      padding: 10px 6px !important;
-    }
-    #ml-bottom-nav [data-testid="column"]{
-      padding: 0 2px !important;
-    }
-    #ml-bottom-nav [data-testid="stVerticalBlock"]{
+    body:has(#ml-bottom-nav-start) [data-testid="stHorizontalBlock"]:has([class*="st-key-ml_nav_"]){
+      position: fixed !important;
+      left: 50% !important;
+      transform: translateX(-50%) !important;
+      bottom: max(12px, env(safe-area-inset-bottom, 0px)) !important;
+      width: min(420px, calc(100vw - 16px)) !important;
+      max-width: 420px !important;
+      z-index: 9999 !important;
+      margin: 0 !important;
+      background: rgba(15,23,42,.72) !important;
+      backdrop-filter: blur(20px) !important;
+      -webkit-backdrop-filter: blur(20px) !important;
+      border: 1px solid rgba(255,255,255,.08) !important;
+      border-radius: 30px !important;
+      padding: 8px 6px !important;
+      box-shadow: 0 0 30px rgba(139,92,246,.12) !important;
       gap: 0 !important;
     }
-    #ml-bottom-nav [data-testid="stButton"]{
-      margin: 0 !important;
+    body:has(#ml-bottom-nav-start) [data-testid="stHorizontalBlock"]:has([class*="st-key-ml_nav_"]) [data-testid="column"]{
+      padding: 0 2px !important;
+      min-width: 0 !important;
     }
-    #ml-bottom-nav [data-testid="stButton"] button{
-      opacity: 0 !important;
-      min-height: 58px !important;
-      height: 58px !important;
-      padding: 0 !important;
+    body:has(#ml-bottom-nav-start) [class*="st-key-ml_nav_"] [data-testid="stButton"]{
+      margin: 0 !important;
+      width: 100% !important;
+    }
+    body:has(#ml-bottom-nav-start) [class*="st-key-ml_nav_"] [data-testid="stButton"] > button{
+      width: 100% !important;
+      min-height: 54px !important;
+      padding: 6px 4px 8px !important;
       margin: 0 !important;
       border: none !important;
+      border-radius: 16px !important;
       background: transparent !important;
       box-shadow: none !important;
+      color: rgba(148,163,184,.95) !important;
+      font-family: 'Manrope', system-ui, sans-serif !important;
+      font-size: 18px !important;
+      line-height: 1.1 !important;
+      white-space: pre-line !important;
     }
-    #ml-bottom-nav [data-testid="stButton"] button p{
-      display: none !important;
+    body:has(#ml-bottom-nav-start) [class*="st-key-ml_nav_"] [data-testid="stButton"] > button p{
+      font-size: 11px !important;
+      font-weight: 800 !important;
+      margin: 0.2rem 0 0 0 !important;
+      line-height: 1.1 !important;
+    }
+    body:has(#ml-bottom-nav-start) [class*="st-key-ml_nav_"] [data-testid="stButton"] > button[kind="primary"]{
+      color: rgba(196,181,253,.98) !important;
+      background: rgba(139,92,246,.14) !important;
+      border: 1px solid rgba(139,92,246,.28) !important;
+      box-shadow: 0 0 18px rgba(139,92,246,.15) !important;
+    }
+    body:has(#ml-bottom-nav-start) [class*="st-key-ml_nav_"] [data-testid="stButton"] > button[kind="primary"] p{
+      color: rgba(233,213,255,.98) !important;
     }
 
     /* Drawer overlay */

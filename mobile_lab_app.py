@@ -125,25 +125,11 @@ def mobile_lab_current_page() -> str:
     return _get_page()
 
 
-def _nav_btn_html(icon: str, label: str, *, active: bool, badge: int = 0) -> str:
-    active_cls = " ml-active" if active else ""
-    badge_html = (
-        f'<span class="ml-nav-badge">{badge}</span>' if badge and badge > 0 else ""
-    )
-    return (
-        f'<div class="ml-navbtn{active_cls}">'
-        f'<span class="ml-nav-icon">{icon}</span>'
-        f'<span class="ml-nav-label">{_esc(label)}</span>'
-        f"{badge_html}"
-        f"</div>"
-    )
-
-
 def render_mobile_lab_nav(current: str, *, chat_unread: int = 0) -> None:
     """
-    Bottom navigation premium (visual HTML) + botões invisíveis (session_state).
+    Bottom navigation premium — um único nível (botões Streamlit estilizados).
 
-    iPhone/Chrome: não usa links/URL — só st.session_state + st.rerun().
+    Navegação interna via session_state (sem links / sem abrir outro navegador).
     """
     inject_mobile_lab_theme()
 
@@ -155,28 +141,24 @@ def render_mobile_lab_nav(current: str, *, chat_unread: int = 0) -> None:
         ("Perfil", "👤", 0),
     ]
 
-    visual = "".join(
-        _nav_btn_html(icon, page, active=(current == page), badge=badge)
-        for page, icon, badge in items
-    )
     st.markdown(
-        f'<div class="ml-bottom-visual ml-glass">{visual}</div>',
+        '<span id="ml-bottom-nav-start" aria-hidden="true"></span>',
         unsafe_allow_html=True,
     )
-
-    st.markdown('<div id="ml-bottom-nav">', unsafe_allow_html=True)
     cols = st.columns(5, gap="small")
-    for col, (page, _icon, _badge) in zip(cols, items):
+    for col, (page, icon, badge) in zip(cols, items):
         with col:
+            label = f"{icon}\n{page}"
+            if page == "Chat" and badge > 0:
+                label = f"{icon} ·{badge}\n{page}"
             if st.button(
-                " ",
+                label,
                 key=f"ml_nav_{page.replace(' ', '_')}",
                 use_container_width=True,
-                type="secondary",
+                type="primary" if current == page else "secondary",
             ):
                 st.session_state.ml_page = page
                 st.rerun()
-    st.markdown("</div>", unsafe_allow_html=True)
 
 
 def _render_page_header(title: str) -> None:
