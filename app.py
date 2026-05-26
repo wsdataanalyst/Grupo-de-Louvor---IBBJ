@@ -4514,7 +4514,10 @@ def show_group_chat(chat_df: pd.DataFrame, members_df: pd.DataFrame):
     n_members = len(members_visible_to_group(members_df))
     imgs, auds, _ = count_chat_media(chat_df)
 
+    from mobile_ui import mobile_hdr_close, mobile_hdr_open
+
     render_chat_page_open()
+    mobile_hdr_open()
     hdr_l, hdr_r = st.columns([4, 1])
     with hdr_l:
         inject_ui_html(
@@ -4540,7 +4543,9 @@ def show_group_chat(chat_df: pd.DataFrame, members_df: pd.DataFrame):
             use_container_width=True,
         )
         st.markdown("</div>", unsafe_allow_html=True)
+    mobile_hdr_close()
 
+    inject_ui_html('<div class="ig-chat-mobile-order ig-m-layout-stack">')
     col_l, col_m, col_r = st.columns([0.92, 1.75, 0.95])
 
     with col_l:
@@ -4593,6 +4598,7 @@ def show_group_chat(chat_df: pd.DataFrame, members_df: pd.DataFrame):
             online_label=str(online_n) if online_n else "0",
         )
 
+    inject_ui_html("</div>")
     render_chat_page_close()
 
 
@@ -5414,7 +5420,10 @@ def show_playlist_page(louvores_df: pd.DataFrame, playlist_df: pd.DataFrame, mem
         fav_ids = fav_ids & mine_ids
         st.session_state["pl_favorite_ids"] = fav_ids
 
+    from mobile_ui import mobile_hdr_close, mobile_hdr_open
+
     render_playlist_page_open()
+    mobile_hdr_open()
     col_hdr, col_btn = st.columns([4, 1])
     with col_hdr:
         render_playlist_header()
@@ -5422,6 +5431,7 @@ def show_playlist_page(louvores_df: pd.DataFrame, playlist_df: pd.DataFrame, mem
         st.markdown('<div style="padding-top:0.5rem">', unsafe_allow_html=True)
         render_playlist_nova_button()
         st.markdown("</div>", unsafe_allow_html=True)
+    mobile_hdr_close()
 
     render_playlist_banner()
     render_voice_kit_link()
@@ -5444,6 +5454,9 @@ def show_playlist_page(louvores_df: pd.DataFrame, playlist_df: pd.DataFrame, mem
                     st.session_state.pop("pl_nova_open", None)
                     st.rerun()
 
+    from mobile_ui import mobile_stack_close, mobile_stack_open
+
+    mobile_stack_open()
     col_main, col_side = st.columns([3, 1])
     with col_main:
         render_add_music_card_open()
@@ -5576,6 +5589,7 @@ def show_playlist_page(louvores_df: pd.DataFrame, playlist_df: pd.DataFrame, mem
 
     with col_side:
         render_playlist_sidebar(mine)
+    mobile_stack_close()
 
     first_track = None
     if not mine.empty:
@@ -5662,6 +5676,9 @@ def show_dashboard(
     my_email = st.session_state.user_email.strip().lower()
     minhas = user_on_escala_semana(escalas_df, equipe_df, my_email, start, end)
 
+    from mobile_ui import mobile_stack_open, mobile_stack_close
+
+    mobile_stack_open()
     col_main, col_right = st.columns([2.2, 1], gap="large")
 
     with col_main:
@@ -5720,6 +5737,9 @@ def show_dashboard(
             f'<p class="ig-week-sub">{html.escape(week_label)}</p>',
             unsafe_allow_html=True,
         )
+        from mobile_ui import mobile_row2_close, mobile_row2_open
+
+        mobile_row2_open()
         w1, w2, w3 = st.columns([1, 1, 1])
         with w1:
             if st.button("◀ Semana anterior", key="ig_wk_prev", use_container_width=True):
@@ -5735,6 +5755,7 @@ def show_dashboard(
             ):
                 st.session_state.week_offset = 0
                 st.rerun()
+        mobile_row2_close()
 
         semana = escalas_na_semana(escalas_df, start, end)
         minhas_ids = {
@@ -5764,6 +5785,7 @@ def show_dashboard(
             my_email=my_email,
             equipe_df=equipe_df,
         )
+    mobile_stack_close()
 
 
 def show_user_profile(
@@ -7536,7 +7558,10 @@ def show_gerenciar_escalas(
     escalas_df, programa_df, equipe_df, _ = get_escalas_bundle()
     render_pending_whatsapp_share_banner()
 
+    from mobile_ui import mobile_hdr_close, mobile_hdr_open, mobile_stack_close, mobile_stack_open
+
     render_gerenciar_page_open()
+    mobile_hdr_open()
     col_hdr, col_btn = st.columns([4, 1])
     with col_hdr:
         render_gerenciar_header()
@@ -7544,6 +7569,7 @@ def show_gerenciar_escalas(
         st.markdown('<div style="padding-top:0.5rem">', unsafe_allow_html=True)
         render_gerenciar_nova_escala_button()
         st.markdown("</div>", unsafe_allow_html=True)
+    mobile_hdr_close()
 
     n_cultos = cultos_esta_semana(escalas_df)
 
@@ -7559,6 +7585,7 @@ def show_gerenciar_escalas(
     )
 
     with tab_montar:
+        mobile_stack_open()
         col_main, col_side = st.columns([3, 1])
         with col_main:
             show_escala_completa_editor(
@@ -7580,6 +7607,7 @@ def show_gerenciar_escalas(
                 louvores_df,
                 culto_ref=culto_ref_for_planner(),
             )
+        mobile_stack_close()
 
     with tab_sugestoes:
         from escala_suggester_ui import render_escala_suggestions_panel
@@ -8544,7 +8572,10 @@ def show_louvores_catalog(
     mgr = is_scale_manager(st.session_state.user_roles)
     my_email = str(st.session_state.get("user_email", "")).strip().lower()
 
+    from mobile_ui import mobile_hdr_close, mobile_hdr_open, mobile_stack_close, mobile_stack_open
+
     render_repertorio_page_open()
+    mobile_hdr_open()
     col_hdr, col_btn = st.columns([4, 1])
     with col_hdr:
         render_repertorio_header()
@@ -8552,6 +8583,7 @@ def show_louvores_catalog(
         st.markdown('<div style="padding-top:0.5rem">', unsafe_allow_html=True)
         render_repertorio_add_button()
         st.markdown("</div>", unsafe_allow_html=True)
+    mobile_hdr_close()
 
     render_repertorio_banner()
     render_voice_kit_link()
@@ -8581,6 +8613,7 @@ def show_louvores_catalog(
                     st.session_state.pop("rep_add_open", None)
                     st.rerun()
 
+    mobile_stack_open()
     col_main, col_side = st.columns([3, 1])
     with col_main:
         render_repertorio_filter_card_open()
@@ -8780,6 +8813,7 @@ def show_louvores_catalog(
         render_repertorio_sidebar(louvores_df, programa_df, is_manager=mgr)
         if st.session_state.pop("rep_show_categories", False):
             st.info("Use os filtros **Tema** e **Tag bíblica** na área principal.")
+    mobile_stack_close()
 
     render_repertorio_page_close()
 
@@ -9105,7 +9139,10 @@ def show_sugestao_louvor(sugestoes_df: pd.DataFrame, louvores_df: pd.DataFrame):
     mgr = is_scale_manager(st.session_state.user_roles)
     my_email = str(st.session_state.get("user_email", "")).strip().lower()
 
+    from mobile_ui import mobile_hdr_close, mobile_hdr_open, mobile_stack_close, mobile_stack_open
+
     render_sugestao_page_open()
+    mobile_hdr_open()
     col_hdr, col_btn = st.columns([4, 1])
     with col_hdr:
         render_sugestao_header()
@@ -9113,11 +9150,13 @@ def show_sugestao_louvor(sugestoes_df: pd.DataFrame, louvores_df: pd.DataFrame):
         st.markdown('<div style="padding-top:0.5rem">', unsafe_allow_html=True)
         render_sugestao_nova_button()
         st.markdown("</div>", unsafe_allow_html=True)
+    mobile_hdr_close()
 
     render_sugestao_banner()
     counts = compute_sugestao_stats(sugestoes_df, normalize_sugestao_status)
     render_sugestao_kpis(counts, SUGESTAO_STATUS_LABELS)
 
+    mobile_stack_open()
     col_main, col_side = st.columns([3, 1])
 
     with col_main:
@@ -9284,6 +9323,7 @@ def show_sugestao_louvor(sugestoes_df: pd.DataFrame, louvores_df: pd.DataFrame):
             normalize_status=normalize_sugestao_status,
             status_labels=SUGESTAO_STATUS_LABELS,
         )
+    mobile_stack_close()
 
     render_sugestao_page_close()
 

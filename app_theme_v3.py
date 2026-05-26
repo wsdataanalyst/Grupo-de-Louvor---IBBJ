@@ -538,11 +538,13 @@ def ibbj_v3_css() -> str:
             color: var(--ig-muted) !important;
         }
 
-        /* Dashboard columns */
-        [data-testid="column"]:has(.ig-right-panel) {
-            position: sticky;
-            top: 0.5rem;
-            align-self: start;
+        /* Dashboard columns — sticky só em telas maiores */
+        @media (min-width: 769px) {
+            [data-testid="column"]:has(.ig-right-panel) {
+                position: sticky;
+                top: 0.5rem;
+                align-self: start;
+            }
         }
         .dash-section, .welcome-card, .status-escalado, .status-nao-escalado {
             border-radius: var(--ig-radius-xl) !important;

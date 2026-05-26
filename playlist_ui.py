@@ -117,6 +117,9 @@ def playlist_page_css() -> str:
         @media (max-width: 1100px) {
             .ig-pl-kpi-row { grid-template-columns: repeat(2, 1fr); }
         }
+        @media (max-width: 480px) {
+            .ig-pl-kpi-row { grid-template-columns: 1fr; }
+        }
         .ig-pl-kpi {
             position: relative;
             padding: 1.1rem 1rem;

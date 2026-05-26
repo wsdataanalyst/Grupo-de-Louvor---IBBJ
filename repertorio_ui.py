@@ -120,6 +120,9 @@ def repertorio_page_css() -> str:
         @media (max-width: 1100px) {
             .ig-rep-kpi-row { grid-template-columns: repeat(2, 1fr); }
         }
+        @media (max-width: 480px) {
+            .ig-rep-kpi-row { grid-template-columns: 1fr; }
+        }
         .ig-rep-kpi {
             position: relative;
             padding: 1.1rem 1rem;

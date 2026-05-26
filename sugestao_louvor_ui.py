@@ -136,6 +136,9 @@ def sugestao_louvor_page_css() -> str:
         @media (max-width: 1000px) {
             .ig-sug-kpi-row { grid-template-columns: repeat(2, 1fr); }
         }
+        @media (max-width: 480px) {
+            .ig-sug-kpi-row { grid-template-columns: 1fr; }
+        }
         .ig-sug-kpi {
             padding: 1.1rem 1rem;
             border-radius: 14px;
