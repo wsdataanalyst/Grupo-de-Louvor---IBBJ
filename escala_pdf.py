@@ -12,21 +12,38 @@ from fpdf import FPDF
 GROUP_NAME = "Grupo de Louvor - IBBJ"
 _DIAS = ("Seg", "Ter", "Qua", "Qui", "Sex", "Sab", "Dom")
 
+# Helvetica (PDF core) nao suporta pontuacao Unicode comum em textos PT-BR.
+_UNICODE_TO_ASCII = str.maketrans(
+    {
+        "\u2026": "...",  # reticencias
+        "\u2014": "-",  # travessao
+        "\u2013": "-",  # meia-risca
+        "\u2018": "'",
+        "\u2019": "'",
+        "\u201c": '"',
+        "\u201d": '"',
+        "\u00a0": " ",
+        "\u2212": "-",
+    }
+)
+
 
 def pdf_safe(text: str, max_len: int = 0) -> str:
-    """Texto compatível com fontes PDF core (sem acentos)."""
+    """Texto compativel com Helvetica (Latin-1, sem acentos)."""
     s = unicodedata.normalize("NFKD", str(text or ""))
     s = "".join(c for c in s if not unicodedata.combining(c))
+    s = s.translate(_UNICODE_TO_ASCII)
+    s = "".join(c if ord(c) < 256 else "?" for c in s)
     s = s.replace("\n", " ").strip()
     if max_len and len(s) > max_len:
-        s = s[: max_len - 1].rstrip() + "…"
+        s = s[: max(0, max_len - 3)].rstrip() + "..."
     return s
 
 
 def format_culto_date(value) -> str:
     dt = pd.to_datetime(value, errors="coerce")
     if pd.isna(dt):
-        return pdf_safe(str(value or "—"))
+        return pdf_safe(str(value or "-"))
     d = dt.date()
     return f"{_DIAS[d.weekday()]}, {d.strftime('%d/%m/%Y')}"
 
@@ -111,7 +128,7 @@ def _programa_lines(
         leader = pdf_safe(str(item.get("leader_name", "")).strip(), 20)
         titulo = louvor
         if artist:
-            titulo = f"{louvor} — {artist}" if louvor else artist
+            titulo = f"{louvor} - {artist}" if louvor else artist
         meta = []
         if tom:
             meta.append(f"Tom {tom}")
