@@ -35,6 +35,7 @@ from chat_media import (
 from chat_whatsapp import render_whatsapp_chat_composer
 from data_persistence import (
     backup_csv_if_exists,
+    latest_backup,
     load_csv_preserve_rows,
     members_save_allowed,
     prepare_members,
@@ -477,7 +478,7 @@ def sync_recognized_member_roles(members_df: pd.DataFrame) -> pd.DataFrame:
             members_df.at[idx, "roles"] = ", ".join(parts)
             updated = True
     if updated:
-        save_data(members_df, MEMBERS_FILE)
+        save_data(members_df, MEMBERS_FILE, quiet=True)
     return members_df
 
 
@@ -704,23 +705,63 @@ def load_data(file_path: Path, columns: tuple):
 
     df = None
     if should_sync_file(file_path) and is_remote_enabled():
-        df = dataframe_from_remote(columns, file_path.name)
-        if df is not None:
+        remote_df = None
+        try:
+            remote_df = dataframe_from_remote(columns, file_path.name)
+        except Exception:
+            remote_df = None
+        local_df = load_csv_preserve_rows(file_path, columns)
+        if remote_df is not None and not (
+            file_path == MEMBERS_FILE and remote_df.empty
+        ):
+            df = remote_df
             file_path.parent.mkdir(parents=True, exist_ok=True)
             df.to_csv(file_path, index=False)
         else:
-            df = load_csv_preserve_rows(file_path, columns)
-            if not df.empty:
-                push_file_from_disk(file_path)
+            df = local_df
+            if not df.empty and file_path != MEMBERS_FILE:
+                try:
+                    push_file_from_disk(file_path)
+                except Exception:
+                    pass
+            elif (
+                file_path == MEMBERS_FILE
+                and not df.empty
+                and remote_df is not None
+                and remote_df.empty
+            ):
+                try:
+                    push_file_from_disk(file_path)
+                except Exception:
+                    pass
     else:
         df = load_csv_preserve_rows(file_path, columns)
 
     if file_path == MEMBERS_FILE:
         df = prepare_members(df)
+        if df.empty:
+            backup = latest_backup(file_path, DATA_DIR)
+            if backup:
+                recovered = prepare_members(load_csv_preserve_rows(backup, columns))
+                if not recovered.empty:
+                    df = recovered
+                    file_path.parent.mkdir(parents=True, exist_ok=True)
+                    df.to_csv(file_path, index=False)
+                    if is_remote_enabled():
+                        try:
+                            push_file_from_disk(file_path)
+                        except Exception:
+                            pass
     return df
 
 
-def save_data(df: pd.DataFrame, file_path: Path, *, force: bool = False) -> bool:
+def save_data(
+    df: pd.DataFrame,
+    file_path: Path,
+    *,
+    force: bool = False,
+    quiet: bool = False,
+) -> bool:
     """Grava CSV local + nuvem (Supabase). Retorna False se proteção bloquear members."""
     file_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -728,7 +769,8 @@ def save_data(df: pd.DataFrame, file_path: Path, *, force: bool = False) -> bool
         df = prepare_members(df)
         ok, msg = members_save_allowed(df, file_path, force=force)
         if not ok:
-            show_technical_error(msg)
+            if not quiet:
+                show_technical_error(msg)
             return False
 
     backup_csv_if_exists(file_path, DATA_DIR)
@@ -2537,7 +2579,7 @@ def ensure_developer_access(members_df: pd.DataFrame) -> pd.DataFrame:
             updated = True
 
     if updated:
-        save_data(members_df, MEMBERS_FILE)
+        save_data(members_df, MEMBERS_FILE, quiet=True)
     return members_df
 
 
