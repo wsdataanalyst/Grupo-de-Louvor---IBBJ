@@ -683,22 +683,15 @@ def show_mobile_dashboard(
     pendencias: int,
     quick_links: list[tuple[str, str]],
 ) -> None:
-    ctx = build_mobile_dashboard_ctx(
-        escalas_df=escalas_df,
-        equipe_df=equipe_df,
-        louvores_df=louvores_df,
-        members_df=members_df,
-        playlist_df=playlist_df,
-        feed_posts_df=feed_posts_df,
-        my_email=my_email,
-        user_name=user_name,
-        photo_uri=photo_uri,
-        chat_unread=chat_unread,
-        pendencias=pendencias,
-        quick_links=quick_links,
-    )
-    ctx.n_members = members_visible_count
+    # Mobile Lab: layout "cara de app" inspirado no mock premium (teste).
+    from mobile_lab_ui import render_mobile_lab_dashboard
 
-    inject_mobile_dashboard_theme()
-    render_mobile_dashboard_shell(ctx)
-    render_mobile_dashboard_actions(ctx)
+    render_mobile_lab_dashboard(
+        members_df=members_df,
+        louvores_df=louvores_df,
+        escalas_df=escalas_df,
+        chat_unread=int(chat_unread),
+        user_full_name=str(user_name or ""),
+        photo_uri=str(photo_uri or ""),
+        notif_count=int(pendencias),
+    )
