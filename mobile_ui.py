@@ -62,6 +62,18 @@ def mobile_first_css() -> str:
                 min-width: 0 !important;
             }}
 
+            /* Mobile Lab Escalas: abas horizontais */
+            body:has(#ml-escalas-page) [class*="st-key-ml_esc_tabs"] [data-testid="stHorizontalBlock"] {{
+                flex-wrap: nowrap !important;
+                overflow-x: auto !important;
+            }}
+            body:has(#ml-escalas-page) [class*="st-key-ml_esc_tabs"] [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {{
+                flex: 0 0 auto !important;
+                width: auto !important;
+                max-width: none !important;
+                min-width: max-content !important;
+            }}
+
             /* Linhas que devem ficar lado a lado (2 colunas no máximo) */
             .ig-m-row-2 [data-testid="stHorizontalBlock"] {{
                 flex-wrap: nowrap !important;

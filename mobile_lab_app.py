@@ -242,41 +242,28 @@ def _render_page_header(title: str) -> None:
     )
 
 
-def render_mobile_lab_escalas(*, escalas_df: pd.DataFrame, my_role: str = "") -> None:
-    inject_mobile_lab_theme()
-    _render_page_header("Escalas")
-    # Cards simples: próximos cultos
-    df = escalas_df.copy() if escalas_df is not None else pd.DataFrame()
-    if not df.empty:
-        df["_dt"] = pd.to_datetime(df.get("date"), errors="coerce")
-        df = df[df["_dt"].notna()].sort_values("_dt").head(8)
-    if df.empty:
-        st.info("Nenhuma escala encontrada.")
-        return
-    for _, r in df.iterrows():
-        dt = r["_dt"].to_pydatetime()
-        ev = str(r.get("event", "Culto")).strip() or "Culto"
-        st.markdown(
-            f"""
-            <div class="ml-page" style="padding-bottom:16px;">
-              <div class="ml-glass ml-card" style="padding:14px 14px;">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-                  <span style="color:rgba(226,232,240,.92);font-weight:900;font-size:12px;">
-                    {dt.strftime("%a").upper()} • {dt.strftime("%d/%m")}
-                  </span>
-                  <span class="ml-glass" style="padding:6px 10px;border-radius:14px;font-size:12px;color:rgba(134,239,172,.95);border-color:rgba(34,197,94,.18);">
-                    Status
-                  </span>
-                </div>
-                <div style="font-size:18px;font-weight:900;letter-spacing:-0.01em;">{_esc(ev)}</div>
-                <div style="margin-top:6px;color:rgba(148,163,184,.92);font-size:13px;">
-                  Você • {_esc(my_role or 'Integrante')}
-                </div>
-              </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+def render_mobile_lab_escalas(
+    *,
+    escalas_df: pd.DataFrame,
+    trocas_df: pd.DataFrame,
+    members_df: pd.DataFrame,
+    programa_df: pd.DataFrame,
+    equipe_df: pd.DataFrame,
+    louvores_df: pd.DataFrame,
+    chat_ensaio_df: pd.DataFrame,
+) -> None:
+    """Delega para o layout premium de Escalas."""
+    from mobile_escalas_ui import render_mobile_escalas_page
+
+    render_mobile_escalas_page(
+        escalas_df=escalas_df,
+        trocas_df=trocas_df,
+        members_df=members_df,
+        programa_df=programa_df,
+        equipe_df=equipe_df,
+        louvores_df=louvores_df,
+        chat_ensaio_df=chat_ensaio_df,
+    )
 
 
 def render_mobile_lab_repertorio(*, louvores_df: pd.DataFrame) -> None:

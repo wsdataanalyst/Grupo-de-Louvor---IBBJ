@@ -9668,14 +9668,16 @@ def _run_app() -> None:
                 feed_posts_df=feed_posts_df,
             )
         elif ml_page == "Escalas":
-            show_escalas_page(
-                escalas_df,
-                trocas_df,
-                members_df,
-                programa_df,
-                equipe_df,
-                louvores_df,
-                chat_ensaio_df,
+            from mobile_escalas_ui import render_mobile_escalas_page
+
+            render_mobile_escalas_page(
+                escalas_df=escalas_df,
+                trocas_df=trocas_df,
+                members_df=members_df,
+                programa_df=programa_df,
+                equipe_df=equipe_df,
+                louvores_df=louvores_df,
+                chat_ensaio_df=chat_ensaio_df,
             )
         elif ml_page == "Repertório":
             show_louvores_catalog(
