@@ -9544,13 +9544,6 @@ def _run_app() -> None:
     except Exception:
         pass
 
-    from mobile_lab import is_mobile_lab_enabled
-
-    if is_mobile_lab_enabled():
-        from mobile_lab_ui import inject_mobile_lab_app_shell
-
-        inject_mobile_lab_app_shell()
-
     if st.session_state.get("_feed_purge_v") != FEED_ONE_TIME_PURGE_VERSION:
         try:
             purge_all_feed_data()
@@ -9644,6 +9637,9 @@ def _run_app() -> None:
             mobile_lab_request_logout,
             render_mobile_lab_nav,
         )
+        from mobile_lab_ui import inject_mobile_lab_app_shell
+
+        inject_mobile_lab_app_shell()
 
         email_hdr = str(st.session_state.get("user_email", "")).strip().lower()
         photo_hdr = profile_photo_to_data_uri(
