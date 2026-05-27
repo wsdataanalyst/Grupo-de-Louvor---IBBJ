@@ -22,6 +22,7 @@ def mobile_lab_css() -> str:
       --ml-text-dim: rgba(148,163,184,.92);
       --ml-nav-height: 60px;
       --ml-nav-offset: max(16px, env(safe-area-inset-bottom, 0px));
+      --ml-verse-height: 56px;
     }
 
     /* Hide Streamlit chrome for "app" feel */
@@ -60,6 +61,53 @@ def mobile_lab_css() -> str:
       pointer-events: none !important;
       box-sizing: border-box !important;
     }
+    /* Faixa do versículo do dia (cobre ícones do Cloud no rodapé) */
+    body:has(#ml-mobile-lab-mode) #ml-verse-strip{
+      position: fixed !important;
+      left: 0 !important;
+      right: 0 !important;
+      bottom: 0 !important;
+      height: calc(var(--ml-verse-height) + env(safe-area-inset-bottom, 0px)) !important;
+      padding: 10px 14px calc(10px + env(safe-area-inset-bottom, 0px)) 14px !important;
+      background: rgba(3,7,18,.92) !important;
+      backdrop-filter: blur(14px) !important;
+      -webkit-backdrop-filter: blur(14px) !important;
+      border-top: 1px solid rgba(255,255,255,.06) !important;
+      z-index: 2147483600 !important;
+      box-sizing: border-box !important;
+      display: flex !important;
+      align-items: center !important;
+      gap: 12px !important;
+    }
+    body:has(#ml-mobile-lab-mode) #ml-verse-strip .ml-verse-ico{
+      width: 34px; height: 34px;
+      border-radius: 14px;
+      display:flex; align-items:center; justify-content:center;
+      background: rgba(139,92,246,.16);
+      border: 1px solid rgba(139,92,246,.30);
+      color: rgba(233,213,255,.98);
+      flex: 0 0 auto;
+      font-size: 16px;
+    }
+    body:has(#ml-mobile-lab-mode) #ml-verse-strip .ml-verse-txt{
+      min-width: 0;
+      color: rgba(226,232,240,.96);
+      font-family: 'Manrope', system-ui, sans-serif;
+      font-size: 12px;
+      line-height: 1.15;
+      font-weight: 700;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    body:has(#ml-mobile-lab-mode) #ml-verse-strip .ml-verse-ref{
+      color: rgba(148,163,184,.92);
+      font-size: 11px;
+      font-weight: 800;
+      margin-left: 8px;
+      white-space: nowrap;
+      flex: 0 0 auto;
+    }
     body:has(#ml-bottom-nav-start) [data-testid="stAppViewContainer"],
     body:has(.ml-page) [data-testid="stAppViewContainer"] {
       background:
@@ -71,7 +119,7 @@ def mobile_lab_css() -> str:
     body:has(.ml-page) [data-testid="stAppViewContainer"] .main .block-container{
       max-width: 28rem !important;
       margin: 0 auto !important;
-      padding: 0.5rem 0.85rem calc(var(--ml-nav-height) + var(--ml-nav-offset) + 20px) !important;
+      padding: 0.2rem 0.75rem calc(var(--ml-nav-height) + var(--ml-verse-height) + var(--ml-nav-offset) + 24px) !important;
     }
     /* fixed relativo à viewport (evita corte no fim do .main do Streamlit) */
     body:has(#ml-bottom-nav-start) [data-testid="stAppViewContainer"],
@@ -91,7 +139,7 @@ def mobile_lab_css() -> str:
         radial-gradient(circle at top right, var(--ml-purple), transparent 30%),
         var(--ml-bg);
       border-radius: 28px;
-      padding: 18px 16px 110px 16px;
+      padding: 12px 14px 96px 14px;
       max-width: 420px;
       margin: 0 auto;
     }
@@ -106,7 +154,7 @@ def mobile_lab_css() -> str:
     .ml-glow-purple{ box-shadow: 0 0 30px rgba(139,92,246,.25); }
     .ml-glow-gold{ box-shadow: 0 0 30px rgba(212,160,23,.20); }
 
-    .ml-top{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom: 16px; }
+    .ml-top{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom: 12px; }
     .ml-user{ display:flex; align-items:center; gap:12px; min-width: 0; }
     .ml-avatar{
       width: 56px; height: 56px; border-radius: 999px;
@@ -176,6 +224,31 @@ def mobile_lab_css() -> str:
     .ml-quick .ml-q{ padding: 16px; text-align:center; border-radius: 26px; }
     .ml-quick .ml-q .ml-qe{ font-size: 26px; margin-bottom: 10px; }
     .ml-quick .ml-q .ml-qt{ font-size: 14px; font-weight: 900; }
+    /* Quick access: botões Streamlit com cara de card */
+    body:has(#ml-mobile-lab-mode) [class*="st-key-ml_quick_"] .stButton > button{
+      background: rgba(15,23,42,.72) !important;
+      border: 1px solid rgba(255,255,255,.08) !important;
+      border-radius: 26px !important;
+      min-height: 96px !important;
+      padding: 12px 10px !important;
+      color: rgba(226,232,240,.96) !important;
+      box-shadow: 0 0 24px rgba(139,92,246,.10) !important;
+      font-family: 'Manrope', system-ui, sans-serif !important;
+      white-space: normal !important;
+    }
+    body:has(#ml-mobile-lab-mode) [class*="st-key-ml_quick_"] .stButton > button p{
+      margin: 0 !important;
+      font-size: 14px !important;
+      font-weight: 900 !important;
+      line-height: 1.1 !important;
+    }
+    body:has(#ml-mobile-lab-mode) [class*="st-key-ml_quick_"] .stButton > button:hover{
+      border-color: rgba(139,92,246,.28) !important;
+      box-shadow: 0 0 30px rgba(139,92,246,.18) !important;
+    }
+    body:has(#ml-mobile-lab-mode) [class*="st-key-ml_quick_"] .stButton > button:active{
+      transform: translateY(1px) !important;
+    }
 
     /* Bottom nav — container fixo; 5 colunas iguais (override mobile stack) */
     #ml-bottom-nav-start{
@@ -189,8 +262,8 @@ def mobile_lab_css() -> str:
       left: 50% !important;
       right: auto !important;
       bottom: auto !important;
-      top: calc(100vh - var(--ml-nav-height) - var(--ml-nav-offset)) !important;
-      top: calc(100svh - var(--ml-nav-height) - var(--ml-nav-offset)) !important;
+      top: calc(100vh - var(--ml-nav-height) - var(--ml-verse-height) - var(--ml-nav-offset)) !important;
+      top: calc(100svh - var(--ml-nav-height) - var(--ml-verse-height) - var(--ml-nav-offset)) !important;
       transform: translateX(-50%) !important;
       width: min(420px, calc(100vw - 16px)) !important;
       max-width: 420px !important;
@@ -323,6 +396,69 @@ def mobile_lab_css() -> str:
       border-color: rgba(239,68,68,.35);
       background: rgba(239,68,68,.10);
     }
+
+    /* Drawer (Streamlit) — overlay fixo e painel à esquerda */
+    body:has(#ml-mobile-lab-mode) [class*="st-key-ml_drawer_overlay"]{
+      position: fixed !important;
+      inset: 0 !important;
+      z-index: 2147483500 !important;
+      background: rgba(0,0,0,.55) !important;
+      backdrop-filter: blur(6px) !important;
+      -webkit-backdrop-filter: blur(6px) !important;
+      padding: 12px !important;
+      box-sizing: border-box !important;
+    }
+    body:has(#ml-mobile-lab-mode) [class*="st-key-ml_drawer_panel"]{
+      width: min(320px, 86vw) !important;
+      height: calc(100vh - 24px) !important;
+      background: rgba(15,23,42,.92) !important;
+      border: 1px solid rgba(255,255,255,.10) !important;
+      border-radius: 26px !important;
+      box-shadow: 0 20px 60px rgba(0,0,0,.50) !important;
+      padding: 14px !important;
+      overflow: auto !important;
+    }
+    body:has(#ml-mobile-lab-mode) [class*="st-key-ml_drawer_panel"] .stButton > button{
+      width: 100% !important;
+      text-align: left !important;
+      justify-content: flex-start !important;
+      background: rgba(15,23,42,.55) !important;
+      border: 1px solid rgba(255,255,255,.08) !important;
+      border-radius: 18px !important;
+      min-height: 46px !important;
+      padding: 10px 12px !important;
+      color: rgba(226,232,240,.95) !important;
+      font-weight: 800 !important;
+      box-shadow: none !important;
+      white-space: nowrap !important;
+    }
+    body:has(#ml-mobile-lab-mode) [class*="st-key-ml_drawer_panel"] [class*="st-key-ml_drawer_active"] .stButton > button{
+      border-color: rgba(139,92,246,.55) !important;
+      box-shadow: 0 0 20px rgba(139,92,246,.20) !important;
+      color: rgba(233,213,255,.98) !important;
+    }
+    body:has(#ml-mobile-lab-mode) [class*="st-key-ml_drawer_panel"] [class*="st-key-ml_drawer_logout"] .stButton > button{
+      border-color: rgba(239,68,68,.35) !important;
+      background: rgba(239,68,68,.10) !important;
+    }
+    /* Botão ☰ fixo no topo */
+    body:has(#ml-mobile-lab-mode) [class*="st-key-ml_drawer_toggle"]{
+      position: fixed !important;
+      top: max(10px, env(safe-area-inset-top, 0px)) !important;
+      right: max(10px, env(safe-area-inset-right, 0px)) !important;
+      z-index: 2147483601 !important;
+    }
+    body:has(#ml-mobile-lab-mode) [class*="st-key-ml_drawer_toggle"] .stButton > button{
+      width: 44px !important;
+      height: 44px !important;
+      min-height: 44px !important;
+      padding: 0 !important;
+      border-radius: 18px !important;
+      background: rgba(15,23,42,.72) !important;
+      border: 1px solid rgba(255,255,255,.08) !important;
+      color: rgba(226,232,240,.95) !important;
+      box-shadow: 0 0 18px rgba(139,92,246,.10) !important;
+    }
     """
 
 
@@ -409,9 +545,34 @@ def inject_mobile_lab_hide_streamlit_chrome() -> None:
 
 def inject_mobile_lab_app_shell() -> None:
     """Marca o modo mobile lab cedo e injeta CSS (widgets Streamlit fora da nav)."""
+    verse_text = ""
+    verse_ref = ""
+    try:
+        from verse_of_day import verse_for_date
+
+        v = verse_for_date()
+        verse_text = str(v.get("text", "")).strip()
+        verse_ref = str(v.get("ref", "")).strip()
+    except Exception:
+        verse_text = ""
+        verse_ref = ""
+
+    strip_html = ""
+    if verse_text:
+        safe_txt = verse_text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        safe_ref = verse_ref.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        strip_html = (
+            '<div id="ml-verse-strip" aria-label="Versículo do dia">'
+            '<div class="ml-verse-ico">📖</div>'
+            f'<div class="ml-verse-txt">{safe_txt}</div>'
+            f'<div class="ml-verse-ref">{safe_ref}</div>'
+            "</div>"
+        )
+
     st.markdown(
         '<span id="ml-mobile-lab-mode" aria-hidden="true"></span>'
-        '<div id="ml-streamlit-shield" aria-hidden="true"></div>',
+        '<div id="ml-streamlit-shield" aria-hidden="true"></div>'
+        f"{strip_html}",
         unsafe_allow_html=True,
     )
     inject_mobile_lab_theme()
@@ -479,6 +640,13 @@ def render_mobile_lab_dashboard(
     avatar_html = ""
     if photo_uri:
         avatar_html = f'<img src="{photo_uri}" alt="avatar" />'
+    else:
+        initial = (first[:1] or "•").upper()
+        avatar_html = (
+            f'<div style="width:100%;height:100%;display:flex;align-items:center;'
+            f'justify-content:center;font-weight:900;color:rgba(226,232,240,.95);'
+            f'font-family:Manrope,system-ui,sans-serif;font-size:18px;">{initial}</div>'
+        )
 
     hero_title = next_culto.get("event", "Próximo culto")
     hero_weekday = next_culto.get("weekday", "")
@@ -547,17 +715,32 @@ def render_mobile_lab_dashboard(
             <h3>Acesso rápido</h3>
             <div class="ml-link">Ver tudo</div>
           </div>
-          <div class="ml-quick">
-            <div class="ml-glass ml-q ml-glow-purple"><div class="ml-qe">🎵</div><div class="ml-qt">Repertório</div></div>
-            <div class="ml-glass ml-q"><div class="ml-qe">🎧</div><div class="ml-qt">Playlist</div></div>
-            <div class="ml-glass ml-q ml-glow-blue" style="position:relative;">
-              <div class="ml-qe">💬</div><div class="ml-qt">Chat</div>
-              <div class="ml-badge" style="top:10px;right:10px;background:rgba(139,92,246,1);color:#fff;border:none;">{max(0,int(chat_unread))}</div>
-            </div>
-            <div class="ml-glass ml-q ml-glow-gold"><div class="ml-qe">💡</div><div class="ml-qt">Sugestões</div></div>
-          </div>
         </div>
         """,
         unsafe_allow_html=True,
     )
+
+    # Acesso rápido (real): navegação interna no mobile lab
+    c1, c2 = st.columns(2, gap="small")
+    with c1:
+        if st.button("🎵\nRepertório", key="ml_quick_repertorio", use_container_width=True):
+            st.session_state.ml_page = "Repertório"
+            st.rerun()
+    with c2:
+        if st.button("🎧\nPlaylist", key="ml_quick_playlist", use_container_width=True):
+            st.session_state.ml_page = "Playlist"
+            st.rerun()
+
+    c3, c4 = st.columns(2, gap="small")
+    with c3:
+        label = "💬\nChat"
+        if int(chat_unread) > 0:
+            label = f"💬 ({min(99, int(chat_unread))})\nChat"
+        if st.button(label, key="ml_quick_chat", use_container_width=True):
+            st.session_state.ml_page = "Chat"
+            st.rerun()
+    with c4:
+        if st.button("💡\nSugestões", key="ml_quick_sugestoes", use_container_width=True):
+            st.session_state.ml_page = "Sugestões"
+            st.rerun()
 

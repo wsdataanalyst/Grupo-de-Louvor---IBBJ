@@ -43,6 +43,48 @@ def _drawer_open() -> bool:
 def _set_drawer(opened: bool) -> None:
     st.session_state.ml_drawer_open = bool(opened)
 
+def _render_drawer_streamlit(current: str) -> None:
+    if not _drawer_open():
+        return
+    links = [
+        ("🏠", "Início"),
+        ("📅", "Escalas"),
+        ("🎵", "Repertório"),
+        ("🎧", "Playlist"),
+        ("💬", "Chat"),
+        ("💡", "Sugestões"),
+        ("🔔", "Notificações"),
+        ("👤", "Perfil"),
+    ]
+
+    with st.container(key="ml_drawer_overlay"):
+        with st.container(key="ml_drawer_panel"):
+            st.markdown(
+                "<div style='font-weight:900;font-size:16px;margin:4px 0 10px 0;'>Menu</div>",
+                unsafe_allow_html=True,
+            )
+            if st.button("✕  Fechar", key="ml_drawer_close", use_container_width=True):
+                _set_drawer(False)
+                st.rerun()
+
+            for icon, page in links:
+                wrap_key = "ml_drawer_active" if page == current else "ml_drawer_item"
+                with st.container(key=f"{wrap_key}_{page}"):
+                    if st.button(
+                        f"{icon}  {page}",
+                        key=f"ml_drawer_nav_{page.replace(' ', '_')}",
+                        use_container_width=True,
+                    ):
+                        st.session_state.ml_page = page
+                        _set_drawer(False)
+                        st.rerun()
+
+            with st.container(key="ml_drawer_logout"):
+                if st.button("🚪  Sair do sistema", key="ml_drawer_logout_btn", use_container_width=True):
+                    st.session_state._ml_logout = True
+                    _set_drawer(False)
+                    st.rerun()
+
 
 def _render_drawer(current: str) -> None:
     if not _drawer_open():
@@ -135,6 +177,13 @@ def render_mobile_lab_nav(current: str, *, chat_unread: int = 0) -> None:
 
     inject_mobile_lab_theme()
     inject_mobile_lab_hide_streamlit_chrome()
+
+    # Toggle drawer (menu ☰) sempre disponível
+    with st.container(key="ml_drawer_toggle"):
+        if st.button("☰", key="ml_drawer_toggle_btn"):
+            _set_drawer(not _drawer_open())
+            st.rerun()
+    _render_drawer_streamlit(current)
 
     items = [
         ("Início", "🏠", 0),

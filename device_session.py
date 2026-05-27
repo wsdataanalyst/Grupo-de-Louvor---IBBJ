@@ -25,6 +25,8 @@ DEVICE_SESSION_COLUMNS = (
 
 # Permanece logado neste aparelho (volta do YouTube, aba em segundo plano, etc.)
 DEVICE_SESSION_DAYS = 90
+# Se ficar muito tempo fora do app, exige login novamente (melhor segurança).
+DEVICE_SESSION_IDLE_HOURS = 3
 
 
 def _session_secret() -> str:
@@ -128,6 +130,17 @@ def validate_device_session_token(token: str, data_dir: Path) -> str | None:
     idx = match.index[0]
     if str(df.at[idx, "revoked_at"]).strip():
         return None
+    # Idle timeout: se o usuário ficou fora do app tempo demais, força novo login.
+    try:
+        last_raw = str(df.at[idx, "last_used_at"]).strip()
+        if last_raw:
+            last = pd.to_datetime(last_raw).to_pydatetime()
+            if last.tzinfo is None:
+                last = last.replace(tzinfo=LOCAL_TZ)
+            if last + timedelta(hours=DEVICE_SESSION_IDLE_HOURS) < now_local():
+                return None
+    except Exception:
+        pass
     email = str(df.at[idx, "email"]).strip().lower()
     if not email:
         return None

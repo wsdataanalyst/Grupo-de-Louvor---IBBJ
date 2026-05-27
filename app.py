@@ -5847,11 +5847,10 @@ def show_dashboard(
             if n in available
         ]
         chat_unread = int(st.session_state.get("chat_unread_count", 0))
-        pend = chat_unread + (
-            count_pending_sugestoes(st.session_state.get("_sugestoes_df_cache", pd.DataFrame()))
-            if is_mgr
-            else 0
-        )
+        sug_df = st.session_state.get("_sugestoes_df_cache", pd.DataFrame())
+        sug_badge = count_pending_sugestoes(sug_df) if is_mgr else count_sugestoes_news_for_user(sug_df, my_email)
+        escala_badge = 1 if (minhas is not None and len(minhas) > 0) else 0
+        pend = int(chat_unread) + int(sug_badge) + int(escala_badge)
         show_mobile_dashboard(
             escalas_df=escalas_df,
             equipe_df=equipe_df,
