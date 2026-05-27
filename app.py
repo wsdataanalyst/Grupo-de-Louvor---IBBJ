@@ -7034,6 +7034,13 @@ def show_escala_completa_editor(
 ):
     maybe_show_escala_mes_aviso()
 
+    from mobile_lab import is_mobile_lab_enabled
+
+    if is_mobile_lab_enabled():
+        from mobile_lab_nav import pin_ml_page
+
+        pin_ml_page("Gerenciar Escalas")
+
     if members_df.empty:
         st.warning("Cadastre integrantes antes de montar escalas.")
         return
@@ -7050,16 +7057,25 @@ def show_escala_completa_editor(
         )
 
         render_gerenciar_culto_section_open()
-        c_sel, c_nova = st.columns([3, 1])
-        with c_sel:
+        if is_mobile_lab_enabled():
             escolha = st.selectbox(
                 "Selecione o culto ou crie uma nova escala",
                 escala_labels,
                 key="editor_escala_sel",
                 label_visibility="collapsed",
             )
-        with c_nova:
             render_gerenciar_nova_escala_outline()
+        else:
+            c_sel, c_nova = st.columns([3, 1])
+            with c_sel:
+                escolha = st.selectbox(
+                    "Selecione o culto ou crie uma nova escala",
+                    escala_labels,
+                    key="editor_escala_sel",
+                    label_visibility="collapsed",
+                )
+            with c_nova:
+                render_gerenciar_nova_escala_outline()
         render_gerenciar_form_card_close()
     else:
         st.markdown(
@@ -7119,13 +7135,18 @@ def show_escala_completa_editor(
                 )
 
                 render_gerenciar_form_card_open("Novo Culto")
-                r1c1, r1c2, r1c3 = st.columns(3)
-                with r1c1:
+                if is_mobile_lab_enabled():
                     culto_date = st.date_input("Data do culto", key="nova_esc_data")
-                with r1c2:
                     culto_event = st.text_input("Evento / Culto", key="nova_esc_event")
-                with r1c3:
                     data_ensaio = st.date_input("Data do ensaio", key="nova_esc_ensaio")
+                else:
+                    r1c1, r1c2, r1c3 = st.columns(3)
+                    with r1c1:
+                        culto_date = st.date_input("Data do culto", key="nova_esc_data")
+                    with r1c2:
+                        culto_event = st.text_input("Evento / Culto", key="nova_esc_event")
+                    with r1c3:
+                        data_ensaio = st.date_input("Data do ensaio", key="nova_esc_ensaio")
             else:
                 st.markdown(
                     '<div class="section-heading">'
@@ -7142,8 +7163,7 @@ def show_escala_completa_editor(
                 lbl, member_map, escalas_df, equipe_df, culto_ref
             )
             if premium_layout:
-                r2c1, r2c2 = st.columns(2)
-                with r2c1:
+                if is_mobile_lab_enabled():
                     responsavel = st.selectbox(
                         "Ministrador principal",
                         list(member_map.keys()),
@@ -7151,7 +7171,6 @@ def show_escala_completa_editor(
                         on_change=_on_nova_resp_change,
                         format_func=fmt_nova,
                     )
-                with r2c2:
                     equipe_labels = st.multiselect(
                         "Demais integrantes",
                         [l for l in member_map.keys() if l != responsavel],
@@ -7159,6 +7178,24 @@ def show_escala_completa_editor(
                         on_change=_on_nova_equipe_change,
                         format_func=fmt_nova,
                     )
+                else:
+                    r2c1, r2c2 = st.columns(2)
+                    with r2c1:
+                        responsavel = st.selectbox(
+                            "Ministrador principal",
+                            list(member_map.keys()),
+                            key="nova_esc_resp",
+                            on_change=_on_nova_resp_change,
+                            format_func=fmt_nova,
+                        )
+                    with r2c2:
+                        equipe_labels = st.multiselect(
+                            "Demais integrantes",
+                            [l for l in member_map.keys() if l != responsavel],
+                            key="nova_esc_equipe",
+                            on_change=_on_nova_equipe_change,
+                            format_func=fmt_nova,
+                        )
                 notas = st.text_area(
                     "Notas",
                     key="nova_esc_notas",
@@ -7743,6 +7780,8 @@ def show_gerenciar_escalas(
     louvores_df: pd.DataFrame,
     members_df: pd.DataFrame,
     chat_ensaio_df: pd.DataFrame,
+    *,
+    mobile_shell: bool = False,
 ):
     from gerenciar_escalas_ui import (
         GERENCIAR_TAB_LABELS,
@@ -7762,15 +7801,17 @@ def show_gerenciar_escalas(
     from mobile_ui import mobile_hdr_close, mobile_hdr_open, mobile_stack_close, mobile_stack_open
 
     render_gerenciar_page_open()
-    mobile_hdr_open()
-    col_hdr, col_btn = st.columns([4, 1])
-    with col_hdr:
-        render_gerenciar_header()
-    with col_btn:
-        st.markdown('<div style="padding-top:0.5rem">', unsafe_allow_html=True)
-        render_gerenciar_nova_escala_button()
-        st.markdown("</div>", unsafe_allow_html=True)
-    mobile_hdr_close()
+
+    if not mobile_shell:
+        mobile_hdr_open()
+        col_hdr, col_btn = st.columns([4, 1])
+        with col_hdr:
+            render_gerenciar_header()
+        with col_btn:
+            st.markdown('<div style="padding-top:0.5rem">', unsafe_allow_html=True)
+            render_gerenciar_nova_escala_button()
+            st.markdown("</div>", unsafe_allow_html=True)
+        mobile_hdr_close()
 
     n_cultos = cultos_esta_semana(escalas_df)
 
@@ -7782,10 +7823,10 @@ def show_gerenciar_escalas(
     )
 
     from mobile_lab import is_mobile_lab_enabled
+    from mobile_lab_nav import pin_ml_page
 
-    mobile_ger = is_mobile_lab_enabled()
+    mobile_ger = mobile_shell or is_mobile_lab_enabled()
     if mobile_ger:
-        from mobile_lab_nav import pin_ml_page
         from mobile_gerenciar_escalas_ui import get_mobile_ger_tab
 
         pin_ml_page("Gerenciar Escalas")
@@ -7798,7 +7839,8 @@ def show_gerenciar_escalas(
         )
 
     def _body_montar() -> None:
-        mobile_stack_open()
+        if not mobile_ger:
+            mobile_stack_open()
         if mobile_ger:
             show_escala_completa_editor(
                 escalas_df,
@@ -7841,7 +7883,8 @@ def show_gerenciar_escalas(
                     louvores_df,
                     culto_ref=culto_ref_for_planner(),
                 )
-        mobile_stack_close()
+        if not mobile_ger:
+            mobile_stack_close()
 
     def _body_sugestoes() -> None:
         from escala_suggester_ui import render_escala_suggestions_panel

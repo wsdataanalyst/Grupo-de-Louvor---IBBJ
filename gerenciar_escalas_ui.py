@@ -519,6 +519,17 @@ def render_gerenciar_kpis(
 
 def trigger_nova_escala() -> None:
     st.session_state["editor_escala_sel"] = NOVA_ESCALA_LABEL
+    try:
+        from mobile_lab import is_mobile_lab_enabled
+
+        if is_mobile_lab_enabled():
+            from mobile_gerenciar_escalas_ui import set_mobile_ger_tab
+            from mobile_lab_nav import pin_ml_page
+
+            pin_ml_page("Gerenciar Escalas")
+            set_mobile_ger_tab("montar")
+    except Exception:
+        pass
     st.rerun()
 
 

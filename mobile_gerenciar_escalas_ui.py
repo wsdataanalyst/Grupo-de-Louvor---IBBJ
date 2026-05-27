@@ -35,8 +35,17 @@ def mobile_gerenciar_css() -> str:
       max-width: 100% !important;
       min-width: 0 !important;
     }
-    body:has(#ml-gerenciar-page) [data-testid="stTabs"]{
-      display: none !important;
+    body:has(#ml-gerenciar-page) .ig-ger-page [data-testid="stHorizontalBlock"] > [data-testid="column"]{
+      flex: 1 1 100% !important;
+      width: 100% !important;
+      max-width: 100% !important;
+      min-width: 0 !important;
+    }
+    body:has(#ml-gerenciar-page) .ig-ger-page [data-testid="stForm"]{
+      border: 1px solid rgba(255,255,255,.08) !important;
+      border-radius: 16px !important;
+      padding: 0.75rem !important;
+      background: rgba(15,23,42,.55) !important;
     }
     body:has(#ml-gerenciar-page) [class*="st-key-ml_ger_tab_"] .stButton > button{
       border-radius: 16px !important;
@@ -196,6 +205,13 @@ def render_mobile_gerenciar_escalas_page(
     _render_mobile_header()
     render_mobile_gerenciar_tab_bar()
 
+    from gerenciar_escalas_ui import gerenciar_escalas_page_css
+
+    st.markdown(
+        f"<style>{gerenciar_escalas_page_css()}</style>",
+        unsafe_allow_html=True,
+    )
+
     from app import show_gerenciar_escalas
 
     show_gerenciar_escalas(
@@ -205,4 +221,5 @@ def render_mobile_gerenciar_escalas_page(
         louvores_df,
         members_df,
         chat_ensaio_df,
+        mobile_shell=True,
     )

@@ -181,6 +181,17 @@ def render_escala_suggestions_panel(
                 hydrate_escala_sequencia_content(escala_id, programa_df, louvores_df)
 
             st.session_state["editor_escala_sel"] = None
+            try:
+                from mobile_lab import is_mobile_lab_enabled
+
+                if is_mobile_lab_enabled():
+                    from mobile_gerenciar_escalas_ui import set_mobile_ger_tab
+                    from mobile_lab_nav import pin_ml_page
+
+                    pin_ml_page("Gerenciar Escalas")
+                    set_mobile_ger_tab("montar")
+            except Exception:
+                pass
             st.success(
                 f"Escala criada para {target.culto_date.strftime('%d/%m/%Y')}. "
                 "Ajuste ensaio e detalhes em **Montar / editar escala**."
