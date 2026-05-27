@@ -220,5 +220,7 @@ def render_escalas_not_scheduled_warning() -> None:
 
 def render_escalas_gerenciar_button() -> None:
     if st.button("🎯  Abrir Gerenciar Escalas", key="ig_esc_go_gerenciar", type="secondary"):
-        st.session_state.app_menu = "Gerenciar Escalas"
+        from mobile_lab_nav import navigate_app_menu
+
+        navigate_app_menu("Gerenciar Escalas")
         st.rerun()

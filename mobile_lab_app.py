@@ -8,11 +8,17 @@ from datetime import datetime
 import pandas as pd
 import streamlit as st
 
+from mobile_lab_nav import (
+    navigate_ml_page,
+    read_ml_page,
+    user_can_gerenciar_escalas,
+)
 from mobile_lab_ui import inject_mobile_lab_theme
 
 
 LAB_PAGES = (
     "Início",
+    "Gerenciar Escalas",
     "Escalas",
     "Repertório",
     "Playlist",
@@ -23,17 +29,71 @@ LAB_PAGES = (
 )
 
 
+# Mesmos nomes do menu web → páginas do mobile lab
+_WEB_MENU_TO_ML_PAGE: dict[str, str] = {
+    "Dashboard": "Início",
+    "Feed": "Notificações",
+    "Escalas": "Escalas",
+    "Gerenciar Escalas": "Gerenciar Escalas",
+    "Repertório": "Repertório",
+    "Playlist": "Playlist",
+    "Sugestão de louvor": "Sugestões",
+    "Chat": "Chat",
+    "Perfil": "Perfil",
+}
+
+
+def _lab_nav_items(
+    *, can_gerenciar: bool, chat_unread: int
+) -> list[tuple[str, str, int]]:
+    """
+    Bottom nav (5 itens). Liderança: Gerenciar em 2º lugar (destaque dourado).
+    """
+    if can_gerenciar:
+        return [
+            ("Início", "🏠", 0),
+            ("Gerenciar Escalas", "🎯", 0),
+            ("Escalas", "📅", 0),
+            ("Repertório", "🎵", 0),
+            ("Perfil", "👤", 0),
+        ]
+    return [
+        ("Início", "🏠", 0),
+        ("Escalas", "📅", 0),
+        ("Repertório", "🎵", 0),
+        ("Chat", "💬", max(0, int(chat_unread))),
+        ("Perfil", "👤", 0),
+    ]
+
+
+def _drawer_sections() -> list[tuple[str, list[tuple[str, str]]]]:
+    """Seções do menu lateral alinhadas ao app web (NAV_GROUP_ORDER)."""
+    from app import NAV_GROUP_ORDER, get_menu_items_for_user
+
+    roles = st.session_state.get("user_roles", [])
+    items, _, icons = get_menu_items_for_user(roles)
+    allowed = {name for name, _, _ in items}
+    sections: list[tuple[str, list[tuple[str, str]]]] = []
+    for group_label, names in NAV_GROUP_ORDER:
+        links: list[tuple[str, str]] = []
+        for name in names:
+            if name not in allowed:
+                continue
+            ml_page = _WEB_MENU_TO_ML_PAGE.get(name)
+            if not ml_page or ml_page not in LAB_PAGES:
+                continue
+            links.append((icons.get(name, "•"), ml_page))
+        if links:
+            sections.append((group_label, links))
+    return sections
+
+
 def _esc(x: object) -> str:
     return html.escape(str(x) if x is not None else "")
 
 
-def _get_page() -> str:
-    p = str(st.session_state.get("ml_page", "")).strip()
-    return p if p in LAB_PAGES else "Início"
-
-
 def _set_page(p: str) -> None:
-    st.session_state.ml_page = p
+    navigate_ml_page(p)
 
 
 def _drawer_open() -> bool:
@@ -43,19 +103,10 @@ def _drawer_open() -> bool:
 def _set_drawer(opened: bool) -> None:
     st.session_state.ml_drawer_open = bool(opened)
 
-def _render_drawer_streamlit(current: str) -> None:
+def _render_drawer_streamlit(current: str, *, can_gerenciar: bool = False) -> None:
     if not _drawer_open():
         return
-    links = [
-        ("🏠", "Início"),
-        ("📅", "Escalas"),
-        ("🎵", "Repertório"),
-        ("🎧", "Playlist"),
-        ("💬", "Chat"),
-        ("💡", "Sugestões"),
-        ("🔔", "Notificações"),
-        ("👤", "Perfil"),
-    ]
+    sections = _drawer_sections()
 
     with st.container(key="ml_drawer_overlay"):
         with st.container(key="ml_drawer_panel"):
@@ -67,17 +118,38 @@ def _render_drawer_streamlit(current: str) -> None:
                 _set_drawer(False)
                 st.rerun()
 
-            for icon, page in links:
-                wrap_key = "ml_drawer_active" if page == current else "ml_drawer_item"
-                with st.container(key=f"{wrap_key}_{page}"):
-                    if st.button(
-                        f"{icon}  {page}",
-                        key=f"ml_drawer_nav_{page.replace(' ', '_')}",
-                        use_container_width=True,
-                    ):
-                        st.session_state.ml_page = page
-                        _set_drawer(False)
-                        st.rerun()
+            for group_label, links in sections:
+                st.markdown(
+                    f"<div style='font-size:0.72rem;font-weight:800;color:rgba(148,163,184,.9);"
+                    f"text-transform:uppercase;letter-spacing:0.05em;margin:12px 0 6px 0;'>"
+                    f"{_esc(group_label)}</div>",
+                    unsafe_allow_html=True,
+                )
+                for icon, page in links:
+                    is_ger = page == "Gerenciar Escalas"
+                    wrap_key = (
+                        "ml_drawer_gerenciar_active"
+                        if is_ger and page == current
+                        else "ml_drawer_gerenciar_item"
+                        if is_ger
+                        else "ml_drawer_active"
+                        if page == current
+                        else "ml_drawer_item"
+                    )
+                    btn_type = "primary" if page == current else "secondary"
+                    with st.container(key=f"{wrap_key}_{page.replace(' ', '_')}"):
+                        if st.button(
+                            f"{icon}  {page}",
+                            key=f"ml_drawer_nav_{page.replace(' ', '_')}",
+                            use_container_width=True,
+                            type=btn_type,
+                        ):
+                            navigate_ml_page(
+                                page,
+                                pin=(page == "Gerenciar Escalas"),
+                            )
+                            _set_drawer(False)
+                            st.rerun()
 
             with st.container(key="ml_drawer_logout"):
                 if st.button("🚪  Sair do sistema", key="ml_drawer_logout_btn", use_container_width=True):
@@ -148,26 +220,16 @@ def _render_drawer(current: str) -> None:
     )
 
 
-def _sync_page_from_query() -> None:
-    try:
-        raw = st.query_params.get("ml_page", "")
-        if isinstance(raw, list):
-            raw = raw[0] if raw else ""
-        page = str(raw or "").strip()
-        if page and page in LAB_PAGES:
-            st.session_state.ml_page = page
-        if page == "logout":
-            st.session_state._ml_logout = True
-    except Exception:
-        pass
-
-
 def mobile_lab_current_page() -> str:
-    _sync_page_from_query()
-    return _get_page()
+    return read_ml_page()
 
 
-def render_mobile_lab_nav(current: str, *, chat_unread: int = 0) -> None:
+def render_mobile_lab_nav(
+    current: str,
+    *,
+    chat_unread: int = 0,
+    can_gerenciar: bool | None = None,
+) -> None:
     """
     Bottom navigation premium — um único nível (botões Streamlit estilizados).
 
@@ -183,15 +245,14 @@ def render_mobile_lab_nav(current: str, *, chat_unread: int = 0) -> None:
         if st.button("☰", key="ml_drawer_toggle_btn"):
             _set_drawer(not _drawer_open())
             st.rerun()
-    _render_drawer_streamlit(current)
+    if can_gerenciar is None:
+        can_gerenciar = bool(st.session_state.get("ml_can_gerenciar"))
+        if not can_gerenciar:
+            can_gerenciar = user_can_gerenciar_escalas()
 
-    items = [
-        ("Início", "🏠", 0),
-        ("Escalas", "📅", 0),
-        ("Repertório", "🎵", 0),
-        ("Chat", "💬", max(0, int(chat_unread))),
-        ("Perfil", "👤", 0),
-    ]
+    _render_drawer_streamlit(current, can_gerenciar=can_gerenciar)
+
+    items = _lab_nav_items(can_gerenciar=can_gerenciar, chat_unread=chat_unread)
 
     st.markdown(
         '<span id="ml-bottom-nav-start" aria-hidden="true"></span>',
@@ -203,21 +264,30 @@ def render_mobile_lab_nav(current: str, *, chat_unread: int = 0) -> None:
             with col:
                 short = {
                     "Início": "Início",
+                    "Gerenciar Escalas": "Gerenciar",
                     "Escalas": "Escalas",
                     "Repertório": "Música",
                     "Chat": "Chat",
                     "Perfil": "Perfil",
                 }.get(page, page)
+                btn_type = "primary" if current == page else "secondary"
+                if page == "Gerenciar Escalas" and current != page:
+                    btn_type = "secondary"
                 label = f"{icon}\n{short}"
                 if page == "Chat" and badge > 0:
                     label = f"{icon}\n{short}"
+                if page == "Gerenciar Escalas" and current != page:
+                    label = f"🎯\n{short}"
                 if st.button(
                     label,
                     key=f"ml_nav_{page.replace(' ', '_')}",
                     use_container_width=True,
-                    type="primary" if current == page else "secondary",
+                    type=btn_type,
                 ):
-                    st.session_state.ml_page = page
+                    navigate_ml_page(
+                        page,
+                        pin=(page == "Gerenciar Escalas"),
+                    )
                     st.rerun()
 
 
@@ -366,6 +436,5 @@ def render_mobile_lab_chat_list(*, chat_df: pd.DataFrame) -> None:
 
 
 def mobile_lab_request_logout() -> bool:
-    _sync_page_from_query()
     return bool(st.session_state.pop("_ml_logout", False))
 

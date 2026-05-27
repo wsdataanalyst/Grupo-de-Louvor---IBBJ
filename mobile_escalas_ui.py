@@ -95,6 +95,15 @@ def mobile_escalas_css() -> str:
       font-weight: 800 !important;
       margin-top: 0.35rem !important;
     }
+    body:has(#ml-escalas-page) [class*="st-key-ml_esc_quick_gerenciar"] .stButton > button{
+      min-height: 4rem !important;
+      background: linear-gradient(135deg, rgba(250,204,21,.22), rgba(124,58,237,.15)) !important;
+      border: 1px solid rgba(250,204,21,.35) !important;
+      color: #fde68a !important;
+      font-weight: 900 !important;
+      box-shadow: 0 0 24px rgba(250,204,21,.15) !important;
+      margin-bottom: 0.5rem !important;
+    }
     body:has(#ml-escalas-page) [class*="st-key-ml_esc_action_"] .stButton > button[kind="primary"]{
       width: 100% !important;
       min-height: 3rem !important;
@@ -226,24 +235,9 @@ def _render_tabs(active: str) -> None:
                     st.rerun()
 
 
-def _render_hero_hub(*, is_manager: bool) -> None:
-    mgr_block = ""
-    if is_manager:
-        mgr_block = """
-        <div class="ml-glass" style="border-radius:20px;padding:14px;margin:12px 0;border:1px solid rgba(250,204,21,.15);">
-          <div style="display:flex;gap:12px;align-items:flex-start;">
-            <div style="width:44px;height:44px;border-radius:16px;background:rgba(250,204,21,.12);display:flex;align-items:center;justify-content:center;font-size:1.35rem;">🎯</div>
-            <div>
-              <div style="font-weight:800;font-size:1rem;margin-bottom:4px;">Líderes e organizadores</div>
-              <div style="color:rgba(148,163,184,.92);font-size:0.88rem;line-height:1.35;">
-                Monte escalas, acompanhe ensaios e organize os cultos da semana.
-              </div>
-            </div>
-          </div>
-        </div>
-        """
+def _render_hero_hub() -> None:
     st.markdown(
-        f"""
+        """
         <div class="ml-glass ml-glow-purple ml-esc-hero">
           <img class="ml-esc-hero-bg" src="https://images.unsplash.com/photo-1504052434569-70ad5836ab65?q=80&w=1200&auto=format&fit=crop" alt="" />
           <div class="ml-esc-hero-inner">
@@ -251,27 +245,35 @@ def _render_hero_hub(*, is_manager: bool) -> None:
               <div style="width:56px;height:56px;border-radius:20px;background:rgba(59,130,246,.18);border:1px solid rgba(59,130,246,.25);display:flex;align-items:center;justify-content:center;font-size:1.6rem;">🎤</div>
               <div>
                 <div style="font-size:1.35rem;font-weight:900;letter-spacing:-0.02em;">Escalas, ensaios e trocas</div>
-                <div style="color:rgba(148,163,184,.92);font-size:0.9rem;margin-top:4px;">Ministério · Escalas e trocas</div>
+                <div style="color:rgba(148,163,184,.92);font-size:0.9rem;margin-top:4px;">Consulte sua equipe, cultos e solicitações</div>
               </div>
             </div>
-            {mgr_block}
           </div>
         </div>
         """,
         unsafe_allow_html=True,
     )
-    if is_manager:
-        with st.container(key="ml_esc_action_gerenciar"):
-            if st.button("🎯 Abrir Gerenciar Escalas", type="primary", use_container_width=True):
-                st.session_state.ml_escalas_gerenciar = True
-                st.rerun()
 
 
 def _render_quick_access() -> None:
+    from mobile_lab_nav import user_can_gerenciar_escalas
+
     st.markdown(
         '<div style="font-size:1.15rem;font-weight:900;margin:0.5rem 0 0.75rem;">Acesso rápido</div>',
         unsafe_allow_html=True,
     )
+    if user_can_gerenciar_escalas() or bool(st.session_state.get("ml_can_gerenciar")):
+        with st.container(key="ml_esc_quick_gerenciar"):
+            if st.button(
+                "🎯  Gerenciar Escalas\nMenu principal · montar cultos",
+                key="ml_esc_open_gerenciar",
+                use_container_width=True,
+                type="primary",
+            ):
+                from mobile_lab_nav import navigate_ml_page
+
+                navigate_ml_page("Gerenciar Escalas", pin=True)
+                st.rerun()
     c1, c2 = st.columns(2, gap="small")
     with c1:
         with st.container(key="ml_esc_quick_seq"):
@@ -292,7 +294,9 @@ def _render_quick_access() -> None:
     with c4:
         with st.container(key="ml_esc_quick_chat"):
             if st.button("💬\nChat ensaio", use_container_width=True):
-                st.session_state.ml_page = "Chat"
+                from mobile_lab_nav import navigate_ml_page
+
+                navigate_ml_page("Chat")
                 st.rerun()
 
 
@@ -342,10 +346,9 @@ def _render_tab_equipe(
     minhas: list[dict],
     members_df: pd.DataFrame,
     equipe_df: pd.DataFrame,
-    is_manager: bool,
     search_q: str,
 ) -> None:
-    _render_hero_hub(is_manager=is_manager)
+    _render_hero_hub()
     _render_quick_access()
     if not minhas:
         _render_not_scheduled_warning()
@@ -441,79 +444,25 @@ def _render_tab_sequencia(
     minhas: list[dict],
     programa_df: pd.DataFrame,
     louvores_df: pd.DataFrame,
+    escalas_df: pd.DataFrame,
+    equipe_df: pd.DataFrame,
+    members_df: pd.DataFrame,
 ) -> None:
-    from app import enrich_programa_from_catalog, programa_por_escala
-    from catalog_sanitize import format_louvor_display
+    from mobile_sequencia_culto_ui import render_mobile_sequencia_tab
 
     if not minhas:
         _render_not_scheduled_warning()
         return
 
-    labels: dict[str, str] = {}
-    for item in minhas:
-        row = item["escala"]
-        eid = str(row.get("id", ""))
-        labels[str(row.get("event", "Culto")) + " · " + str(row.get("date", ""))[:10]] = eid
-
-    pick = st.selectbox("Culto", list(labels.keys()), key="ml_esc_seq_pick")
-    escala_id = labels[pick]
-    prog = programa_por_escala(programa_df, escala_id)
-    if louvores_df is not None and not louvores_df.empty:
-        prog = enrich_programa_from_catalog(prog, louvores_df)
-
-    st.markdown(
-        """
-        <div class="ml-glass ml-glow-purple" style="border-radius:22px;padding:14px;margin:0.75rem 0;">
-          <div style="font-size:1.5rem;margin-bottom:8px;">🎵</div>
-          <div style="font-weight:900;">Sequência do culto</div>
-          <div style="color:rgba(148,163,184,.92);font-size:0.88rem;margin-top:6px;">
-            YouTube, Voz e Cifra por louvor.
-          </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
+    render_mobile_sequencia_tab(
+        minhas=minhas,
+        programa_df=programa_df,
+        louvores_df=louvores_df,
+        escalas_df=escalas_df,
+        equipe_df=equipe_df,
+        members_df=members_df,
+        all_escalas=False,
     )
-
-    if prog.empty:
-        st.info("Programação ainda não montada para este culto.")
-        return
-
-    total_min = 0.0
-    for idx, (_, r) in enumerate(prog.iterrows()):
-        i = idx
-        title, artist = format_louvor_display(r)
-        tom = str(r.get("key", "") or r.get("tom_programa", "") or "—").strip() or "—"
-        dur = str(r.get("duration", "") or "").strip()
-        st.markdown(
-            f"""
-            <div class="ml-esc-song">
-              <div style="display:flex;gap:10px;align-items:flex-start;">
-                <div style="width:28px;height:28px;border-radius:12px;background:rgba(139,92,246,.18);display:flex;align-items:center;justify-content:center;font-weight:900;font-size:0.82rem;">{i+1}</div>
-                <div style="flex:1;min-width:0;">
-                  <h4>{_esc(title)}</h4>
-                  <p>{_esc(artist)}</p>
-                  <div style="margin-top:8px;">
-                    <span class="ml-esc-pill">Tom: {_esc(tom)}</span>
-                    {f'<span style="color:rgba(148,163,184,.9);font-size:0.78rem;">⏱ {_esc(dur)}</span>' if dur else ''}
-                  </div>
-                </div>
-              </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-        try:
-            from app import parse_duracao_min
-
-            total_min += float(parse_duracao_min(dur) or 0)
-        except Exception:
-            pass
-
-    if total_min > 0:
-        st.markdown(
-            f'<div class="ml-glass" style="padding:12px 14px;border-radius:18px;margin-top:8px;">⏱ Duração estimada: <b>{int(total_min)} min</b></div>',
-            unsafe_allow_html=True,
-        )
 
 
 def _render_tab_trocas(
@@ -617,25 +566,9 @@ def render_mobile_escalas_page(
     inject_mobile_lab_theme()
     st.markdown(f"<style>{mobile_escalas_css()}</style>", unsafe_allow_html=True)
 
-    if st.session_state.pop("ml_escalas_gerenciar", False):
-        from app import show_gerenciar_escalas
-
-        if st.button("← Voltar para Escalas", key="ml_esc_back_hub"):
-            st.rerun()
-        show_gerenciar_escalas(
-            escalas_df,
-            programa_df,
-            equipe_df,
-            louvores_df,
-            members_df,
-            chat_ensaio_df,
-        )
-        return
-
-    from app import is_scale_manager, user_on_escala_semana, week_bounds
+    from app import user_on_escala_semana, week_bounds
 
     my_email = str(st.session_state.get("user_email", "")).strip().lower()
-    is_mgr = is_scale_manager(st.session_state.get("user_roles", []))
     if "week_offset" not in st.session_state:
         st.session_state.week_offset = 0
     start, end = week_bounds(st.session_state.get("week_offset", 0))
@@ -652,7 +585,6 @@ def render_mobile_escalas_page(
             minhas=minhas,
             members_df=members_df,
             equipe_df=equipe_df,
-            is_manager=is_mgr,
             search_q=search_q,
         )
     elif active == "todas":
@@ -670,6 +602,9 @@ def render_mobile_escalas_page(
             minhas=minhas,
             programa_df=programa_df,
             louvores_df=louvores_df,
+            escalas_df=escalas_df,
+            equipe_df=equipe_df,
+            members_df=members_df,
         )
     elif active == "trocas":
         _render_tab_trocas(

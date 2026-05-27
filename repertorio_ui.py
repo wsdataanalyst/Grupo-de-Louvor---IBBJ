@@ -803,7 +803,9 @@ def render_repertorio_sidebar(
         """
     )
     if st.button("Ver ranking completo", key="ig_rep_side_rank", use_container_width=True):
-        st.session_state.app_menu = "Escalas"
+        from mobile_lab_nav import navigate_app_menu
+
+        navigate_app_menu("Escalas")
         st.rerun()
 
     inject_ui_html(
@@ -815,5 +817,7 @@ def render_repertorio_sidebar(
         """
     )
     if st.button("Enviar sugestão", key="ig_rep_suggest_btn", use_container_width=True):
-        st.session_state.app_menu = "Sugestão de louvor"
+        from mobile_lab_nav import navigate_app_menu
+
+        navigate_app_menu("Sugestão de louvor")
         st.rerun()

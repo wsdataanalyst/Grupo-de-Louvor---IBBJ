@@ -32,6 +32,14 @@ def gerenciar_escalas_page_css() -> str:
             margin: 0 auto;
             font-family: Manrope, "Segoe UI", sans-serif;
         }
+        @media (max-width: 768px) {
+            .ig-ger-kpi-row {
+                grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            }
+            .ig-ger-page {
+                max-width: 100% !important;
+            }
+        }
         .ig-ger-header {
             display: flex;
             flex-wrap: wrap;
@@ -685,8 +693,19 @@ def render_gerenciar_sidebar(
         """
     )
     if st.button("Ver calendário completo →", key="ig_ger_go_calendar", use_container_width=True):
-        st.session_state.app_menu = "Escalas"
-        st.rerun()
+        from mobile_lab_nav import is_mobile_lab, pin_ml_page
+        from mobile_gerenciar_escalas_ui import set_mobile_ger_tab
+
+        if is_mobile_lab():
+            set_mobile_ger_tab("montar")
+            pin_ml_page("Gerenciar Escalas")
+            st.toast("Calendário no topo da aba Montar escala.")
+            st.rerun()
+        else:
+            from mobile_lab_nav import navigate_app_menu
+
+            navigate_app_menu("Escalas")
+            st.rerun()
 
     visible = members_visible_to_group(members_df)
     linhas: list[tuple[int, str, str, str, str]] = []
@@ -737,8 +756,13 @@ def render_gerenciar_sidebar(
         """
     )
     if st.button("Ver todos os integrantes →", key="ig_ger_ver_integrantes", use_container_width=True):
-        st.session_state.app_menu = "Membros"
-        st.rerun()
+        from mobile_lab_nav import is_mobile_lab, navigate_app_menu
+
+        if is_mobile_lab():
+            st.info("Gestão de membros: use o app web (menu Membros) por enquanto.")
+        else:
+            navigate_app_menu("Membros")
+            st.rerun()
 
     inject_ui_html(
         f"""

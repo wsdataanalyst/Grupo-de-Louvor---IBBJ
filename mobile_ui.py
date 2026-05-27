@@ -125,7 +125,7 @@ def mobile_first_css() -> str:
 
             /* Páginas premium — largura total */
             .ig-sug-page, .ig-pl-page, .ig-chat-page, .ig-rep-page,
-            .ig-esc-ge-page, .ig-escalas-page, .ig-feed-page {{
+            .ig-esc-ge-page, .ig-escalas-page, .ig-feed-page, .ig-ger-page {{
                 max-width: 100% !important;
                 margin-left: 0 !important;
                 margin-right: 0 !important;

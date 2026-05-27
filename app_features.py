@@ -225,8 +225,9 @@ def render_dashboard_future_escalas(
                 key=f"dash_fe_{eid}",
                 use_container_width=True,
             ):
-                st.session_state.app_menu = "Escalas"
-                st.session_state.focus_escala_id = eid
+                from mobile_lab_nav import navigate_app_menu
+
+                navigate_app_menu("Escalas", focus_escala_id=eid)
                 try:
                     culto = item["date"]
                     today = date.today()

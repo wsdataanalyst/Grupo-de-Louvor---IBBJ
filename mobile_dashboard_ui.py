@@ -445,6 +445,7 @@ def build_mobile_dashboard_ctx(
 
     quick: list[tuple[str, str, str]] = []
     icon_map = {
+        "Gerenciar Escalas": ("🎯", "ig-m-glow-gold"),
         "Repertório": ("🎵", "ig-m-glow-purple"),
         "Playlist": ("🎧", ""),
         "Chat": ("💬", "ig-m-glow-blue"),
@@ -602,8 +603,19 @@ def render_mobile_dashboard_shell(ctx: MobileDashboardCtx) -> None:
     inject_ui_html("</div>")
 
 
+def _ml_page_for_menu(name: str) -> str:
+    return {
+        "Dashboard": "Início",
+        "Sugestão de louvor": "Sugestões",
+        "Gerenciar Escalas": "Gerenciar Escalas",
+    }.get(name, name)
+
+
 def render_mobile_dashboard_actions(ctx: MobileDashboardCtx) -> None:
     """Botoes reais (Streamlit) para navegar — abaixo do HTML visual."""
+    from mobile_lab import is_mobile_lab_enabled
+
+    use_ml = is_mobile_lab_enabled()
     st.markdown('<div class="ig-m-actions">', unsafe_allow_html=True)
     c1, c2 = st.columns(2)
     with c1:
@@ -613,12 +625,25 @@ def render_mobile_dashboard_actions(ctx: MobileDashboardCtx) -> None:
             use_container_width=True,
             type="primary",
         ):
-            st.session_state.app_menu = "Escalas"
-            st.session_state.focus_escala_id = str(ctx.next_culto.get("id", ""))
+            if use_ml:
+                from mobile_lab_nav import navigate_app_menu
+
+                navigate_app_menu(
+                    "Escalas",
+                    focus_escala_id=str(ctx.next_culto.get("id", "")),
+                )
+            else:
+                st.session_state.app_menu = "Escalas"
+                st.session_state.focus_escala_id = str(ctx.next_culto.get("id", ""))
             st.rerun()
     with c2:
         if ctx.my_scale and st.button("Minhas escalas", key="m_lab_minhas", use_container_width=True):
-            st.session_state.app_menu = "Escalas"
+            if use_ml:
+                from mobile_lab_nav import navigate_app_menu
+
+                navigate_app_menu("Escalas")
+            else:
+                st.session_state.app_menu = "Escalas"
             st.rerun()
 
     if ctx.quick_links:
@@ -626,7 +651,12 @@ def render_mobile_dashboard_actions(ctx: MobileDashboardCtx) -> None:
         for col, (name, _, _) in zip(qcols, ctx.quick_links):
             with col:
                 if st.button(name, key=f"m_lab_q_{name}", use_container_width=True):
-                    st.session_state.app_menu = name
+                    if use_ml:
+                        from mobile_lab_nav import navigate_ml_page
+
+                        navigate_ml_page(_ml_page_for_menu(name))
+                    else:
+                        st.session_state.app_menu = name
                     st.rerun()
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -645,7 +675,12 @@ def render_mobile_dashboard_actions(ctx: MobileDashboardCtx) -> None:
             if menu == "Dashboard":
                 label = f"{icon}\nInício"
             if st.button(label, key=f"m_lab_nav_{menu}", use_container_width=True):
-                st.session_state.app_menu = menu
+                if use_ml:
+                    from mobile_lab_nav import navigate_ml_page
+
+                    navigate_ml_page(_ml_page_for_menu(menu))
+                else:
+                    st.session_state.app_menu = menu
                 st.rerun()
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -682,6 +717,8 @@ def show_mobile_dashboard(
     chat_unread: int,
     pendencias: int,
     quick_links: list[tuple[str, str]],
+    is_manager: bool = False,
+    can_gerenciar: bool | None = None,
 ) -> None:
     # Mobile Lab: layout "cara de app" inspirado no mock premium (teste).
     from mobile_lab_ui import render_mobile_lab_dashboard
@@ -694,4 +731,7 @@ def show_mobile_dashboard(
         user_full_name=str(user_name or ""),
         photo_uri=str(photo_uri or ""),
         notif_count=int(pendencias),
+        is_manager=bool(is_manager),
+        quick_links=list(quick_links or []),
+        can_gerenciar=can_gerenciar,
     )

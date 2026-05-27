@@ -5839,16 +5839,23 @@ def show_dashboard(
     minhas = user_on_escala_semana(escalas_df, equipe_df, my_email, start, end)
 
     if is_mobile_lab_enabled():
+        from mobile_lab_nav import sync_ml_can_gerenciar
+
         items, _, icons = get_menu_items_for_user(st.session_state.user_roles)
         available = {name for name, _, _ in items}
-        quick = [
-            (n, icons.get(n, "🎵"))
-            for n in ("Repertório", "Playlist", "Chat", "Sugestão de louvor", "Escalas")
-            if n in available
+        quick_names = [
+            "Gerenciar Escalas",
+            "Escalas",
+            "Repertório",
+            "Playlist",
+            "Chat",
+            "Sugestão de louvor",
         ]
+        quick = [(n, icons.get(n, "🎵")) for n in quick_names if n in available]
+        can_ger = sync_ml_can_gerenciar(quick_links=quick)
         chat_unread = int(st.session_state.get("chat_unread_count", 0))
         sug_df = st.session_state.get("_sugestoes_df_cache", pd.DataFrame())
-        sug_badge = count_pending_sugestoes(sug_df) if is_mgr else count_sugestoes_news_for_user(sug_df, my_email)
+        sug_badge = count_pending_sugestoes(sug_df) if (is_mgr or can_ger) else count_sugestoes_news_for_user(sug_df, my_email)
         escala_badge = 1 if (minhas is not None and len(minhas) > 0) else 0
         pend = int(chat_unread) + int(sug_badge) + int(escala_badge)
         show_mobile_dashboard(
@@ -5867,6 +5874,8 @@ def show_dashboard(
             chat_unread=chat_unread,
             pendencias=pend,
             quick_links=quick,
+            is_manager=can_ger,
+            can_gerenciar=can_ger,
         )
         return
 
@@ -7776,14 +7785,25 @@ def show_gerenciar_escalas(
         n_cultos=n_cultos,
     )
 
-    tab_montar, tab_sugestoes, tab_sequencia, tab_pdf, tab_whatsapp = st.tabs(
-        list(GERENCIAR_TAB_LABELS)
-    )
+    from mobile_lab import is_mobile_lab_enabled
 
-    with tab_montar:
+    mobile_ger = is_mobile_lab_enabled()
+    if mobile_ger:
+        from mobile_lab_nav import pin_ml_page
+        from mobile_gerenciar_escalas_ui import get_mobile_ger_tab
+
+        pin_ml_page("Gerenciar Escalas")
+        gtab = get_mobile_ger_tab()
+        tab_montar = tab_sugestoes = tab_sequencia = tab_pdf = tab_whatsapp = None
+    else:
+        gtab = ""
+        tab_montar, tab_sugestoes, tab_sequencia, tab_pdf, tab_whatsapp = st.tabs(
+            list(GERENCIAR_TAB_LABELS)
+        )
+
+    def _body_montar() -> None:
         mobile_stack_open()
-        col_main, col_side = st.columns([3, 1])
-        with col_main:
+        if mobile_ger:
             show_escala_completa_editor(
                 escalas_df,
                 programa_df,
@@ -7794,18 +7814,40 @@ def show_gerenciar_escalas(
                 external_planner_panel=True,
                 premium_layout=True,
             )
-        with col_side:
-            render_gerenciar_sidebar(
-                members_df,
-                escalas_df,
-                equipe_df,
-                programa_df,
-                louvores_df,
-                culto_ref=culto_ref_for_planner(),
-            )
+            with st.expander("📅 Painel do mês e integrantes", expanded=False):
+                render_gerenciar_sidebar(
+                    members_df,
+                    escalas_df,
+                    equipe_df,
+                    programa_df,
+                    louvores_df,
+                    culto_ref=culto_ref_for_planner(),
+                )
+        else:
+            col_main, col_side = st.columns([3, 1])
+            with col_main:
+                show_escala_completa_editor(
+                    escalas_df,
+                    programa_df,
+                    equipe_df,
+                    louvores_df,
+                    members_df,
+                    chat_ensaio_df,
+                    external_planner_panel=True,
+                    premium_layout=True,
+                )
+            with col_side:
+                render_gerenciar_sidebar(
+                    members_df,
+                    escalas_df,
+                    equipe_df,
+                    programa_df,
+                    louvores_df,
+                    culto_ref=culto_ref_for_planner(),
+                )
         mobile_stack_close()
 
-    with tab_sugestoes:
+    def _body_sugestoes() -> None:
         from escala_suggester_ui import render_escala_suggestions_panel
 
         render_escala_suggestions_panel(
@@ -7816,7 +7858,7 @@ def show_gerenciar_escalas(
             louvores_df,
         )
 
-    with tab_sequencia:
+    def _body_sequencia() -> None:
         pref = st.session_state.pop("focus_sequencia_escala_id", None)
         show_sequencia_culto_page(
             escalas_df,
@@ -7827,12 +7869,12 @@ def show_gerenciar_escalas(
             escala_id_pref=pref,
         )
 
-    with tab_pdf:
+    def _body_pdf() -> None:
         render_escalas_pdf_export(
             escalas_df, programa_df, equipe_df, members_df, louvores_df
         )
 
-    with tab_whatsapp:
+    def _body_whatsapp() -> None:
         st.markdown(
             '<p class="music-panel-title">💬 WhatsApp · integrantes</p>',
             unsafe_allow_html=True,
@@ -7842,6 +7884,27 @@ def show_gerenciar_escalas(
             "Para enviar a escala ao grupo, use **Exportar PDF** após gerar o PDF."
         )
         show_members_overview(members_df, louvores_df, escalas_df, equipe_df)
+
+    if mobile_ger:
+        bodies = {
+            "montar": _body_montar,
+            "sugestoes": _body_sugestoes,
+            "sequencia": _body_sequencia,
+            "pdf": _body_pdf,
+            "whatsapp": _body_whatsapp,
+        }
+        bodies.get(gtab, _body_montar)()
+    else:
+        with tab_montar:
+            _body_montar()
+        with tab_sugestoes:
+            _body_sugestoes()
+        with tab_sequencia:
+            _body_sequencia()
+        with tab_pdf:
+            _body_pdf()
+        with tab_whatsapp:
+            _body_whatsapp()
 
     render_gerenciar_page_close()
 
@@ -7856,6 +7919,21 @@ def show_sequencia_culto_page(
     escala_id_pref: str | None = None,
 ):
     """Sequência do Culto: letras completas, marcações vocais e cifras por trecho."""
+    from mobile_lab import is_mobile_lab_enabled
+
+    if is_mobile_lab_enabled():
+        from mobile_sequencia_culto_ui import render_mobile_sequencia_page
+
+        render_mobile_sequencia_page(
+            escalas_df=escalas_df,
+            programa_df=programa_df,
+            equipe_df=equipe_df,
+            louvores_df=louvores_df,
+            members_df=members_df if members_df is not None else pd.DataFrame(),
+            escala_id_pref=escala_id_pref,
+        )
+        return
+
     from catalog_sanitize import format_louvor_display, sanitize_catalog_text
 
     seq_df = load_programa_sequencia_df()
@@ -9636,9 +9714,12 @@ def _run_app() -> None:
             mobile_lab_request_logout,
             render_mobile_lab_nav,
         )
+        from mobile_lab_nav import init_ml_navigation, sync_ml_can_gerenciar
         from mobile_lab_ui import inject_mobile_lab_app_shell
 
         inject_mobile_lab_app_shell()
+        init_ml_navigation()
+        sync_ml_can_gerenciar()
 
         email_hdr = str(st.session_state.get("user_email", "")).strip().lower()
         photo_hdr = profile_photo_to_data_uri(
@@ -9667,6 +9748,22 @@ def _run_app() -> None:
                 eventos_df,
                 feed_posts_df=feed_posts_df,
             )
+        elif ml_page == "Gerenciar Escalas":
+            from mobile_lab_app import user_can_gerenciar_escalas
+
+            if user_can_gerenciar_escalas():
+                from mobile_gerenciar_escalas_ui import render_mobile_gerenciar_escalas_page
+
+                render_mobile_gerenciar_escalas_page(
+                    escalas_df=escalas_df,
+                    programa_df=programa_df,
+                    equipe_df=equipe_df,
+                    louvores_df=louvores_df,
+                    members_df=members_df,
+                    chat_ensaio_df=chat_ensaio_df,
+                )
+            else:
+                st.warning("Acesso restrito à liderança do ministério.")
         elif ml_page == "Escalas":
             from mobile_escalas_ui import render_mobile_escalas_page
 
@@ -9680,22 +9777,36 @@ def _run_app() -> None:
                 chat_ensaio_df=chat_ensaio_df,
             )
         elif ml_page == "Repertório":
-            show_louvores_catalog(
+            from mobile_repertorio_ui import render_mobile_repertorio_page
+
+            render_mobile_repertorio_page(
                 louvores_df,
                 programa_df=programa_df,
                 sugestoes_df=sugestoes_df,
                 playlist_df=playlist_df,
             )
         elif ml_page == "Playlist":
-            show_playlist_page(louvores_df, playlist_df, members_df)
+            from mobile_playlist_ui import render_mobile_playlist_page
+
+            render_mobile_playlist_page(louvores_df, playlist_df, members_df)
         elif ml_page == "Chat":
-            show_group_chat(chat_df, members_df)
+            from mobile_chat_ui import render_mobile_chat_page
+
+            render_mobile_chat_page(chat_df, members_df)
         elif ml_page == "Sugestões":
-            show_sugestao_louvor(sugestoes_df, louvores_df)
+            from mobile_sugestoes_ui import render_mobile_sugestoes_page
+
+            render_mobile_sugestoes_page(sugestoes_df, louvores_df)
         elif ml_page == "Notificações":
-            show_feed_page(feed_posts_df, feed_likes_df, feed_comments_df)
+            from mobile_notificacoes_ui import render_mobile_notificacoes_page
+
+            render_mobile_notificacoes_page(
+                feed_posts_df, feed_likes_df, feed_comments_df
+            )
         elif ml_page == "Perfil":
-            show_user_profile(members_df, escalas_df, equipe_df)
+            from mobile_perfil_ui import render_mobile_perfil_page
+
+            render_mobile_perfil_page(members_df, escalas_df, equipe_df)
         else:
             show_dashboard(
                 escalas_df,
@@ -9709,7 +9820,11 @@ def _run_app() -> None:
                 feed_posts_df=feed_posts_df,
             )
 
-        render_mobile_lab_nav(ml_page, chat_unread=chat_unread)
+        render_mobile_lab_nav(
+            ml_page,
+            chat_unread=chat_unread,
+            can_gerenciar=bool(st.session_state.get("ml_can_gerenciar")),
+        )
         if mobile_lab_request_logout() or st.session_state.pop("request_logout", False):
             logout_user()
         return

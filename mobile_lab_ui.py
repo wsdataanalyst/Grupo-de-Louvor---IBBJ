@@ -340,6 +340,36 @@ def mobile_lab_css() -> str:
       color: rgba(148,163,184,.95) !important;
       box-shadow: none !important;
     }
+    body:has(#ml-bottom-nav-start) [class*="st-key-ml_nav_Gerenciar_Escalas"] .stButton > button:not([kind="primary"]){
+      background: rgba(250,204,21,.14) !important;
+      border: 1px solid rgba(250,204,21,.32) !important;
+      color: #fde68a !important;
+      box-shadow: 0 0 18px rgba(250,204,21,.12) !important;
+    }
+    body:has(#ml-bottom-nav-start) [class*="st-key-ml_nav_Gerenciar_Escalas"] .stButton > button[kind="primary"]{
+      background: linear-gradient(135deg, #facc15, #ca8a04) !important;
+      color: #0f172a !important;
+      font-weight: 900 !important;
+      box-shadow: 0 0 22px rgba(250,204,21,.28) !important;
+    }
+    body:has(#ml-bottom-nav-start) [class*="st-key-ml_drawer_gerenciar_item"] .stButton > button{
+      border: 1px solid rgba(250,204,21,.28) !important;
+      color: #fde68a !important;
+    }
+    body:has(#ml-bottom-nav-start) [class*="st-key-ml_drawer_gerenciar_active"] .stButton > button{
+      background: linear-gradient(135deg, #facc15, #ca8a04) !important;
+      color: #0f172a !important;
+      font-weight: 800 !important;
+    }
+    body:has(#ml-mobile-lab-mode) [class*="st-key-ml_quick_gerenciar"] .stButton > button,
+    body:has(#ml-bottom-nav-start) [class*="st-key-ml_quick_gerenciar"] .stButton > button{
+      min-height: 4.2rem !important;
+      background: linear-gradient(135deg, rgba(250,204,21,.22), rgba(124,58,237,.15)) !important;
+      border: 1px solid rgba(250,204,21,.35) !important;
+      color: #fde68a !important;
+      font-weight: 900 !important;
+      box-shadow: 0 0 28px rgba(250,204,21,.15) !important;
+    }
     body:has(#ml-bottom-nav-start) [class*="st-key-ml_bottom_nav"] .stButton > button[kind="primary"]{
       color: rgba(196,181,253,.98) !important;
       background: rgba(139,92,246,.16) !important;
@@ -348,6 +378,13 @@ def mobile_lab_css() -> str:
     }
     body:has(#ml-bottom-nav-start) [class*="st-key-ml_bottom_nav"] .stButton > button[kind="primary"] p{
       color: rgba(233,213,255,.98) !important;
+    }
+    body:has(#ml-bottom-nav-start) [class*="st-key-ml_nav_Gerenciar_Escalas"] .stButton > button[kind="primary"],
+    body:has(#ml-bottom-nav-start) [class*="st-key-ml_nav_Gerenciar_Escalas"] .stButton > button[kind="primary"] p{
+      background: linear-gradient(135deg, #facc15, #ca8a04) !important;
+      color: #0f172a !important;
+      border: 1px solid rgba(250,204,21,.45) !important;
+      box-shadow: 0 0 22px rgba(250,204,21,.28) !important;
     }
 
     /* Drawer overlay */
@@ -608,6 +645,20 @@ def _next_culto(escalas_df: pd.DataFrame) -> dict:
     }
 
 
+_ML_MENU_TO_PAGE: dict[str, str] = {
+    "Gerenciar Escalas": "Gerenciar Escalas",
+    "Escalas": "Escalas",
+    "Repertório": "Repertório",
+    "Playlist": "Playlist",
+    "Chat": "Chat",
+    "Sugestão de louvor": "Sugestões",
+    "Sugestões": "Sugestões",
+    "Notificações": "Notificações",
+    "Feed": "Notificações",
+    "Perfil": "Perfil",
+}
+
+
 def render_mobile_lab_dashboard(
     *,
     members_df: pd.DataFrame,
@@ -617,6 +668,9 @@ def render_mobile_lab_dashboard(
     user_full_name: str = "",
     photo_uri: str = "",
     notif_count: int = 0,
+    is_manager: bool = False,
+    quick_links: list[tuple[str, str]] | None = None,
+    can_gerenciar: bool | None = None,
 ) -> None:
     inject_mobile_lab_theme()
 
@@ -664,10 +718,7 @@ def render_mobile_lab_dashboard(
               </div>
             </div>
             <div class="ml-actions">
-              <div class="ml-glass ml-iconbtn ml-glow-purple">
-                🔔
-                <div class="ml-badge">{max(0, int(notif_count))}</div>
-              </div>
+              <div class="ml-glass ml-iconbtn ml-glow-purple">🔔</div>
               <div class="ml-glass ml-iconbtn">☰</div>
             </div>
           </div>
@@ -720,27 +771,73 @@ def render_mobile_lab_dashboard(
         unsafe_allow_html=True,
     )
 
-    # Acesso rápido (real): navegação interna no mobile lab
-    c1, c2 = st.columns(2, gap="small")
-    with c1:
-        if st.button("🎵\nRepertório", key="ml_quick_repertorio", use_container_width=True):
-            st.session_state.ml_page = "Repertório"
-            st.rerun()
-    with c2:
-        if st.button("🎧\nPlaylist", key="ml_quick_playlist", use_container_width=True):
-            st.session_state.ml_page = "Playlist"
-            st.rerun()
+    from mobile_lab_nav import navigate_ml_page, user_can_gerenciar_escalas
 
-    c3, c4 = st.columns(2, gap="small")
-    with c3:
-        label = "💬\nChat"
-        if int(chat_unread) > 0:
-            label = f"💬 ({min(99, int(chat_unread))})\nChat"
-        if st.button(label, key="ml_quick_chat", use_container_width=True):
-            st.session_state.ml_page = "Chat"
-            st.rerun()
-    with c4:
-        if st.button("💡\nSugestões", key="ml_quick_sugestoes", use_container_width=True):
-            st.session_state.ml_page = "Sugestões"
-            st.rerun()
+    ha1, ha2 = st.columns([1, 1], gap="small")
+    with ha1:
+        with st.container(key="ml_dash_bell"):
+            if st.button(
+                f"🔔\n{max(0, int(notif_count))}",
+                key="ml_dash_bell_btn",
+                use_container_width=True,
+            ):
+                navigate_ml_page("Notificações")
+                st.rerun()
+    with ha2:
+        with st.container(key="ml_dash_menu"):
+            if st.button("☰\nMenu", key="ml_dash_menu_btn", use_container_width=True):
+                st.session_state.ml_drawer_open = True
+                st.rerun()
+
+    if can_gerenciar is None:
+        can_gerenciar = bool(st.session_state.get("ml_can_gerenciar"))
+    if not can_gerenciar:
+        can_gerenciar = bool(is_manager) or user_can_gerenciar_escalas()
+    if not can_gerenciar and quick_links:
+        can_gerenciar = any(name == "Gerenciar Escalas" for name, _ in quick_links)
+
+    if can_gerenciar:
+        with st.container(key="ml_quick_gerenciar"):
+            if st.button(
+                "🎯  Gerenciar Escalas\nMenu separado · como no app web",
+                key="ml_quick_gerenciar_btn",
+                use_container_width=True,
+                type="primary",
+            ):
+                navigate_ml_page("Gerenciar Escalas", pin=True)
+                st.rerun()
+
+    # Acesso rápido: itens do menu web (quick_links) ou padrão para membros
+    default_quick: list[tuple[str, str]] = [
+        ("Repertório", "🎵"),
+        ("Playlist", "🎧"),
+        ("Chat", "💬"),
+        ("Sugestões", "💡"),
+    ]
+    links: list[tuple[str, str]] = []
+    seen: set[str] = set()
+    for name, icon in list(quick_links or []) + default_quick:
+        if name == "Gerenciar Escalas" or name in seen:
+            continue
+        page = _ML_MENU_TO_PAGE.get(name)
+        if not page:
+            continue
+        seen.add(name)
+        links.append((name, icon))
+
+    for i in range(0, len(links), 2):
+        pair = links[i : i + 2]
+        cols = st.columns(2, gap="small")
+        for col, (name, icon) in zip(cols, pair):
+            page = _ML_MENU_TO_PAGE.get(name, name)
+            label = f"{icon}\n{name}"
+            if name == "Chat" and int(chat_unread) > 0:
+                label = f"{icon} ({min(99, int(chat_unread))})\nChat"
+            if name == "Sugestão de louvor":
+                label = f"{icon}\nSugestões"
+            key = f"ml_quick_{page.replace(' ', '_')}"
+            with col:
+                if st.button(label, key=key, use_container_width=True):
+                    navigate_ml_page(page)
+                    st.rerun()
 

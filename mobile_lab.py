@@ -54,5 +54,13 @@ def render_mobile_lab_sidebar_toggle() -> None:
         )
         if on != bool(st.session_state.get("mobile_lab")):
             st.session_state.mobile_lab = on
+            if on:
+                try:
+                    st.query_params["mobile_lab"] = "1"
+                except Exception:
+                    pass
+                from mobile_lab_nav import sync_ml_can_gerenciar
+
+                sync_ml_can_gerenciar()
             st.rerun()
         st.caption("Ou abra com `?mobile_lab=1` na URL.")
