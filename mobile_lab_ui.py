@@ -814,29 +814,28 @@ def render_mobile_lab_dashboard(
         ("Chat", "💬"),
         ("Sugestões", "💡"),
     ]
-    links: list[tuple[str, str]] = []
-    seen: set[str] = set()
+    links: list[tuple[str, str, str]] = []
+    seen_pages: set[str] = set()
     for name, icon in list(quick_links or []) + default_quick:
-        if name == "Gerenciar Escalas" or name in seen:
+        if name == "Gerenciar Escalas":
             continue
         page = _ML_MENU_TO_PAGE.get(name)
-        if not page:
+        if not page or page in seen_pages:
             continue
-        seen.add(name)
-        links.append((name, icon))
+        seen_pages.add(page)
+        links.append((name, icon, page))
 
     for i in range(0, len(links), 2):
         pair = links[i : i + 2]
         cols = st.columns(2, gap="small")
-        for col, (name, icon) in zip(cols, pair):
-            page = _ML_MENU_TO_PAGE.get(name, name)
+        for j, (name, icon, page) in enumerate(pair):
             label = f"{icon}\n{name}"
-            if name == "Chat" and int(chat_unread) > 0:
+            if page == "Chat" and int(chat_unread) > 0:
                 label = f"{icon} ({min(99, int(chat_unread))})\nChat"
             if name == "Sugestão de louvor":
                 label = f"{icon}\nSugestões"
-            key = f"ml_quick_{page.replace(' ', '_')}"
-            with col:
+            key = f"ml_quick_{i + j}_{page.replace(' ', '_')}"
+            with cols[j]:
                 if st.button(label, key=key, use_container_width=True):
                     navigate_ml_page(page)
                     st.rerun()
