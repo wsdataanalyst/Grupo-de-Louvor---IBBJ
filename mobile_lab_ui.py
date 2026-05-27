@@ -807,16 +807,17 @@ def render_mobile_lab_dashboard(
                 navigate_ml_page("Gerenciar Escalas", pin=True)
                 st.rerun()
 
-    # Acesso rápido: itens do menu web (quick_links) ou padrão para membros
+    # Acesso rápido: menu web OU atalhos padrão (nunca os dois — evita Sugestões duplicado)
     default_quick: list[tuple[str, str]] = [
         ("Repertório", "🎵"),
         ("Playlist", "🎧"),
         ("Chat", "💬"),
-        ("Sugestões", "💡"),
+        ("Sugestão de louvor", "💡"),
     ]
+    candidates = list(quick_links) if quick_links else default_quick
     links: list[tuple[str, str, str]] = []
     seen_pages: set[str] = set()
-    for name, icon in list(quick_links or []) + default_quick:
+    for name, icon in candidates:
         if name == "Gerenciar Escalas":
             continue
         page = _ML_MENU_TO_PAGE.get(name)
@@ -825,18 +826,17 @@ def render_mobile_lab_dashboard(
         seen_pages.add(page)
         links.append((name, icon, page))
 
-    for i in range(0, len(links), 2):
-        pair = links[i : i + 2]
-        cols = st.columns(2, gap="small")
-        for j, (name, icon, page) in enumerate(pair):
-            label = f"{icon}\n{name}"
-            if page == "Chat" and int(chat_unread) > 0:
-                label = f"{icon} ({min(99, int(chat_unread))})\nChat"
-            if name == "Sugestão de louvor":
-                label = f"{icon}\nSugestões"
-            key = f"ml_quick_{i + j}_{page.replace(' ', '_')}"
-            with cols[j]:
-                if st.button(label, key=key, use_container_width=True):
-                    navigate_ml_page(page)
-                    st.rerun()
+    for idx, (name, icon, page) in enumerate(links):
+        if idx % 2 == 0:
+            cols = st.columns(2, gap="small")
+        label = f"{icon}\n{name}"
+        if page == "Chat" and int(chat_unread) > 0:
+            label = f"{icon} ({min(99, int(chat_unread))})\nChat"
+        if name == "Sugestão de louvor":
+            label = f"{icon}\nSugestões"
+        btn_key = f"ml_quick_nav_{idx}"
+        with cols[idx % 2]:
+            if st.button(label, key=btn_key, use_container_width=True):
+                navigate_ml_page(page)
+                st.rerun()
 
