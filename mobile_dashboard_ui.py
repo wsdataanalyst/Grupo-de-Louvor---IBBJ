@@ -719,6 +719,7 @@ def show_mobile_dashboard(
     quick_links: list[tuple[str, str]],
     is_manager: bool = False,
     can_gerenciar: bool | None = None,
+    **_: object,
 ) -> None:
     # Mobile Lab: layout "cara de app" inspirado no mock premium (teste).
     from mobile_lab_ui import render_mobile_lab_dashboard

@@ -5821,7 +5821,6 @@ def show_dashboard(
         render_week_culto_cards,
     )
     from mobile_lab import is_mobile_lab_enabled
-    from mobile_dashboard_ui import show_mobile_dashboard
 
     escalas_df, programa_df, equipe_df, trocas_df = get_escalas_bundle()
     feed_posts_df = feed_posts_df if feed_posts_df is not None else pd.DataFrame()
@@ -5858,21 +5857,18 @@ def show_dashboard(
         sug_badge = count_pending_sugestoes(sug_df) if (is_mgr or can_ger) else count_sugestoes_news_for_user(sug_df, my_email)
         escala_badge = 1 if (minhas is not None and len(minhas) > 0) else 0
         pend = int(chat_unread) + int(sug_badge) + int(escala_badge)
-        show_mobile_dashboard(
-            escalas_df=escalas_df,
-            equipe_df=equipe_df,
-            louvores_df=louvores_df,
+        from mobile_lab_ui import render_mobile_lab_dashboard
+
+        render_mobile_lab_dashboard(
             members_df=members_df,
-            playlist_df=playlist_df,
-            feed_posts_df=feed_posts_df,
-            members_visible_count=len(members_visible_to_group(members_df)),
-            user_name=nome,
-            my_email=my_email,
+            louvores_df=louvores_df,
+            escalas_df=escalas_df,
+            chat_unread=chat_unread,
+            user_full_name=nome,
             photo_uri=profile_photo_to_data_uri(
                 my_email, str(st.session_state.get("user_profile_photo", ""))
             ),
-            chat_unread=chat_unread,
-            pendencias=pend,
+            notif_count=pend,
             quick_links=quick,
             is_manager=can_ger,
             can_gerenciar=can_ger,
