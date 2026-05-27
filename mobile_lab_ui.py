@@ -34,15 +34,21 @@ def mobile_lab_css() -> str:
     body:has(#ml-mobile-lab-mode) [data-testid="stToolbar"],
     body:has(#ml-bottom-nav-start) [data-testid="stToolbar"],
     body:has(.ml-page) [data-testid="stToolbar"] { display:none !important; }
-    /* Widgets Streamlit no canto (status, deploy, footer) — ocultar no mobile lab */
+    /* Widgets / branding Streamlit + GitHub (dentro do iframe) */
     [data-testid="stStatusWidget"],
     [data-testid="stDecoration"],
+    [data-testid="stHeader"],
+    header,
     footer,
+    #MainMenu,
     .stAppDeployButton,
     .stDeployButton,
     [class*="stAppDeployButton"],
     [class*="stDeployButton"],
-    [data-testid="stToolbarActions"] {
+    [data-testid="stToolbarActions"],
+    a[href*="github.com"],
+    a[href*="streamlit.io"],
+    a[href*="share.streamlit.io"] {
       display: none !important;
       visibility: hidden !important;
       opacity: 0 !important;
@@ -57,6 +63,18 @@ def mobile_lab_css() -> str:
       top: auto !important;
       bottom: auto !important;
       z-index: -1 !important;
+    }
+    /* Escudo no canto (ícones Cloud/GitHub que ficam fora dos seletores) */
+    #ml-streamlit-shield{
+      position: fixed !important;
+      right: 0 !important;
+      bottom: 0 !important;
+      width: 72px !important;
+      height: calc(76px + env(safe-area-inset-bottom, 0px)) !important;
+      z-index: 2147483644 !important;
+      background: var(--ml-bg, #030712) !important;
+      pointer-events: auto !important;
+      box-sizing: border-box !important;
     }
     body:has(#ml-bottom-nav-start) [data-testid="stAppViewContainer"],
     body:has(.ml-page) [data-testid="stAppViewContainer"] {
@@ -327,17 +345,25 @@ def mobile_lab_css() -> str:
 _ML_CHROME_HIDE_JS = r"""
 (function () {
   var STYLE_ID = "ml-hide-streamlit-chrome-style";
+  var SHIELD_ID = "ml-streamlit-shield";
+  var BG = "#030712";
   var SEL =
     '[data-testid="stStatusWidget"],' +
-    '[data-testid="stDecoration"],footer,' +
+    '[data-testid="stDecoration"],[data-testid="stHeader"],header,footer,#MainMenu,' +
     '.stAppDeployButton,.stDeployButton,' +
     '[class*="stAppDeployButton"],[class*="stDeployButton"],' +
-    '[data-testid="stToolbarActions"],[data-testid="stToolbar"]';
+    '[data-testid="stToolbarActions"],[data-testid="stToolbar"],' +
+    'a[href*="github.com"],a[href*="streamlit.io"],a[href*="share.streamlit.io"]';
   var CSS =
     SEL + "{display:none!important;visibility:hidden!important;opacity:0!important;" +
     "pointer-events:none!important;width:0!important;height:0!important;" +
     "overflow:hidden!important;position:fixed!important;left:-99999px!important;" +
-    "z-index:-1!important;}";
+    "z-index:-1!important;}" +
+    "#" + SHIELD_ID + "{position:fixed!important;right:0!important;bottom:0!important;" +
+    "width:72px!important;height:calc(76px + env(safe-area-inset-bottom,0px))!important;" +
+    "z-index:2147483644!important;background:" + BG + "!important;pointer-events:auto!important;}";
+  var BRAND_HOSTS = ["github.com", "github.io", "streamlit.io", "share.streamlit.io"];
+
   function docs() {
     var out = [document];
     try {
@@ -350,35 +376,106 @@ _ML_CHROME_HIDE_JS = r"""
     } catch (e) {}
     return out;
   }
-  function injectStyle(doc) {
-    if (!doc || !doc.head || doc.getElementById(STYLE_ID)) return;
-    var s = doc.createElement("style");
-    s.id = STYLE_ID;
-    s.textContent = CSS;
-    doc.head.appendChild(s);
+
+  function hideEl(el) {
+    if (!el || el.id === SHIELD_ID) return;
+    if (el.closest && el.closest('[class*="st-key-ml_bottom_nav"]')) return;
+    el.style.setProperty("display", "none", "important");
+    el.style.setProperty("visibility", "hidden", "important");
+    el.style.setProperty("opacity", "0", "important");
+    el.style.setProperty("pointer-events", "none", "important");
+    el.setAttribute("aria-hidden", "true");
   }
+
+  function injectStyle(doc) {
+    if (!doc || !doc.head) return;
+    var s = doc.getElementById(STYLE_ID);
+    if (!s) {
+      s = doc.createElement("style");
+      s.id = STYLE_ID;
+      doc.head.appendChild(s);
+    }
+    s.textContent = CSS;
+  }
+
+  function ensureShield(doc) {
+    if (!doc || !doc.body) return;
+    var el = doc.getElementById(SHIELD_ID);
+    if (!el) {
+      el = doc.createElement("div");
+      el.id = SHIELD_ID;
+      el.setAttribute("aria-hidden", "true");
+      doc.body.appendChild(el);
+    }
+    el.style.cssText =
+      "position:fixed;right:0;bottom:0;width:72px;" +
+      "height:calc(76px + env(safe-area-inset-bottom,0px));" +
+      "z-index:2147483644;background:" + BG + ";pointer-events:auto;";
+  }
+
   function hideNodes(doc) {
     if (!doc) return;
-    doc.querySelectorAll(SEL).forEach(function (el) {
-      el.style.setProperty("display", "none", "important");
-      el.style.setProperty("visibility", "hidden", "important");
-      el.setAttribute("aria-hidden", "true");
+    doc.querySelectorAll(SEL).forEach(hideEl);
+    doc.querySelectorAll("a[href]").forEach(function (a) {
+      var h = (a.getAttribute("href") || "").toLowerCase();
+      for (var i = 0; i < BRAND_HOSTS.length; i++) {
+        if (h.indexOf(BRAND_HOSTS[i]) >= 0) {
+          hideEl(a);
+          var wrap = a.closest("button") || a.closest('[role="button"]') || a.parentElement;
+          if (wrap) hideEl(wrap);
+          break;
+        }
+      }
     });
   }
+
+  function hideCornerWidgets(doc, win) {
+    if (!doc || !doc.body) return;
+    var w = win || window;
+    var vh = w.innerHeight || 800;
+    var vw = w.innerWidth || 400;
+    doc.querySelectorAll("a, button, [role='button'], div").forEach(function (el) {
+      if (el.id === SHIELD_ID) return;
+      if (el.closest && (el.closest('[class*="st-key-ml_bottom_nav"]') ||
+          el.closest('[class*="st-key-ml_nav_"]'))) return;
+      var r = el.getBoundingClientRect();
+      if (!r.width || !r.height || r.width > 96 || r.height > 96) return;
+      if (r.bottom < vh - 92 || r.right < vw - 100) return;
+      var href = ((el.href || el.getAttribute("href")) || "").toLowerCase();
+      var txt = (el.textContent || "").toLowerCase();
+      var hasSvg = !!el.querySelector("svg");
+      var isBrand = false;
+      for (var j = 0; j < BRAND_HOSTS.length; j++) {
+        if (href.indexOf(BRAND_HOSTS[j]) >= 0) { isBrand = true; break; }
+      }
+      if (isBrand || hasSvg || txt.indexOf("streamlit") >= 0 || txt.indexOf("github") >= 0) {
+        hideEl(el);
+      }
+    });
+  }
+
   function liftNav() {
     document.querySelectorAll('[class*="st-key-ml_bottom_nav"]').forEach(function (el) {
       el.style.setProperty("z-index", "2147483000", "important");
     });
   }
+
   function run() {
     docs().forEach(function (d) {
       injectStyle(d);
       hideNodes(d);
+      ensureShield(d);
+      var w = window;
+      try {
+        if (d.defaultView) w = d.defaultView;
+      } catch (e) {}
+      hideCornerWidgets(d, w);
     });
     liftNav();
   }
+
   run();
-  [80, 250, 700, 1500, 3200].forEach(function (ms) {
+  [50, 150, 400, 900, 1800, 3500].forEach(function (ms) {
     setTimeout(run, ms);
   });
   if (!window.__mlChromeHideInit) {
@@ -391,7 +488,7 @@ _ML_CHROME_HIDE_JS = r"""
         });
       } catch (e) {}
     });
-    setInterval(run, 2000);
+    setInterval(run, 1500);
   }
 })();
 """
@@ -417,7 +514,8 @@ def inject_mobile_lab_hide_streamlit_chrome() -> None:
 def inject_mobile_lab_app_shell() -> None:
     """Marca o modo mobile lab cedo e injeta CSS (widgets Streamlit fora da nav)."""
     st.markdown(
-        '<span id="ml-mobile-lab-mode" aria-hidden="true"></span>',
+        '<span id="ml-mobile-lab-mode" aria-hidden="true"></span>'
+        '<div id="ml-streamlit-shield" aria-hidden="true"></div>',
         unsafe_allow_html=True,
     )
     inject_mobile_lab_theme()
