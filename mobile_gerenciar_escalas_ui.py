@@ -214,12 +214,16 @@ def render_mobile_gerenciar_escalas_page(
 
     from app import show_gerenciar_escalas
 
-    show_gerenciar_escalas(
-        escalas_df,
-        programa_df,
-        equipe_df,
-        louvores_df,
-        members_df,
-        chat_ensaio_df,
-        mobile_shell=True,
+    _ger_kwargs = dict(
+        escalas_df=escalas_df,
+        programa_df=programa_df,
+        equipe_df=equipe_df,
+        louvores_df=louvores_df,
+        members_df=members_df,
+        chat_ensaio_df=chat_ensaio_df,
     )
+    try:
+        show_gerenciar_escalas(**_ger_kwargs, mobile_shell=True)
+    except TypeError:
+        # Deploy parcial: app.py antigo sem mobile_shell — is_mobile_lab_enabled() no app trata o mobile
+        show_gerenciar_escalas(**_ger_kwargs)
