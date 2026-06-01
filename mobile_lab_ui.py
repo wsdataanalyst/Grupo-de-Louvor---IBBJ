@@ -7,7 +7,7 @@ from datetime import date, datetime, timedelta
 import pandas as pd
 import streamlit as st
 
-from ui_html import inject_page_script
+from ui_html import inject_page_script, inject_ui_html
 
 
 def mobile_lab_css() -> str:
@@ -64,6 +64,7 @@ def mobile_lab_css() -> str:
       box-sizing: border-box !important;
     }
     /* Faixa do versículo do dia (cobre ícones do Cloud no rodapé) */
+    #ml-verse-strip,
     body:has(#ml-mobile-lab-mode) #ml-verse-strip{
       position: fixed !important;
       left: 0 !important;
@@ -80,6 +81,13 @@ def mobile_lab_css() -> str:
       display: flex !important;
       align-items: center !important;
       gap: 12px !important;
+    }
+    body:has(#ml-mobile-lab-mode) [data-testid="element-container"]:has(#ml-verse-strip) {
+      height: 0 !important;
+      min-height: 0 !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      overflow: visible !important;
     }
     body:has(#ml-mobile-lab-mode) #ml-verse-strip .ml-verse-ico{
       width: 34px; height: 34px;
@@ -100,7 +108,8 @@ def mobile_lab_css() -> str:
       -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 10%, #000 90%, transparent 100%);
       mask-image: linear-gradient(90deg, transparent 0%, #000 10%, #000 90%, transparent 100%);
     }
-    body:has(#ml-mobile-lab-mode) #ml-verse-strip .ml-verse-marquee-track{
+    body:has(#ml-mobile-lab-mode) #ml-verse-strip .ml-verse-marquee-track,
+    #ml-verse-strip .ml-verse-marquee-track{
       display: inline-flex;
       flex-direction: row;
       flex-wrap: nowrap;
@@ -108,7 +117,6 @@ def mobile_lab_css() -> str:
       width: max-content;
       white-space: nowrap;
       will-change: transform;
-      animation: ml-verse-marquee var(--ml-verse-dur, 28s) linear infinite;
     }
     body:has(#ml-mobile-lab-mode) #ml-verse-strip .ml-verse-marquee-item{
       flex: 0 0 auto;
@@ -125,21 +133,13 @@ def mobile_lab_css() -> str:
       font-weight: 800;
       margin-left: 10px;
     }
-    @keyframes ml-verse-marquee{
-      from { transform: translate3d(0, 0, 0); }
-      to { transform: translate3d(-50%, 0, 0); }
-    }
     @media (prefers-reduced-motion: reduce){
-      body:has(#ml-mobile-lab-mode) #ml-verse-strip .ml-verse-marquee{
+      body:has(#ml-mobile-lab-mode) #ml-verse-strip .ml-verse-marquee,
+      #ml-verse-strip .ml-verse-marquee{
         overflow-x: auto;
         -webkit-overflow-scrolling: touch;
         mask-image: none;
         -webkit-mask-image: none;
-      }
-      body:has(#ml-mobile-lab-mode) #ml-verse-strip .ml-verse-marquee-track{
-        animation: none;
-        transform: none;
-        width: auto;
       }
     }
     body:has(#ml-bottom-nav-start) [data-testid="stAppViewContainer"],
@@ -149,13 +149,61 @@ def mobile_lab_css() -> str:
         radial-gradient(circle at top right, var(--ml-purple), transparent 30%),
         var(--ml-bg) !important;
     }
+    body:has(#ml-mobile-lab-mode) [data-testid="stAppViewContainer"] .main .block-container,
     body:has(#ml-bottom-nav-start) [data-testid="stAppViewContainer"] .main .block-container,
     body:has(.ml-page) [data-testid="stAppViewContainer"] .main .block-container{
       max-width: 28rem !important;
       margin: 0 auto !important;
-      padding: 0.2rem 0.75rem calc(var(--ml-nav-height) + var(--ml-verse-height) + var(--ml-nav-offset) + 24px) !important;
+      padding-top: max(0.15rem, env(safe-area-inset-top, 0px)) !important;
+      padding-left: 0.75rem !important;
+      padding-right: 0.75rem !important;
+      padding-bottom: calc(var(--ml-nav-height) + var(--ml-verse-height) + var(--ml-nav-offset) + 16px) !important;
+    }
+    body:has(#ml-mobile-lab-mode) [data-testid="stMain"],
+    body:has(#ml-mobile-lab-mode) [data-testid="stMain"] > div,
+    body:has(#ml-mobile-lab-mode) [data-testid="stMainBlockContainer"],
+    body:has(#ml-mobile-lab-mode) [data-testid="stAppViewContainer"] > section,
+    body:has(#ml-mobile-lab-mode) [data-testid="stAppViewContainer"] .main {
+      padding-top: 0 !important;
+      margin-top: 0 !important;
+    }
+    body:has(#ml-mobile-lab-mode) [data-testid="stMain"] [data-testid="stVerticalBlock"] {
+      gap: 0.2rem !important;
+    }
+    body:has(#ml-mobile-lab-mode) [data-testid="element-container"] {
+      margin-top: 0 !important;
+      margin-bottom: 0.2rem !important;
+    }
+    /* Marcadores invisíveis do shell não empurram o conteúdo */
+    #ml-mobile-lab-mode,
+    #ml-streamlit-shield,
+    #ml-bottom-nav-start,
+    #ml-chat-page {
+      display: block !important;
+      height: 0 !important;
+      max-height: 0 !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      overflow: hidden !important;
+      line-height: 0 !important;
+      border: none !important;
+      pointer-events: none !important;
+    }
+    body:has(#ml-mobile-lab-mode) [data-testid="element-container"]:has(#ml-mobile-lab-mode),
+    body:has(#ml-mobile-lab-mode) [data-testid="element-container"]:has(#ml-streamlit-shield),
+    body:has(#ml-mobile-lab-mode) [data-testid="element-container"]:has(#ml-bottom-nav-start),
+    body:has(#ml-mobile-lab-mode) [data-testid="element-container"]:has(#ml-chat-page) {
+      margin: 0 !important;
+      padding: 0 !important;
+      min-height: 0 !important;
+      height: 0 !important;
+      overflow: hidden !important;
     }
     /* fixed relativo à viewport (evita corte no fim do .main do Streamlit) */
+    body:has(#ml-mobile-lab-mode) [data-testid="stAppViewContainer"],
+    body:has(#ml-mobile-lab-mode) [data-testid="stAppViewContainer"] > section,
+    body:has(#ml-mobile-lab-mode) [data-testid="stMain"],
+    body:has(#ml-mobile-lab-mode) .main,
     body:has(#ml-bottom-nav-start) [data-testid="stAppViewContainer"],
     body:has(#ml-bottom-nav-start) [data-testid="stAppViewContainer"] > section,
     body:has(#ml-bottom-nav-start) [data-testid="stMain"],
@@ -165,17 +213,25 @@ def mobile_lab_css() -> str:
       perspective: none !important;
     }
 
-    /* Page container */
+    /* Page container — sem faixa vazia no topo (padding inferior vem do block-container) */
+    body:has(#ml-mobile-lab-mode) .ml-rep-header-card,
+    body:has(#ml-mobile-lab-mode) .ml-esc-header,
+    body:has(#ml-mobile-lab-mode) .ml-seq-header {
+      margin-top: 0 !important;
+      padding-right: 3rem;
+    }
+    body:has(#ml-mobile-lab-mode) .ml-page,
     .ml-page {
       color: #fff;
       background:
         radial-gradient(circle at top left, var(--ml-blue), transparent 30%),
         radial-gradient(circle at top right, var(--ml-purple), transparent 30%),
         var(--ml-bg);
-      border-radius: 28px;
-      padding: 12px 14px 96px 14px;
+      border-radius: 0;
+      padding: 0 0 0.35rem 0 !important;
       max-width: 420px;
-      margin: 0 auto;
+      margin: 0 auto !important;
+      min-height: 0 !important;
     }
 
     .ml-glass{
@@ -188,7 +244,11 @@ def mobile_lab_css() -> str:
     .ml-glow-purple{ box-shadow: 0 0 30px rgba(139,92,246,.25); }
     .ml-glow-gold{ box-shadow: 0 0 30px rgba(212,160,23,.20); }
 
-    .ml-top{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom: 12px; }
+    .ml-top{
+      display:flex; align-items:center; justify-content:space-between; gap:12px;
+      margin-bottom: 12px;
+      padding-right: 3rem;
+    }
     .ml-user{ display:flex; align-items:center; gap:12px; min-width: 0; }
     .ml-avatar{
       width: 56px; height: 56px; border-radius: 999px;
@@ -610,39 +670,85 @@ _ML_CHROME_HIDE_JS = r"""
 _ML_VERSE_MARQUEE_JS = r"""
 (function () {
   var doc = (window.parent && window.parent.document) ? window.parent.document : document;
+  var reduceMotion = false;
+  try {
+    reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  } catch (e) {}
 
-  function tune() {
+  function dedupeStrips() {
+    var list = doc.querySelectorAll("#ml-verse-strip");
+    for (var i = 1; i < list.length; i++) {
+      var old = list[i];
+      var t = old.querySelector(".ml-verse-marquee-track");
+      if (t && t._mlMarqueeRaf) cancelAnimationFrame(t._mlMarqueeRaf);
+      old.remove();
+    }
+  }
+
+  function scrollSpeed(half) {
+    if (reduceMotion) return 28;
+    var pxPerSec = 44;
+    return pxPerSec;
+  }
+
+  function startMarquee(track) {
+    if (!track || track.dataset.mlMarqueeRunning === "1") return true;
+    var half = track.scrollWidth / 2;
+    if (!half || half < 24) return false;
+
+    track.dataset.mlMarqueeRunning = "1";
+    if (track._mlMarqueeRaf) cancelAnimationFrame(track._mlMarqueeRaf);
+
+    var offset = 0;
+    var speed = scrollSpeed(half);
+    var last = 0;
+
+    function frame(ts) {
+      if (!track.isConnected) return;
+      if (!last) last = ts;
+      var dt = Math.min(0.064, (ts - last) / 1000);
+      last = ts;
+      offset += speed * dt;
+      if (offset >= half) offset -= half;
+      track.style.transform = "translate3d(" + (-offset).toFixed(2) + "px,0,0)";
+      track._mlMarqueeRaf = requestAnimationFrame(frame);
+    }
+    track._mlMarqueeRaf = requestAnimationFrame(frame);
+    return true;
+  }
+
+  function mountStrip() {
+    var strip = doc.getElementById("ml-verse-strip");
+    if (!strip || !doc.body) return;
+    if (strip.parentNode !== doc.body) {
+      doc.body.appendChild(strip);
+    }
+  }
+
+  function boot() {
+    dedupeStrips();
+    mountStrip();
     var strip = doc.getElementById("ml-verse-strip");
     if (!strip) return;
     var track = strip.querySelector(".ml-verse-marquee-track");
     if (!track) return;
-    var half = track.scrollWidth / 2;
-    if (!half || half < 8) return;
-    var pxPerSec = 48;
-    var sec = Math.max(16, Math.min(90, half / pxPerSec));
-    strip.style.setProperty("--ml-verse-dur", sec + "s");
-    track.style.animation = "none";
-    void track.offsetWidth;
-    track.style.removeProperty("animation");
+    if (track.dataset.mlMarqueeRunning === "1") return;
+    startMarquee(track);
   }
 
-  function run() {
-    tune();
-  }
-
-  run();
-  [120, 500, 1500, 3000, 6000].forEach(function (ms) {
-    setTimeout(run, ms);
+  boot();
+  [80, 250, 600, 1500, 3500, 7000].forEach(function (ms) {
+    setTimeout(boot, ms);
   });
-  try {
-    var obs = new MutationObserver(function () {
-      setTimeout(run, 150);
-    });
-    obs.observe(doc.body, { childList: true, subtree: true });
-    setTimeout(function () {
-      obs.disconnect();
-    }, 15000);
-  } catch (e) {}
+
+  if (!doc.__mlVerseMarqueeObs) {
+    doc.__mlVerseMarqueeObs = 1;
+    try {
+      new MutationObserver(function () {
+        setTimeout(boot, 120);
+      }).observe(doc.body, { childList: true, subtree: true });
+    } catch (e) {}
+  }
 })();
 """
 
@@ -702,13 +808,13 @@ def inject_mobile_lab_app_shell() -> None:
 
     st.markdown(
         '<span id="ml-mobile-lab-mode" aria-hidden="true"></span>'
-        '<div id="ml-streamlit-shield" aria-hidden="true"></div>'
-        f"{strip_html}",
+        '<div id="ml-streamlit-shield" aria-hidden="true"></div>',
         unsafe_allow_html=True,
     )
     inject_mobile_lab_theme()
     inject_mobile_lab_hide_streamlit_chrome()
-    if verse_text:
+    if verse_text and strip_html:
+        inject_ui_html(strip_html)
         _inject_verse_marquee_script()
 
 

@@ -12,10 +12,6 @@ GERENCIAR_TAB_KEYS = ("montar", "sugestoes", "sequencia", "pdf", "whatsapp")
 
 def mobile_gerenciar_css() -> str:
     return r"""
-    body:has(#ml-gerenciar-page) [data-testid="stAppViewContainer"] .main .block-container{
-      padding-top: 0.35rem !important;
-      padding-bottom: 7.5rem !important;
-    }
     body:has(#ml-gerenciar-page) .ig-ger-page{
       max-width: 100% !important;
       margin: 0 !important;

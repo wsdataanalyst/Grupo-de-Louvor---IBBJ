@@ -20,8 +20,8 @@ def mobile_first_css() -> str:
                 --ig-mobile-pad-bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px));
             }}
 
-            [data-testid="stAppViewContainer"]:not(:has(.login-page)) .main .block-container,
-            [data-testid="stAppViewContainer"]:not(:has(.login-page)) [data-testid="stMain"] .block-container {{
+            [data-testid="stAppViewContainer"]:not(:has(.login-page)):not(:has(#ml-mobile-lab-mode)) .main .block-container,
+            [data-testid="stAppViewContainer"]:not(:has(.login-page)):not(:has(#ml-mobile-lab-mode)) [data-testid="stMain"] .block-container {{
                 padding-left: var(--ig-content-pad-x) !important;
                 padding-right: var(--ig-content-pad-x) !important;
                 padding-bottom: var(--ig-mobile-pad-bottom) !important;

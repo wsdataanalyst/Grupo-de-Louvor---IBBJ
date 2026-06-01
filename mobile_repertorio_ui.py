@@ -54,10 +54,6 @@ def _list_tab() -> str:
 
 def mobile_repertorio_css() -> str:
     return r"""
-    body:has(#ml-repertorio-page) [data-testid="stAppViewContainer"] .main .block-container{
-      padding-top: 0.35rem !important;
-      padding-bottom: 7.5rem !important;
-    }
     body:has(#ml-repertorio-page) [class*="st-key-ml_rep_add"] .stButton > button{
       width: 100% !important;
       min-height: 3.1rem !important;

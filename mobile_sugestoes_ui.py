@@ -10,10 +10,6 @@ from mobile_lab_ui import inject_mobile_lab_theme
 
 def mobile_sugestoes_css() -> str:
     return r"""
-    body:has(#ml-sugestoes-page) [data-testid="stAppViewContainer"] .main .block-container{
-      padding-top: 0.35rem !important;
-      padding-bottom: 7.5rem !important;
-    }
     body:has(#ml-sugestoes-page) .ig-sug-header,
     body:has(#ml-sugestoes-page) .ig-m-hdr-row{ display: none !important; }
     body:has(#ml-sugestoes-page) .ig-m-layout-stack [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]{

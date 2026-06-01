@@ -2861,15 +2861,33 @@ def is_user_viewing_chat() -> bool:
         return False
 
 
+def ensure_chat_seen_baseline(chat_df: pd.DataFrame | None = None) -> None:
+    """
+    Primeira sessão: trata o histórico como já visto.
+    O badge só deve contar mensagens novas depois disso.
+    """
+    if str(st.session_state.get("chat_seen_at", "")).strip():
+        return
+    if chat_df is None:
+        chat_df = st.session_state.get("_chat_df_cache")
+    if chat_df is None or chat_df.empty:
+        st.session_state.chat_seen_at = timestamp_now()
+        return
+    st.session_state.chat_seen_at = str(chat_df["timestamp"].max())
+
+
 def count_unread_chat_messages(chat_df: pd.DataFrame | None = None) -> int:
-    """Mensagens de outros integrantes após o último acesso ao chat."""
+    """Mensagens de outros integrantes após o último acesso ao chat (thread)."""
     if is_user_viewing_chat():
         return 0
     if chat_df is None:
         chat_df = st.session_state.get("_chat_df_cache")
     if chat_df is None or chat_df.empty:
         return 0
-    my_email = st.session_state.user_email.strip().lower()
+    ensure_chat_seen_baseline(chat_df)
+    my_email = str(st.session_state.get("user_email", "")).strip().lower()
+    if not my_email:
+        return 0
     others = chat_df[
         chat_df["email"].astype(str).str.strip().str.lower() != my_email
     ].copy()
@@ -2877,10 +2895,10 @@ def count_unread_chat_messages(chat_df: pd.DataFrame | None = None) -> int:
         return 0
     seen = str(st.session_state.get("chat_seen_at", "")).strip()
     if not seen:
-        return len(others)
+        return 0
     seen_ts = parse_timestamp(seen)
     if not seen_ts:
-        return len(others)
+        return 0
     ts = to_local_timestamps(others["timestamp"])
     seen_cmp = to_local_timestamps(seen_ts).iloc[0]
     return int((ts > seen_cmp).sum())
@@ -4388,14 +4406,16 @@ def _chat_global_sync():
     else:
         st.session_state._chat_rev = new_rev
 
+    chat_df = st.session_state.get("_chat_df_cache")
     if is_user_viewing_chat():
-        st.session_state.chat_unread_count = 0
-        st.session_state._chat_unread_prev = 0
+        mark_chat_seen(chat_df if chat_df is not None else pd.DataFrame())
         return
 
-    unread = count_unread_chat_messages(st.session_state.get("_chat_df_cache"))
+    unread = count_unread_chat_messages(chat_df)
+    prev = int(st.session_state.get("chat_unread_count", 0) or 0)
     st.session_state.chat_unread_count = unread
-    st.session_state._chat_unread_prev = unread
+    if unread != prev:
+        st.session_state._chat_unread_prev = prev
 
 
 def append_chat_message(
@@ -4816,7 +4836,10 @@ def _chat_group_live(members_df: pd.DataFrame, *, premium: bool = False):
     """Atualiza o histórico a cada poucos segundos para refletir mensagens de outros integrantes."""
     chat_df = load_chat_df()
     st.session_state["_chat_df_cache"] = chat_df
-    st.session_state.chat_unread_count = 0
+    if is_user_viewing_chat():
+        mark_chat_seen(chat_df)
+    else:
+        st.session_state.chat_unread_count = count_unread_chat_messages(chat_df)
 
     def _append(**kwargs):
         append_chat_message(**kwargs)
@@ -9798,9 +9821,10 @@ def _run_app() -> None:
     ensure_media_dirs()
     update_chat_latest_ts(chat_df)
     st.session_state["_chat_df_cache"] = chat_df
+    ensure_chat_seen_baseline(chat_df)
     _initial_unread = count_unread_chat_messages(chat_df)
     st.session_state.chat_unread_count = _initial_unread
-    st.session_state._chat_unread_prev = _initial_unread
+    st.session_state._chat_unread_prev = 0
 
     if not session_is_valid(st.session_state):
         logout_user()

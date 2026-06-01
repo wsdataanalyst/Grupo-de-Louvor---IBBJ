@@ -16,10 +16,6 @@ def _esc(s: object) -> str:
 
 def mobile_perfil_css() -> str:
     return r"""
-    body:has(#ml-perfil-page) [data-testid="stAppViewContainer"] .main .block-container{
-      padding-top: 0.35rem !important;
-      padding-bottom: 7.5rem !important;
-    }
     body:has(#ml-perfil-page) .music-panel-title{ display: none !important; }
     body:has(#ml-perfil-page) [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]{
       flex: 1 1 100% !important;

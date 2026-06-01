@@ -10,10 +10,6 @@ from mobile_lab_ui import inject_mobile_lab_theme
 
 def mobile_playlist_css() -> str:
     return r"""
-    body:has(#ml-playlist-page) [data-testid="stAppViewContainer"] .main .block-container{
-      padding-top: 0.35rem !important;
-      padding-bottom: 7.5rem !important;
-    }
     body:has(#ml-playlist-page) .ig-pl-header,
     body:has(#ml-playlist-page) .ig-m-hdr-row{ display: none !important; }
     body:has(#ml-playlist-page) .ig-m-layout-stack [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]{

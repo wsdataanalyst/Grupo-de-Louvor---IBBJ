@@ -219,8 +219,12 @@ def _draw_chat_feed(members_df: pd.DataFrame, *, force_reload: bool = False) -> 
             except Exception:
                 chat_df = pd.DataFrame()
 
-    if is_user_viewing_chat_mobile():
-        st.session_state.chat_unread_count = 0
+    if is_user_viewing_chat_mobile() and chat_df is not None:
+        try:
+            mark_chat_seen = import_from_main_app("mark_chat_seen")[0]
+            mark_chat_seen(chat_df)
+        except (ImportError, AttributeError):
+            st.session_state.chat_unread_count = 0
 
     render_wa_mobile_messages(chat_df, members_df, rev=rev)
 

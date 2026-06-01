@@ -42,10 +42,6 @@ def _set_sub(sub: str) -> None:
 
 def mobile_sequencia_css() -> str:
     return r"""
-    body:has(#ml-sequencia-page) [data-testid="stAppViewContainer"] .main .block-container{
-      padding-top: 0.35rem !important;
-      padding-bottom: 7.5rem !important;
-    }
     body:has(#ml-sequencia-page) .ml-seq-header{
       background: rgba(11,18,39,.75);
       border: 1px solid rgba(255,255,255,.06);

@@ -16,10 +16,6 @@ def _esc(s: object) -> str:
 
 def mobile_notificacoes_css() -> str:
     return r"""
-    body:has(#ml-notificacoes-page) [data-testid="stAppViewContainer"] .main .block-container{
-      padding-top: 0.35rem !important;
-      padding-bottom: 7.5rem !important;
-    }
     body:has(#ml-notificacoes-page) .ig-feed-header-card{ display: none !important; }
     body:has(#ml-notificacoes-page) .ig-feed-verse{
       border-radius: 24px !important;
