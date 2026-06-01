@@ -9,12 +9,13 @@ import pandas as pd
 import streamlit as st
 
 # Altere ao publicar — confirme no rodapé do chat se o Cloud atualizou
-ML_CHAT_BUILD = "2026-06-01-ml-chat-5"
+ML_CHAT_BUILD = "2026-06-01-ml-chat-6"
 
 from app_runtime import import_from_main_app
 from chat_runtime import (
     CHAT_AUDIO_DIR,
     CHAT_IMAGES_DIR,
+    invalidate_chat_feed_cache,
     is_user_viewing_chat_mobile,
     load_chat_df_live,
     pending_text_key,
@@ -36,6 +37,7 @@ from chat_ui import (
 from chat_whatsapp import mark_chat_scroll_bottom, render_mobile_wa_composer
 from mobile_chat_whatsapp import (
     inject_wa_list_conv_styles,
+    render_wa_feed_from_cache,
     render_wa_list_header_html,
     render_wa_mobile_messages,
     render_wa_thread_header_html,
@@ -160,28 +162,46 @@ def _render_list_view(
         st.rerun()
 
 
-def _draw_chat_feed(members_df: pd.DataFrame) -> None:
-    """Histórico — só chat_runtime (nunca importa app.py)."""
-    try:
-        chat_df = load_chat_df_live()
-    except Exception:
+def _draw_chat_feed(members_df: pd.DataFrame, *, force_reload: bool = False) -> None:
+    """Histórico — usa cache; só reconstrói HTML quando o chat mudou."""
+    rev = str(st.session_state.get("_chat_rev", ""))
+    if force_reload:
+        try:
+            chat_df = load_chat_df_live(force=True)
+        except Exception:
+            chat_df = st.session_state.get("_chat_df_cache")
+            if chat_df is None:
+                chat_df = pd.DataFrame()
+    else:
         chat_df = st.session_state.get("_chat_df_cache")
         if chat_df is None:
-            chat_df = pd.DataFrame()
+            try:
+                chat_df = load_chat_df_live()
+            except Exception:
+                chat_df = pd.DataFrame()
 
-    st.session_state["_chat_df_cache"] = chat_df
     if is_user_viewing_chat_mobile():
         st.session_state.chat_unread_count = 0
 
     st.markdown('<div class="ml-chat-feed-area">', unsafe_allow_html=True)
-    render_wa_mobile_messages(chat_df, members_df)
+    render_wa_mobile_messages(chat_df, members_df, rev=rev)
     st.markdown("</div>", unsafe_allow_html=True)
 
 
-@st.fragment(run_every=timedelta(seconds=4))
+@st.fragment(run_every=timedelta(seconds=8))
 def _wa_chat_feed_tick(members_df: pd.DataFrame) -> None:
-    """Atualização periódica — nome novo para não herdar bytecode antigo no Cloud."""
-    _draw_chat_feed(members_df)
+    """
+    Atualização leve: _chat_global_sync já recarrega o CSV quando muda.
+    Aqui só re-renderiza o feed se a revisão mudou (sem PIL/CSV todo tick).
+    """
+    st.markdown('<div class="ml-chat-feed-area">', unsafe_allow_html=True)
+    if not render_wa_feed_from_cache(members_df):
+        chat_df = st.session_state.get("_chat_df_cache")
+        if chat_df is None:
+            chat_df = pd.DataFrame()
+        rev = str(st.session_state.get("_chat_rev", ""))
+        render_wa_mobile_messages(chat_df, members_df, rev=rev)
+    st.markdown("</div>", unsafe_allow_html=True)
 
 
 def _render_chat_composer_bar() -> None:
@@ -363,13 +383,18 @@ def render_mobile_chat_page(chat_df: pd.DataFrame, members_df: pd.DataFrame) -> 
     pending = st.session_state.pop(pending_key, None)
     if pending and str(pending).strip() and append_chat_message:
         append_chat_message(message=str(pending).strip(), message_type="text", media_file="")
+        invalidate_chat_feed_cache()
         mark_chat_scroll_bottom()
 
-    try:
-        chat_df = load_chat_df_live()
-    except Exception:
-        chat_df = chat_df if chat_df is not None else pd.DataFrame()
-    st.session_state["_chat_df_cache"] = chat_df
+    cached = st.session_state.get("_chat_df_cache")
+    if cached is not None:
+        chat_df = cached
+    else:
+        try:
+            chat_df = load_chat_df_live()
+        except Exception:
+            chat_df = chat_df if chat_df is not None else pd.DataFrame()
+        st.session_state["_chat_df_cache"] = chat_df
     if _chat_view() == "thread":
         mark_chat_seen(chat_df)
     unread = count_unread_chat_messages(chat_df)

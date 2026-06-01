@@ -8,7 +8,12 @@ from datetime import timedelta
 import pandas as pd
 import streamlit as st
 
-from chat_runtime import chat_media_html, sort_chat_messages
+from chat_runtime import (
+    _FEED_HTML_KEY,
+    _FEED_REV_KEY,
+    chat_media_html_cached,
+    sort_chat_messages,
+)
 from chat_ui import GROUP_CHAT_SUB, GROUP_CHAT_TITLE
 from notification_badge import notification_badge_css
 from ui_html import inject_page_script, inject_ui_html
@@ -599,7 +604,7 @@ def build_wa_messages_html(chat_df: pd.DataFrame, members_df: pd.DataFrame) -> s
         display_name = "Você" if is_me else str(row.get("name", "Integrante"))
         time_lbl = _bubble_time_str(row.get("timestamp"))
         ticks = _message_ticks(is_me=is_me, msg_ts=ts_raw, chat_df=chat_df, my_email=my_email)
-        body = _build_message_body(row, chat_media_html)
+        body = _build_message_body(row, chat_media_html_cached)
         show_name = not is_me and not grouped
 
         row_cls = f"wa-msg-row wa-msg-row--{side}"
@@ -627,14 +632,53 @@ def build_wa_messages_html(chat_df: pd.DataFrame, members_df: pd.DataFrame) -> s
     return "\n".join(parts)
 
 
-def render_wa_mobile_messages(chat_df: pd.DataFrame, members_df: pd.DataFrame) -> None:
+def build_wa_messages_html_cached(
+    chat_df: pd.DataFrame, members_df: pd.DataFrame, *, rev: str
+) -> str:
+    if (
+        st.session_state.get(_FEED_REV_KEY) == rev
+        and st.session_state.get(_FEED_HTML_KEY)
+    ):
+        return str(st.session_state[_FEED_HTML_KEY])
     html_block = build_wa_messages_html(chat_df, members_df)
+    st.session_state[_FEED_HTML_KEY] = html_block
+    st.session_state[_FEED_REV_KEY] = rev
+    return html_block
+
+
+def render_wa_mobile_messages(
+    chat_df: pd.DataFrame,
+    members_df: pd.DataFrame,
+    *,
+    rev: str | None = None,
+) -> None:
+    feed_rev = rev if rev is not None else str(st.session_state.get("_chat_rev", ""))
+    html_block = build_wa_messages_html_cached(chat_df, members_df, rev=feed_rev)
     st.markdown(
         f'<div id="chat-scroll-box" class="chat-feed wa-chat-feed">{html_block}'
         f'<div id="chat-scroll-end" style="height:1px;"></div></div>',
         unsafe_allow_html=True,
     )
     inject_wa_scroll_and_lightbox()
+
+
+def render_wa_feed_from_cache(members_df: pd.DataFrame) -> bool:
+    """
+    Reexibe feed do cache sem reconstruir HTML.
+    Retorna False se precisa render completo.
+    """
+    rev = str(st.session_state.get("_chat_rev", ""))
+    if st.session_state.get(_FEED_REV_KEY) != rev:
+        return False
+    html_block = st.session_state.get(_FEED_HTML_KEY)
+    if not html_block:
+        return False
+    st.markdown(
+        f'<div id="chat-scroll-box" class="chat-feed wa-chat-feed">{html_block}'
+        f'<div id="chat-scroll-end" style="height:1px;"></div></div>',
+        unsafe_allow_html=True,
+    )
+    return True
 
 
 def render_wa_thread_header_html(*, member_count: int, online_hint: str = "") -> str:
@@ -665,7 +709,29 @@ def render_wa_list_header_html() -> str:
     """
 
 
+def inject_wa_scroll_nudge_only() -> None:
+    """Só rola ao fim após enviar — sem reinjetar todo o script."""
+    if not st.session_state.pop("_chat_scroll_bottom", False):
+        return
+    inject_page_script(
+        """
+        (function () {
+          var doc = window.parent.document;
+          var box = doc.getElementById("chat-scroll-box");
+          if (box) box.scrollTop = box.scrollHeight + 9999;
+          var end = doc.getElementById("chat-scroll-end");
+          if (end) end.scrollIntoView({ block: "end", behavior: "auto" });
+        })();
+        """
+    )
+
+
 def inject_wa_scroll_and_lightbox() -> None:
+    if st.session_state.get("_wa_chat_js_ready"):
+        inject_wa_scroll_nudge_only()
+        return
+
+    st.session_state["_wa_chat_js_ready"] = True
     force = st.session_state.pop("_chat_scroll_bottom", False)
     force_js = "true" if force else "false"
 

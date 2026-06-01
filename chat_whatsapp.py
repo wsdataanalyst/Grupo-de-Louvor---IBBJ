@@ -9,6 +9,12 @@ import streamlit as st
 
 from chat_media import save_audio_upload, save_image_upload
 
+try:
+    from chat_runtime import invalidate_chat_feed_cache
+except ImportError:
+    def invalidate_chat_feed_cache() -> None:
+        pass
+
 
 def mark_chat_scroll_bottom() -> None:
     st.session_state["_chat_scroll_bottom"] = True
@@ -69,6 +75,7 @@ def _render_attach_mode_mobile(
                     append_fn(message="📷 Foto", message_type="image", media_file=rel)
                     st.session_state[ak] = None
                     _close_mobile_panels(key_prefix)
+                    invalidate_chat_feed_cache()
                     mark_chat_scroll_bottom()
                     st.rerun()
                 else:
@@ -87,6 +94,7 @@ def _render_attach_mode_mobile(
                     append_fn(message="📷 Foto", message_type="image", media_file=rel)
                     st.session_state[ak] = None
                     _close_mobile_panels(key_prefix)
+                    invalidate_chat_feed_cache()
                     mark_chat_scroll_bottom()
                     st.rerun()
                 else:
@@ -105,6 +113,7 @@ def _render_attach_mode_mobile(
                     append_fn(message="🎤 Áudio", message_type="audio", media_file=rel)
                     st.session_state[ak] = None
                     _close_mobile_panels(key_prefix)
+                    invalidate_chat_feed_cache()
                     mark_chat_scroll_bottom()
                     st.rerun()
                 else:
@@ -128,6 +137,7 @@ def _render_attach_mode_mobile(
                     append_fn(message="🎤 Áudio", message_type="audio", media_file=rel)
                     st.session_state[ak] = None
                     _close_mobile_panels(key_prefix)
+                    invalidate_chat_feed_cache()
                     mark_chat_scroll_bottom()
                     st.rerun()
                 else:
@@ -386,7 +396,9 @@ def render_mobile_wa_composer(
                 st.rerun()
 
     if prompt and prompt.strip():
-        st.session_state[f"{key_prefix}_pending_text"] = prompt.strip()
+        append_fn(message=str(prompt).strip(), message_type="text", media_file="")
+        invalidate_chat_feed_cache()
+        mark_chat_scroll_bottom()
         _close_mobile_panels(key_prefix)
         st.rerun()
 

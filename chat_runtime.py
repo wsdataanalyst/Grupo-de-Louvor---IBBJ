@@ -17,6 +17,10 @@ CHAT_FILE = DATA_DIR / "chat.csv"
 CHAT_COLUMNS = ("timestamp", "email", "name", "message", "message_type", "media_file")
 CHAT_AUDIO_DIR = DATA_DIR / "chat_audio"
 CHAT_IMAGES_DIR = DATA_DIR / "chat_images"
+CHAT_LIVE_FILE_NAMES = frozenset({"chat.csv"})
+_FEED_HTML_KEY = "_wa_feed_html"
+_FEED_REV_KEY = "_ml_feed_rev"
+_MEDIA_HTML_KEY = "_chat_media_html_cache"
 
 
 def pending_text_key(key_prefix: str) -> str:
@@ -38,8 +42,50 @@ def prepare_chat_df(df: pd.DataFrame) -> pd.DataFrame:
     return sort_chat_messages(df)
 
 
-def load_chat_df_live() -> pd.DataFrame:
-    """Recarrega chat.csv sem importar app.py (seguro em @st.fragment no Cloud)."""
+def chat_data_revision() -> str:
+    """Fingerprint de chat.csv (local ou nuvem) — igual conceito ao app.py."""
+    try:
+        from remote_store import fetch_sync_revisions, is_remote_enabled
+
+        if is_remote_enabled():
+            remote = fetch_sync_revisions(CHAT_LIVE_FILE_NAMES)
+            if remote:
+                return f"remote:{remote}"
+    except Exception:
+        pass
+    try:
+        stat = CHAT_FILE.stat()
+        return f"local:{stat.st_mtime_ns}:{stat.st_size}"
+    except OSError:
+        return "local:missing"
+
+
+def invalidate_chat_feed_cache() -> None:
+    """Força reconstruir HTML do feed após enviar/editar mensagem."""
+    st.session_state.pop(_FEED_HTML_KEY, None)
+    st.session_state.pop(_FEED_REV_KEY, None)
+    try:
+        st.session_state["_chat_rev"] = chat_data_revision()
+    except Exception:
+        pass
+
+
+def load_chat_df_live(*, force: bool = False) -> pd.DataFrame:
+    """Recarrega chat.csv; usa cache de sessão se a revisão não mudou."""
+    try:
+        new_rev = chat_data_revision()
+    except Exception:
+        new_rev = ""
+    cached = st.session_state.get("_chat_df_cache")
+    old_rev = st.session_state.get("_chat_rev")
+    if (
+        not force
+        and cached is not None
+        and old_rev is not None
+        and new_rev == old_rev
+    ):
+        return cached
+
     from data_persistence import load_csv_preserve_rows
 
     try:
@@ -50,12 +96,37 @@ def load_chat_df_live() -> pd.DataFrame:
             if df is not None:
                 CHAT_FILE.parent.mkdir(parents=True, exist_ok=True)
                 df.to_csv(CHAT_FILE, index=False)
-                return prepare_chat_df(df)
+                out = prepare_chat_df(df)
+                st.session_state["_chat_df_cache"] = out
+                st.session_state["_chat_rev"] = new_rev
+                invalidate_chat_feed_cache()
+                return out
     except Exception:
         pass
 
     raw = load_csv_preserve_rows(CHAT_FILE, CHAT_COLUMNS)
-    return prepare_chat_df(raw)
+    out = prepare_chat_df(raw)
+    st.session_state["_chat_df_cache"] = out
+    st.session_state["_chat_rev"] = new_rev
+    invalidate_chat_feed_cache()
+    return out
+
+
+def chat_media_html_cached(mtype: str, media_file: str, *, data_dir: Path | None = None) -> str:
+    """Cache de miniaturas/base64 — evita reprocessar PIL a cada 4s."""
+    rel = str(media_file or "").strip()
+    if not rel:
+        return chat_media_html(mtype, media_file, data_dir=data_dir)
+    key = f"{mtype}:{rel}"
+    bag = st.session_state.get(_MEDIA_HTML_KEY)
+    if isinstance(bag, dict) and key in bag:
+        return bag[key]
+    html = chat_media_html(mtype, media_file, data_dir=data_dir)
+    if not isinstance(bag, dict):
+        bag = {}
+    bag[key] = html
+    st.session_state[_MEDIA_HTML_KEY] = bag
+    return html
 
 
 def is_user_viewing_chat() -> bool:
