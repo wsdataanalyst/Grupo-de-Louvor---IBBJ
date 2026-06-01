@@ -22,6 +22,7 @@ from chat_ui import (
     render_thread_header_html,
     role_badge_meta,
 )
+from app_runtime import import_from_main_app
 from chat_whatsapp import mark_chat_scroll_bottom
 from mobile_lab_ui import inject_mobile_lab_theme
 
@@ -313,7 +314,11 @@ def _render_quick_replies(*, key_prefix: str) -> None:
 @st.fragment(run_every=timedelta(seconds=4))
 def _ml_chat_feed_fragment(members_df: pd.DataFrame) -> None:
     """Histórico ao vivo (sem recomposer a cada 4s — mantém campo de envio estável)."""
-    from app import is_user_viewing_chat, load_chat_df, render_chat_messages
+    load_chat_df, is_user_viewing_chat, render_chat_messages = import_from_main_app(
+        "load_chat_df",
+        "is_user_viewing_chat",
+        "render_chat_messages",
+    )
 
     chat_df = load_chat_df()
     st.session_state["_chat_df_cache"] = chat_df
@@ -325,11 +330,16 @@ def _ml_chat_feed_fragment(members_df: pd.DataFrame) -> None:
 
 
 def _render_chat_composer_bar() -> None:
-    from app import (
+    (
         CHAT_AUDIO_DIR,
         CHAT_IMAGES_DIR,
         append_chat_message,
         render_chat_composer,
+    ) = import_from_main_app(
+        "CHAT_AUDIO_DIR",
+        "CHAT_IMAGES_DIR",
+        "append_chat_message",
+        "render_chat_composer",
     )
 
     def _append(**kwargs):
@@ -363,7 +373,13 @@ def _render_info_view(
     imgs: int,
     auds: int,
 ) -> None:
-    from app import member_display_name, member_photo_html, members_visible_to_group
+    member_display_name, member_photo_html, members_visible_to_group = (
+        import_from_main_app(
+            "member_display_name",
+            "member_photo_html",
+            "members_visible_to_group",
+        )
+    )
 
     _render_topbar(title="Informações", show_back=True)
     member_rows: list[tuple[str, str, str, str]] = []
@@ -449,13 +465,20 @@ def _render_stats_view(
 
 
 def render_mobile_chat_page(chat_df: pd.DataFrame, members_df: pd.DataFrame) -> None:
-    from app import (
+    (
         append_chat_message,
         count_unread_chat_messages,
         load_chat_df,
         mark_chat_seen,
         members_visible_to_group,
         pending_text_key,
+    ) = import_from_main_app(
+        "append_chat_message",
+        "count_unread_chat_messages",
+        "load_chat_df",
+        "mark_chat_seen",
+        "members_visible_to_group",
+        "pending_text_key",
     )
 
     inject_mobile_lab_theme()
