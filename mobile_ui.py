@@ -85,6 +85,20 @@ def mobile_first_css() -> str:
                 min-width: 0 !important;
             }}
 
+            /* Chat mobile: barra de digitação em uma linha */
+            body:has(#ml-chat-page) [class*="st-key-ml_chat_compose_main"] [data-testid="stHorizontalBlock"] {{
+                flex-wrap: nowrap !important;
+            }}
+            body:has(#ml-chat-page) [class*="st-key-ml_chat_compose_main"] [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {{
+                flex: 0 0 auto !important;
+                width: auto !important;
+                max-width: none !important;
+            }}
+            body:has(#ml-chat-page) [class*="st-key-ml_chat_compose_main"] [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:nth-child(3) {{
+                flex: 1 1 auto !important;
+                min-width: 0 !important;
+            }}
+
             /* Linhas que devem ficar lado a lado (2 colunas no máximo) */
             .ig-m-row-2 [data-testid="stHorizontalBlock"] {{
                 flex-wrap: nowrap !important;

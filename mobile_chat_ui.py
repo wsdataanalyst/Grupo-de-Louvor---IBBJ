@@ -9,7 +9,7 @@ import pandas as pd
 import streamlit as st
 
 # Altere ao publicar — confirme no rodapé do chat se o Cloud atualizou
-ML_CHAT_BUILD = "2026-06-01-ml-chat-4"
+ML_CHAT_BUILD = "2026-06-01-ml-chat-5"
 
 from app_runtime import import_from_main_app
 from chat_runtime import (
@@ -33,7 +33,7 @@ from chat_ui import (
     render_info_panel_html,
     role_badge_meta,
 )
-from chat_whatsapp import mark_chat_scroll_bottom
+from chat_whatsapp import mark_chat_scroll_bottom, render_mobile_wa_composer
 from mobile_chat_whatsapp import (
     inject_wa_list_conv_styles,
     render_wa_list_header_html,
@@ -193,7 +193,7 @@ def _render_chat_composer_bar() -> None:
         append_chat_message(**kwargs)
 
     with st.container(key="ml_chat_composer"):
-        render_whatsapp_chat_composer(
+        render_mobile_wa_composer(
             key_prefix="group_chat",
             append_fn=_append,
             audio_dir=CHAT_AUDIO_DIR,
