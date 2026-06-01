@@ -2712,6 +2712,12 @@ def set_user_session(
     if device_token:
         st.session_state.device_session_token = str(device_token).strip()
     session_touch(st.session_state)
+    try:
+        from mobile_lab import apply_mobile_lab_for_beta_user
+
+        apply_mobile_lab_for_beta_user(str(user_row.get("email", "")))
+    except Exception:
+        pass
 
 
 def issue_device_session_token(email: str) -> str:
