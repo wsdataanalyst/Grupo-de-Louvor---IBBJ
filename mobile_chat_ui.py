@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import html
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pandas as pd
 import streamlit as st
@@ -41,8 +41,10 @@ def _esc(s: object) -> str:
 
 
 def _chat_view() -> str:
-    v = str(st.session_state.get("ml_chat_view", "list")).strip()
-    return v if v in _CHAT_VIEWS else "list"
+    if "ml_chat_view" not in st.session_state:
+        st.session_state.ml_chat_view = "thread"
+    v = str(st.session_state.get("ml_chat_view", "thread")).strip()
+    return v if v in _CHAT_VIEWS else "thread"
 
 
 def _set_chat_view(view: str) -> None:
@@ -56,29 +58,11 @@ def mobile_chat_css() -> str:
         + r"""
     body:has(#ml-chat-page) [data-testid="stAppViewContainer"] .main .block-container{
       padding-top: 0.2rem !important;
-      padding-bottom: 7.25rem !important;
+      padding-bottom: calc(var(--ml-nav-height) + var(--ml-verse-height) + var(--ml-nav-offset) + 5.5rem) !important;
       max-width: 100% !important;
     }
     body:has(#ml-chat-page) .ig-chat-header{ display: none !important; }
     body:has(#ml-chat-page) .ig-chat-page{ max-width: 100%; }
-    body:has(#ml-chat-page) .ml-chat-ticker{
-      overflow: hidden;
-      margin: 0 0 0.65rem;
-      padding: 8px 12px;
-      border-radius: 14px;
-      background: rgba(30,58,138,.35);
-      border: 1px solid rgba(59,130,246,.25);
-    }
-    body:has(#ml-chat-page) .ml-chat-ticker-track{
-      display: inline-flex;
-      gap: 2.5rem;
-      white-space: nowrap;
-      animation: ml-chat-ticker 28s linear infinite;
-    }
-    @keyframes ml-chat-ticker{
-      from { transform: translateX(0); }
-      to { transform: translateX(-50%); }
-    }
     body:has(#ml-chat-page) .ml-chat-topbar{
       display: flex;
       align-items: center;
@@ -129,29 +113,43 @@ def mobile_chat_css() -> str:
     }
     body:has(#ml-chat-page) .ml-chat-thread-shell{
       border-radius: 18px;
-      background: rgba(3,7,18,.65);
+      background: rgba(3,7,18,.45);
       border: 1px solid rgba(255,255,255,.08);
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
-      min-height: calc(100vh - 220px);
-      max-height: calc(100vh - 200px);
+      overflow: visible;
+      margin-bottom: 0.25rem;
     }
-    body:has(#ml-chat-page) .ml-chat-thread-shell .ig-chat-thread-head{
-      flex-shrink: 0;
-    }
-    body:has(#ml-chat-page) .ml-chat-thread-shell #chat-scroll-box.ig-chat-feed{
-      flex: 1;
-      min-height: 0;
-      max-height: none;
+    body:has(#ml-chat-page) .ml-chat-feed-area #chat-scroll-box.ig-chat-feed{
+      min-height: 38vh;
+      max-height: 52vh;
       overflow-y: auto !important;
       -webkit-overflow-scrolling: touch;
+      margin-bottom: 0.35rem;
     }
-    body:has(#ml-chat-page) .ml-chat-thread-shell .ig-chat-compose-wrap{
-      flex-shrink: 0;
-      position: sticky;
-      bottom: 0;
-      z-index: 2;
+    body:has(#ml-chat-page) [class*="st-key-ml_chat_composer"]{
+      position: fixed !important;
+      left: 50% !important;
+      transform: translateX(-50%) !important;
+      width: min(420px, calc(100vw - 12px)) !important;
+      max-width: 420px !important;
+      bottom: calc(var(--ml-nav-height) + var(--ml-verse-height) + var(--ml-nav-offset) + 8px) !important;
+      z-index: 2147483650 !important;
+      margin: 0 !important;
+      padding: 0.4rem 0.55rem !important;
+      box-sizing: border-box !important;
+      background: rgba(8,17,32,.97) !important;
+      border: 1px solid rgba(255,255,255,.1) !important;
+      border-radius: 18px !important;
+      box-shadow: 0 -8px 32px rgba(0,0,0,.45) !important;
+    }
+    body:has(#ml-chat-page) [class*="st-key-ml_chat_composer"] [data-testid="stChatInput"],
+    body:has(#ml-chat-page) [class*="st-key-ml_chat_composer"] [data-testid="stChatInput"] textarea{
+      display: block !important;
+      visibility: visible !important;
+      opacity: 1 !important;
+      min-height: 2.75rem !important;
+    }
+    body:has(#ml-chat-page) [class*="st-key-ml_chat_composer"] .stButton > button{
+      min-height: 2.6rem !important;
     }
     body:has(#ml-chat-page) .ml-chat-quick-row{
       display: flex;
@@ -216,41 +214,12 @@ def mobile_chat_css() -> str:
     )
 
 
-def _ticker_line() -> str:
-    parts: list[str] = []
-    try:
-        from verse_of_day import verse_for_date
-
-        v = verse_for_date()
-        txt = str(v.get("text", "")).strip()
-        ref = str(v.get("ref", "")).strip()
-        if txt:
-            parts.append(f"📖 {txt}" + (f" — {ref}" if ref else ""))
-    except Exception:
-        pass
-    parts.extend(
-        [
-            "💬 Respeite a equipe nas mensagens do grupo",
-            "📅 Confira ensaios e cultos em Escalas",
-            "🎵 Dúvidas sobre música? Use Sugestões de louvor",
-        ]
-    )
-    line = "   •   ".join(parts)
-    safe = _esc(line)
-    return (
-        f'<div class="ml-chat-ticker" role="marquee">'
-        f'<div class="ml-chat-ticker-track">'
-        f'<span>{safe}</span><span aria-hidden="true">{safe}</span>'
-        f"</div></div>"
-    )
-
-
 def _render_topbar(*, title: str, show_back: bool = False) -> None:
     c_back, c_title, c_act = st.columns([1, 4, 1])
     with c_back:
         if show_back:
             with st.container(key="ml_chat_back"):
-                if st.button("←", key="ml_chat_back_btn", help="Voltar"):
+                if st.button("☰", key="ml_chat_back_btn", help="Lista de conversas"):
                     _set_chat_view("list")
                     st.rerun()
     with c_title:
@@ -290,7 +259,6 @@ def _render_list_view(
     chat_df: pd.DataFrame,
 ) -> None:
     _render_topbar(title="Conversas", show_back=False)
-    st.markdown(_ticker_line(), unsafe_allow_html=True)
 
     n_msgs = len(chat_df) if chat_df is not None and not chat_df.empty else 0
     _render_stats_row(n_members=n_members, unread=unread, n_msgs=n_msgs)
@@ -342,15 +310,50 @@ def _render_quick_replies(*, key_prefix: str) -> None:
     st.markdown("</div>", unsafe_allow_html=True)
 
 
-def _render_thread_view(members_df: pd.DataFrame) -> None:
-    from app import _chat_group_live
+@st.fragment(run_every=timedelta(seconds=4))
+def _ml_chat_feed_fragment(members_df: pd.DataFrame) -> None:
+    """Histórico ao vivo (sem recomposer a cada 4s — mantém campo de envio estável)."""
+    from app import load_chat_df, render_chat_messages
 
+    chat_df = load_chat_df()
+    st.session_state["_chat_df_cache"] = chat_df
+    st.session_state.chat_unread_count = 0
+    st.markdown('<div class="ml-chat-feed-area">', unsafe_allow_html=True)
+    render_chat_messages(chat_df, members_df, premium=True)
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
+def _render_chat_composer_bar() -> None:
+    from app import (
+        CHAT_AUDIO_DIR,
+        CHAT_IMAGES_DIR,
+        append_chat_message,
+        render_chat_composer,
+    )
+
+    def _append(**kwargs):
+        append_chat_message(**kwargs)
+
+    with st.container(key="ml_chat_composer"):
+        render_chat_composer(
+            key_prefix="group_chat",
+            append_fn=_append,
+            audio_dir=CHAT_AUDIO_DIR,
+            audio_prefix="chat",
+            images_dir=CHAT_IMAGES_DIR,
+            image_prefix="chat",
+        )
+
+
+def _render_thread_view(members_df: pd.DataFrame) -> None:
+    n = len(members_df) if members_df is not None else 0
     _render_topbar(title=GROUP_CHAT_TITLE, show_back=True)
     st.markdown('<div class="ml-chat-thread-shell">', unsafe_allow_html=True)
-    render_thread_header_html(len(members_df) if members_df is not None else 0)
-    _render_quick_replies(key_prefix="group_chat")
-    _chat_group_live(members_df, premium=True)
+    render_thread_header_html(n)
     st.markdown("</div>", unsafe_allow_html=True)
+    _render_quick_replies(key_prefix="group_chat")
+    _ml_chat_feed_fragment(members_df)
+    _render_chat_composer_bar()
 
 
 def _render_info_view(
