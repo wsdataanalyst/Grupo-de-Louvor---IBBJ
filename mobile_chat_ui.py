@@ -10,7 +10,7 @@ import pandas as pd
 import streamlit as st
 
 # Altere ao publicar — confirme no rodapé do chat se o Cloud atualizou
-ML_CHAT_BUILD = "2026-06-01-ml-chat-9"
+ML_CHAT_BUILD = "2026-06-01-ml-chat-10"
 
 from app_runtime import import_from_main_app
 from chat_runtime import (
@@ -21,7 +21,6 @@ from chat_runtime import (
     invalidate_chat_feed_cache,
     is_user_viewing_chat_mobile,
     load_chat_df_live,
-    pending_text_key,
 )
 from chat_whatsapp import render_whatsapp_chat_composer
 from chat_ui import (
@@ -229,18 +228,23 @@ def _draw_chat_feed(members_df: pd.DataFrame, *, force_reload: bool = False) -> 
     render_wa_mobile_messages(chat_df, members_df, rev=rev)
 
 
-@st.fragment(run_every=timedelta(seconds=8))
-def _wa_chat_feed_tick(members_df: pd.DataFrame) -> None:
+@st.fragment(run_every=timedelta(seconds=4))
+def _wa_chat_thread_live(members_df: pd.DataFrame) -> None:
     """
-    Atualização leve: _chat_global_sync já recarrega o CSV quando muda.
-    Aqui só re-renderiza o feed se a revisão mudou (sem PIL/CSV todo tick).
+    Feed + composer no mesmo fragment: ao enviar, rerun só desta área (rápido).
     """
-    if not render_wa_feed_from_cache(members_df):
-        chat_df = st.session_state.get("_chat_df_cache")
-        if chat_df is None:
-            chat_df = pd.DataFrame()
-        rev = str(st.session_state.get("_chat_rev", ""))
-        render_wa_mobile_messages(chat_df, members_df, rev=rev)
+    with st.container(key="ml_chat_feed_wrap"):
+        if not render_wa_feed_from_cache(members_df):
+            chat_df = st.session_state.get("_chat_df_cache")
+            if chat_df is None:
+                try:
+                    chat_df = load_chat_df_live()
+                except Exception:
+                    chat_df = pd.DataFrame()
+            rev = str(st.session_state.get("_chat_rev", ""))
+            render_wa_mobile_messages(chat_df, members_df, rev=rev)
+
+    _render_chat_composer_bar()
 
 
 def _render_chat_composer_bar() -> None:
@@ -285,10 +289,7 @@ def _render_thread_view(members_df: pd.DataFrame) -> None:
                     _set_chat_view("info")
                     st.rerun()
 
-    with st.container(key="ml_chat_feed_wrap"):
-        _wa_chat_feed_tick(members_df)
-
-    _render_chat_composer_bar()
+    _wa_chat_thread_live(members_df)
 
 
 def _render_info_view(
@@ -420,13 +421,6 @@ def render_mobile_chat_page(chat_df: pd.DataFrame, members_df: pd.DataFrame) -> 
 
     inject_mobile_lab_theme()
     st.markdown(f"<style>{mobile_chat_css()}</style>", unsafe_allow_html=True)
-
-    pending_key = pending_text_key("group_chat")
-    pending = st.session_state.pop(pending_key, None)
-    if pending and str(pending).strip() and append_chat_message:
-        append_chat_message(message=str(pending).strip(), message_type="text", media_file="")
-        invalidate_chat_feed_cache()
-        mark_chat_scroll_bottom()
 
     cached = st.session_state.get("_chat_df_cache")
     if cached is not None:

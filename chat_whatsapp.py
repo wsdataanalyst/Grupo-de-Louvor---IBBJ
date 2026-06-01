@@ -20,6 +20,17 @@ def mark_chat_scroll_bottom() -> None:
     st.session_state["_chat_scroll_bottom"] = True
 
 
+def rerun_chat_surface(*, full: bool = False) -> None:
+    """Recarrega só o fragment do chat (envio instantâneo); fallback para página inteira."""
+    if full:
+        st.rerun()
+        return
+    try:
+        st.rerun(scope="fragment")
+    except (TypeError, ValueError):
+        st.rerun()
+
+
 class _BytesUpload:
     def __init__(self, raw: bytes, name: str):
         self._raw = raw
@@ -77,7 +88,7 @@ def _render_attach_mode_mobile(
                     _close_mobile_panels(key_prefix)
                     invalidate_chat_feed_cache()
                     mark_chat_scroll_bottom()
-                    st.rerun()
+                    rerun_chat_surface()
                 else:
                     st.warning("Escolha uma foto.")
         with c2:
@@ -96,7 +107,7 @@ def _render_attach_mode_mobile(
                     _close_mobile_panels(key_prefix)
                     invalidate_chat_feed_cache()
                     mark_chat_scroll_bottom()
-                    st.rerun()
+                    rerun_chat_surface()
                 else:
                     st.warning("Tire a foto primeiro.")
         with c2:
@@ -115,7 +126,7 @@ def _render_attach_mode_mobile(
                     _close_mobile_panels(key_prefix)
                     invalidate_chat_feed_cache()
                     mark_chat_scroll_bottom()
-                    st.rerun()
+                    rerun_chat_surface()
                 else:
                     st.warning("Grave o áudio antes de enviar.")
         with c2:
@@ -139,7 +150,7 @@ def _render_attach_mode_mobile(
                     _close_mobile_panels(key_prefix)
                     invalidate_chat_feed_cache()
                     mark_chat_scroll_bottom()
-                    st.rerun()
+                    rerun_chat_surface()
                 else:
                     st.warning("Selecione um áudio.")
         with c2:
@@ -397,10 +408,8 @@ def render_mobile_wa_composer(
 
     if prompt and prompt.strip():
         append_fn(message=str(prompt).strip(), message_type="text", media_file="")
-        invalidate_chat_feed_cache()
-        mark_chat_scroll_bottom()
         _close_mobile_panels(key_prefix)
-        st.rerun()
+        rerun_chat_surface()
 
     st.markdown("</div>", unsafe_allow_html=True)
     st.markdown('<div id="chat-page-end" style="height:1px;"></div>', unsafe_allow_html=True)

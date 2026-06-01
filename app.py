@@ -4425,7 +4425,11 @@ def append_chat_message(
     media_file: str = "",
     notify: bool = True,
 ) -> pd.DataFrame:
-    base = load_chat_df()
+    cached = st.session_state.get("_chat_df_cache")
+    if isinstance(cached, pd.DataFrame):
+        base = cached.copy()
+    else:
+        base = load_chat_df()
     new_message = {
         "timestamp": timestamp_now(),
         "email": st.session_state.user_email,
@@ -4435,11 +4439,19 @@ def append_chat_message(
         "media_file": media_file,
     }
     updated = pd.concat([base, pd.DataFrame([new_message])], ignore_index=True)
-    if not save_data(updated, CHAT_FILE):
+    updated = prepare_chat(updated)
+    if not save_data(updated, CHAT_FILE, quiet=True):
         show_technical_error("Não foi possível salvar a mensagem no chat.")
         return base
     st.session_state["_chat_df_cache"] = updated
     update_chat_latest_ts(updated)
+    try:
+        from chat_runtime import chat_data_revision, invalidate_chat_feed_cache
+
+        invalidate_chat_feed_cache()
+        st.session_state["_chat_rev"] = chat_data_revision()
+    except Exception:
+        pass
     mark_chat_scroll_bottom()
     if notify:
         try:
