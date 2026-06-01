@@ -7,22 +7,28 @@ from types import ModuleType
 from typing import Any
 
 
-def main_app_module() -> ModuleType:
+def _candidate_app_modules() -> list[ModuleType]:
     """
-    Retorna o módulo carregado do app.
+    Módulos que podem ser o app.py principal.
 
-    Com `streamlit run app.py`, o código vive em ``__main__`` — não em ``app``.
-    Imports ``from app import …`` em fragments podem falhar no Cloud; use este helper.
+    Preferimos __main__ (streamlit run app.py) antes de app, porque no Cloud
+    ``import app`` pode ficar incompleto e faltar funções como is_user_viewing_chat.
     """
-    for key in ("app", "__main__"):
+    found: list[ModuleType] = []
+    for key in ("__main__", "app"):
         mod = sys.modules.get(key)
         if mod is None:
             continue
-        file_name = str(getattr(mod, "__file__", "") or "")
-        if key == "__main__" and file_name and not file_name.replace("\\", "/").endswith(
-            ("app.py", "/app.py")
-        ):
+        file_name = str(getattr(mod, "__file__", "") or "").replace("\\", "/")
+        if key == "__main__" and file_name and not file_name.endswith("app.py"):
             continue
+        if mod not in found:
+            found.append(mod)
+    return found
+
+
+def main_app_module() -> ModuleType:
+    for mod in _candidate_app_modules():
         if hasattr(mod, "load_chat_df"):
             return mod
     raise ImportError(
@@ -31,17 +37,17 @@ def main_app_module() -> ModuleType:
 
 
 def getattr_app(name: str) -> Any:
-    return getattr(main_app_module(), name)
+    for mod in _candidate_app_modules():
+        if hasattr(mod, name):
+            return getattr(mod, name)
+    raise AttributeError(
+        f"Nenhum módulo app/__main__ define '{name}'. "
+        "Confira se o deploy usa a branch mobile-lab atualizada."
+    )
 
 
 def import_from_main_app(*names: str) -> tuple[Any, ...]:
-    mod = main_app_module()
     out: list[Any] = []
     for n in names:
-        if not hasattr(mod, n):
-            raise AttributeError(
-                f"'{getattr(mod, '__name__', mod)}' não define '{n}'. "
-                f"Atualize o deploy (mobile-lab) ou evite importar isso em @st.fragment."
-            )
-        out.append(getattr(mod, n))
+        out.append(getattr_app(n))
     return tuple(out)

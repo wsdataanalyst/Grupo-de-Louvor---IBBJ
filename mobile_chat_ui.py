@@ -8,6 +8,9 @@ from datetime import datetime, timedelta
 import pandas as pd
 import streamlit as st
 
+# Altere ao publicar — confirme no rodapé do chat se o Cloud atualizou
+ML_CHAT_BUILD = "2026-06-01-ml-chat-3"
+
 from app_runtime import import_from_main_app
 from chat_runtime import (
     CHAT_AUDIO_DIR,
@@ -16,6 +19,7 @@ from chat_runtime import (
     load_chat_df_live,
     pending_text_key,
 )
+from chat_whatsapp import render_whatsapp_chat_composer
 from chat_ui import (
     CHAT_LIST_TABS,
     GROUP_CHAT_SUB,
@@ -156,9 +160,8 @@ def _render_list_view(
         st.rerun()
 
 
-@st.fragment(run_every=timedelta(seconds=4))
-def _ml_chat_feed_fragment(members_df: pd.DataFrame) -> None:
-    """Histórico ao vivo — sem importar app.py (evita AttributeError no Cloud)."""
+def _draw_chat_feed(members_df: pd.DataFrame) -> None:
+    """Histórico — só chat_runtime (nunca importa app.py)."""
     try:
         chat_df = load_chat_df_live()
     except Exception:
@@ -175,24 +178,29 @@ def _ml_chat_feed_fragment(members_df: pd.DataFrame) -> None:
     st.markdown("</div>", unsafe_allow_html=True)
 
 
+@st.fragment(run_every=timedelta(seconds=4))
+def _wa_chat_feed_tick(members_df: pd.DataFrame) -> None:
+    """Atualização periódica — nome novo para não herdar bytecode antigo no Cloud."""
+    _draw_chat_feed(members_df)
+
+
 def _render_chat_composer_bar() -> None:
-    bundle = st.session_state.get("_ml_chat_bundle") or {}
-    append_chat_message = bundle.get("append_chat_message")
-    render_chat_composer = bundle.get("render_chat_composer")
-    if not append_chat_message or not render_chat_composer:
+    append_chat_message = st.session_state.get("_ml_append_chat")
+    if not append_chat_message:
         return
 
     def _append(**kwargs):
         append_chat_message(**kwargs)
 
     with st.container(key="ml_chat_composer"):
-        render_chat_composer(
+        render_whatsapp_chat_composer(
             key_prefix="group_chat",
             append_fn=_append,
             audio_dir=CHAT_AUDIO_DIR,
             audio_prefix="chat",
             images_dir=CHAT_IMAGES_DIR,
             image_prefix="chat",
+            data_dir=CHAT_AUDIO_DIR.parent,
         )
 
 
@@ -218,7 +226,7 @@ def _render_thread_view(members_df: pd.DataFrame) -> None:
                 st.rerun()
 
     st.markdown('<div class="wa-thread-layout">', unsafe_allow_html=True)
-    _ml_chat_feed_fragment(members_df)
+    _wa_chat_feed_tick(members_df)
     st.markdown("</div>", unsafe_allow_html=True)
     _render_chat_composer_bar()
 
@@ -324,33 +332,29 @@ def _render_stats_view(
 
 
 def render_mobile_chat_page(chat_df: pd.DataFrame, members_df: pd.DataFrame) -> None:
+    append_chat_message = None
+    count_unread_chat_messages = lambda _df=None: int(
+        st.session_state.get("chat_unread_count", 0) or 0
+    )
+    mark_chat_seen = lambda _df: None
+    members_visible_to_group = lambda m: m
+
     try:
         (
             append_chat_message,
             count_unread_chat_messages,
-            load_chat_df,
             mark_chat_seen,
             members_visible_to_group,
         ) = import_from_main_app(
             "append_chat_message",
             "count_unread_chat_messages",
-            "load_chat_df",
             "mark_chat_seen",
             "members_visible_to_group",
         )
-        render_chat_composer = import_from_main_app("render_chat_composer")[0]
     except (ImportError, AttributeError):
-        append_chat_message = None
-        count_unread_chat_messages = lambda _df=None: 0
-        load_chat_df = load_chat_df_live
-        mark_chat_seen = lambda _df: None
-        members_visible_to_group = lambda m: m
-        render_chat_composer = None
+        pass
 
-    st.session_state["_ml_chat_bundle"] = {
-        "append_chat_message": append_chat_message,
-        "render_chat_composer": render_chat_composer,
-    }
+    st.session_state["_ml_append_chat"] = append_chat_message
 
     inject_mobile_lab_theme()
     st.markdown(f"<style>{mobile_chat_css()}</style>", unsafe_allow_html=True)
@@ -362,9 +366,9 @@ def render_mobile_chat_page(chat_df: pd.DataFrame, members_df: pd.DataFrame) -> 
         mark_chat_scroll_bottom()
 
     try:
-        chat_df = load_chat_df()
-    except Exception:
         chat_df = load_chat_df_live()
+    except Exception:
+        chat_df = chat_df if chat_df is not None else pd.DataFrame()
     st.session_state["_chat_df_cache"] = chat_df
     if _chat_view() == "thread":
         mark_chat_seen(chat_df)
@@ -375,9 +379,10 @@ def render_mobile_chat_page(chat_df: pd.DataFrame, members_df: pd.DataFrame) -> 
 
     render_chat_page_open()
     st.markdown(
-        '<div id="ml-chat-page" class="ml-page wa-chat-page"></div>',
+        f'<div id="ml-chat-page" class="ml-page wa-chat-page" data-build="{_esc(ML_CHAT_BUILD)}"></div>',
         unsafe_allow_html=True,
     )
+    st.caption(f"Chat mobile · build `{ML_CHAT_BUILD}`")
 
     view = _chat_view()
     if view == "thread":

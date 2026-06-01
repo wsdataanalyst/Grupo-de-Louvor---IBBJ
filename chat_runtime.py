@@ -58,6 +58,13 @@ def load_chat_df_live() -> pd.DataFrame:
     return prepare_chat_df(raw)
 
 
+def is_user_viewing_chat() -> bool:
+    """Desktop (app_menu) ou mobile lab na thread do chat."""
+    if str(st.session_state.get("app_menu", "")).strip() == "Chat":
+        return True
+    return is_user_viewing_chat_mobile()
+
+
 def is_user_viewing_chat_mobile() -> bool:
     """Usuário na tela ativa do chat mobile (thread)."""
     try:
