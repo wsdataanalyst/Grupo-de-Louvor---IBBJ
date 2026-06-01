@@ -89,26 +89,32 @@ def mobile_lab_css() -> str:
       flex: 0 0 auto;
       font-size: 16px;
     }
+  /* Letreiro: versículo com rolagem automática horizontal */
     body:has(#ml-mobile-lab-mode) #ml-verse-strip .ml-verse-marquee{
       flex: 1 1 auto;
       min-width: 0;
       overflow: hidden;
-      -webkit-mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
-      mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
+      position: relative;
+      -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 10%, #000 90%, transparent 100%);
+      mask-image: linear-gradient(90deg, transparent 0%, #000 10%, #000 90%, transparent 100%);
     }
     body:has(#ml-mobile-lab-mode) #ml-verse-strip .ml-verse-marquee-track{
       display: inline-flex;
+      flex-direction: row;
+      flex-wrap: nowrap;
       align-items: center;
-      gap: 3rem;
+      width: max-content;
       white-space: nowrap;
-      animation: ml-verse-marquee 32s linear infinite;
       will-change: transform;
+      animation: ml-verse-marquee var(--ml-verse-dur, 28s) linear infinite;
     }
     body:has(#ml-mobile-lab-mode) #ml-verse-strip .ml-verse-marquee-item{
+      flex: 0 0 auto;
+      padding-right: 3.5rem;
       color: rgba(226,232,240,.96);
       font-family: 'Manrope', system-ui, sans-serif;
       font-size: 12px;
-      line-height: 1.15;
+      line-height: 1.2;
       font-weight: 700;
     }
     body:has(#ml-mobile-lab-mode) #ml-verse-strip .ml-verse-marquee-item .ml-verse-ref{
@@ -118,15 +124,20 @@ def mobile_lab_css() -> str:
       margin-left: 10px;
     }
     @keyframes ml-verse-marquee{
-      0% { transform: translateX(-50%); }
-      100% { transform: translateX(0); }
+      from { transform: translate3d(0, 0, 0); }
+      to { transform: translate3d(var(--ml-verse-shift, -50%), 0, 0); }
     }
     @media (prefers-reduced-motion: reduce){
+      body:has(#ml-mobile-lab-mode) #ml-verse-strip .ml-verse-marquee{
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        mask-image: none;
+        -webkit-mask-image: none;
+      }
       body:has(#ml-mobile-lab-mode) #ml-verse-strip .ml-verse-marquee-track{
         animation: none;
         transform: none;
-        flex-wrap: wrap;
-        white-space: normal;
+        width: auto;
       }
     }
     body:has(#ml-bottom-nav-start) [data-testid="stAppViewContainer"],
@@ -584,6 +595,54 @@ _ML_CHROME_HIDE_JS = r"""
 """
 
 
+_ML_VERSE_MARQUEE_JS = r"""
+(function () {
+  function tune() {
+    var strip = document.getElementById("ml-verse-strip");
+    if (!strip) return;
+    var track = strip.querySelector(".ml-verse-marquee-track");
+    if (!track) return;
+    var half = track.scrollWidth / 2;
+    if (!half || half < 8) return;
+    var pxPerSec = 48;
+    var sec = Math.max(16, Math.min(60, half / pxPerSec));
+    strip.style.setProperty("--ml-verse-dur", sec + "s");
+    strip.style.setProperty("--ml-verse-shift", "-" + half + "px");
+  }
+  tune();
+  [120, 500, 1500, 3000].forEach(function (ms) {
+    setTimeout(tune, ms);
+  });
+  try {
+    var obs = new MutationObserver(function () {
+      setTimeout(tune, 150);
+    });
+    obs.observe(document.body, { childList: true, subtree: true });
+    setTimeout(function () {
+      obs.disconnect();
+    }, 10000);
+  } catch (e) {}
+})();
+"""
+
+
+def _inject_verse_marquee_script() -> None:
+    """Ajusta velocidade do letreiro conforme largura do texto (após render Streamlit)."""
+    try:
+        st.html(
+            f"<script>{_ML_VERSE_MARQUEE_JS}</script>",
+            unsafe_allow_javascript=True,
+        )
+    except Exception:
+        import streamlit.components.v1 as components
+
+        components.html(
+            f'<div aria-hidden="true" style="display:none"><script>{_ML_VERSE_MARQUEE_JS}</script></div>',
+            height=0,
+            scrolling=False,
+        )
+
+
 def inject_mobile_lab_hide_streamlit_chrome() -> None:
     """CSS + JS: remove status/deploy do Streamlit (iframe e parent no Cloud)."""
     try:
@@ -625,7 +684,7 @@ def inject_mobile_lab_app_shell() -> None:
         strip_html = (
             '<div id="ml-verse-strip" aria-label="Versículo do dia">'
             '<div class="ml-verse-ico">📖</div>'
-            '<div class="ml-verse-marquee">'
+            '<div class="ml-verse-marquee" role="marquee">'
             '<div class="ml-verse-marquee-track">'
             f'<span class="ml-verse-marquee-item">{line}</span>'
             f'<span class="ml-verse-marquee-item" aria-hidden="true">{line}</span>'
@@ -640,6 +699,8 @@ def inject_mobile_lab_app_shell() -> None:
     )
     inject_mobile_lab_theme()
     inject_mobile_lab_hide_streamlit_chrome()
+    if verse_text:
+        _inject_verse_marquee_script()
 
 
 def inject_mobile_lab_theme() -> None:
