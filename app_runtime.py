@@ -36,4 +36,12 @@ def getattr_app(name: str) -> Any:
 
 def import_from_main_app(*names: str) -> tuple[Any, ...]:
     mod = main_app_module()
-    return tuple(getattr(mod, n) for n in names)
+    out: list[Any] = []
+    for n in names:
+        if not hasattr(mod, n):
+            raise AttributeError(
+                f"'{getattr(mod, '__name__', mod)}' não define '{n}'. "
+                f"Atualize o deploy (mobile-lab) ou evite importar isso em @st.fragment."
+            )
+        out.append(getattr(mod, n))
+    return tuple(out)

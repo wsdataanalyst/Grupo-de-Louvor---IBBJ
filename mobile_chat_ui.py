@@ -1,4 +1,4 @@
-"""Mobile Lab — Central de conversas estilo WhatsApp (ministério IBBJ)."""
+"""Mobile Lab — Chat estilo WhatsApp Business (ministério IBBJ)."""
 
 from __future__ import annotations
 
@@ -8,6 +8,8 @@ from datetime import datetime, timedelta
 import pandas as pd
 import streamlit as st
 
+from app_runtime import import_from_main_app
+from chat_runtime import is_user_viewing_chat_mobile
 from chat_ui import (
     CHAT_LIST_TABS,
     GROUP_CHAT_SUB,
@@ -19,22 +21,20 @@ from chat_ui import (
     render_chat_page_open,
     render_conv_items_after_search,
     render_info_panel_html,
-    render_thread_header_html,
     role_badge_meta,
 )
-from app_runtime import import_from_main_app
 from chat_whatsapp import mark_chat_scroll_bottom
+from mobile_chat_whatsapp import (
+    inject_wa_list_conv_styles,
+    render_wa_list_header_html,
+    render_wa_mobile_messages,
+    render_wa_thread_header_html,
+    wa_mobile_chat_css,
+)
 from mobile_lab_ui import inject_mobile_lab_theme
+from notification_badge import notification_badge_css
 
 _CHAT_VIEWS = frozenset({"list", "thread", "info", "stats"})
-
-QUICK_REPLIES: tuple[str, ...] = (
-    "Combinado! ✅",
-    "Estou a caminho do ensaio",
-    "Não poderei estar desta vez",
-    "Vou conferir na escala",
-    "Obrigado pela informação!",
-)
 
 
 def _esc(s: object) -> str:
@@ -55,199 +55,48 @@ def _set_chat_view(view: str) -> None:
 
 def mobile_chat_css() -> str:
     return (
-        chat_page_css()
+        notification_badge_css()
+        + chat_page_css()
+        + wa_mobile_chat_css()
         + r"""
-    body:has(#ml-chat-page) [data-testid="stAppViewContainer"] .main .block-container{
-      padding-top: 0.2rem !important;
-      padding-bottom: calc(var(--ml-nav-height) + var(--ml-verse-height) + var(--ml-nav-offset) + 5.5rem) !important;
-      max-width: 100% !important;
+    body:has(#ml-chat-page) .ig-chat-header,
+    body:has(#ml-chat-page) .ml-chat-topbar { display: none !important; }
+    body:has(#ml-chat-page) .ml-chat-thread-shell { display: none !important; }
+    body:has(#ml-chat-page) .ml-chat-quick-row { display: none !important; }
+    body:has(#ml-chat-page) #ml-chat-page > p { display: none !important; }
+    body:has(#ml-chat-page) [class*="st-key-ml_chat_open_equipe"] .stButton > button {
+      border-radius: 0 !important;
+      background: var(--wa-header) !important;
+      color: var(--wa-text) !important;
+      min-height: 3.5rem !important;
+      font-weight: 600 !important;
     }
-    body:has(#ml-chat-page) .ig-chat-header{ display: none !important; }
-    body:has(#ml-chat-page) .ig-chat-page{ max-width: 100%; }
-    body:has(#ml-chat-page) .ml-chat-topbar{
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-bottom: 0.65rem;
-    }
-    body:has(#ml-chat-page) .ml-chat-topbar h1{
-      margin: 0;
-      font-size: 1.35rem;
-      font-weight: 800;
-      color: #f8fafc;
-      flex: 1;
-    }
-    body:has(#ml-chat-page) .ml-chat-stat-grid{
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
-      margin-bottom: 0.75rem;
-    }
-    body:has(#ml-chat-page) .ml-chat-stat{
-      padding: 10px 12px;
-      border-radius: 16px;
-      background: rgba(15,23,42,.78);
-      border: 1px solid rgba(255,255,255,.08);
-    }
-    body:has(#ml-chat-page) .ml-chat-stat strong{
-      display: block;
-      font-size: 1.1rem;
-      color: #f8fafc;
-    }
-    body:has(#ml-chat-page) .ml-chat-stat span{
-      font-size: 0.68rem;
-      color: #94a3b8;
-    }
-    body:has(#ml-chat-page) .ml-chat-list-shell{
-      border-radius: 18px;
-      background: rgba(8,17,32,.88);
-      border: 1px solid rgba(255,255,255,.07);
-      overflow: hidden;
-      margin-bottom: 0.5rem;
-    }
-    body:has(#ml-chat-page) .ml-chat-list-shell .ig-chat-tabs{
-      padding-top: 0.5rem;
-    }
-    body:has(#ml-chat-page) .ml-chat-list-shell .ig-chat-conv-list{
-      max-height: 38vh;
-      overflow-y: auto;
-    }
-    body:has(#ml-chat-page) .ml-chat-thread-shell{
-      border-radius: 18px;
-      background: rgba(3,7,18,.45);
-      border: 1px solid rgba(255,255,255,.08);
-      overflow: visible;
-      margin-bottom: 0.25rem;
-    }
-    body:has(#ml-chat-page) .ml-chat-feed-area #chat-scroll-box.ig-chat-feed{
-      min-height: 38vh;
-      max-height: 52vh;
-      overflow-y: auto !important;
-      -webkit-overflow-scrolling: touch;
-      margin-bottom: 0.35rem;
-    }
-    body:has(#ml-chat-page) [class*="st-key-ml_chat_composer"]{
-      position: fixed !important;
-      left: 50% !important;
-      transform: translateX(-50%) !important;
-      width: min(420px, calc(100vw - 12px)) !important;
-      max-width: 420px !important;
-      bottom: calc(var(--ml-nav-height) + var(--ml-verse-height) + var(--ml-nav-offset) + 8px) !important;
-      z-index: 2147483650 !important;
-      margin: 0 !important;
-      padding: 0.4rem 0.55rem !important;
-      box-sizing: border-box !important;
-      background: rgba(8,17,32,.97) !important;
-      border: 1px solid rgba(255,255,255,.1) !important;
-      border-radius: 18px !important;
-      box-shadow: 0 -8px 32px rgba(0,0,0,.45) !important;
-    }
-    body:has(#ml-chat-page) [class*="st-key-ml_chat_composer"] [data-testid="stChatInput"],
-    body:has(#ml-chat-page) [class*="st-key-ml_chat_composer"] [data-testid="stChatInput"] textarea{
-      display: block !important;
-      visibility: visible !important;
-      opacity: 1 !important;
-      min-height: 2.75rem !important;
-    }
-    body:has(#ml-chat-page) [class*="st-key-ml_chat_composer"] .stButton > button{
-      min-height: 2.6rem !important;
-    }
-    body:has(#ml-chat-page) .ml-chat-quick-row{
-      display: flex;
-      flex-wrap: nowrap;
-      gap: 6px;
-      overflow-x: auto;
-      padding: 0.35rem 0 0.5rem;
-      -webkit-overflow-scrolling: touch;
-    }
-    body:has(#ml-chat-page) .ml-chat-quick-row .stButton > button{
-      border-radius: 999px !important;
-      min-height: 2rem !important;
-      padding: 0.25rem 0.75rem !important;
-      font-size: 0.72rem !important;
-      white-space: nowrap !important;
-      background: rgba(15,23,42,.9) !important;
-      border: 1px solid rgba(139,92,246,.35) !important;
-      color: #e9d5ff !important;
-    }
-    body:has(#ml-chat-page) [class*="st-key-ml_chat_back"] .stButton > button,
-    body:has(#ml-chat-page) [class*="st-key-ml_chat_info_btn"] .stButton > button{
-      min-height: 2.5rem !important;
-      border-radius: 14px !important;
-      font-weight: 700 !important;
-    }
-    body:has(#ml-chat-page) [class*="st-key-ml_chat_open_"] .stButton > button{
-      width: 100% !important;
-      min-height: 4.2rem !important;
-      text-align: left !important;
-      justify-content: flex-start !important;
-      background: transparent !important;
-      border: none !important;
-      box-shadow: none !important;
-      padding: 0 !important;
-    }
-    body:has(#ml-chat-page) [class*="st-key-ml_chat_open_"] .stButton > button p{
-      display: none !important;
-    }
-    body:has(#ml-chat-page) .ml-chat-info-shell .ig-chat-col--info{
-      min-height: auto;
-      border-radius: 18px;
-      border: 1px solid rgba(255,255,255,.08);
-    }
-    body:has(#ml-chat-page) [data-testid="stRadio"] > div{
+    body:has(#ml-chat-page) [data-testid="stRadio"] > div {
       flex-wrap: nowrap !important;
       overflow-x: auto !important;
       gap: 0.35rem !important;
+      padding: 0 0.5rem !important;
     }
-    body:has(#ml-chat-page) [data-testid="stRadio"] label{
-      padding: 0.35rem 0.65rem !important;
+    body:has(#ml-chat-page) [data-testid="stRadio"] label {
+      padding: 0.4rem 0.75rem !important;
       border-radius: 999px !important;
-      background: rgba(15,23,42,.72) !important;
+      background: #202c33 !important;
       border: 1px solid rgba(255,255,255,.08) !important;
-      font-size: 0.72rem !important;
+      font-size: 0.78rem !important;
+      color: #8696a0 !important;
     }
-    body:has(#ml-chat-page) [data-testid="stRadio"] label[data-checked="true"]{
-      background: rgba(124,58,237,.45) !important;
-      border-color: rgba(139,92,246,.5) !important;
+    body:has(#ml-chat-page) [data-testid="stRadio"] label[data-checked="true"] {
+      background: #00a884 !important;
       color: #fff !important;
+      border-color: #00a884 !important;
+    }
+    body:has(#ml-chat-page) [data-testid="stTextInput"] input {
+      background: #202c33 !important;
+      border: none !important;
+      border-radius: 8px !important;
+      color: #e9edef !important;
     }
     """
-    )
-
-
-def _render_topbar(*, title: str, show_back: bool = False) -> None:
-    c_back, c_title, c_act = st.columns([1, 4, 1])
-    with c_back:
-        if show_back:
-            with st.container(key="ml_chat_back"):
-                if st.button("☰", key="ml_chat_back_btn", help="Lista de conversas"):
-                    _set_chat_view("list")
-                    st.rerun()
-    with c_title:
-        st.markdown(
-            f'<div class="ml-chat-topbar"><h1>{_esc(title)}</h1></div>',
-            unsafe_allow_html=True,
-        )
-    with c_act:
-        if _chat_view() == "thread":
-            with st.container(key="ml_chat_info_btn"):
-                if st.button("ℹ️", key="ml_chat_info_open", help="Informações"):
-                    _set_chat_view("info")
-                    st.rerun()
-
-
-def _render_stats_row(*, n_members: int, unread: int, n_msgs: int) -> None:
-    st.markdown(
-        f"""
-        <div class="ml-chat-stat-grid">
-          <div class="ml-chat-stat"><strong>{n_members}</strong><span>Integrantes</span></div>
-          <div class="ml-chat-stat"><strong>{unread}</strong><span>Não lidas</span></div>
-          <div class="ml-chat-stat"><strong>{n_msgs}</strong><span>Mensagens</span></div>
-          <div class="ml-chat-stat"><strong>{min(6, n_members)}</strong><span>Online agora*</span></div>
-        </div>
-        <p style="font-size:0.62rem;color:#64748b;margin:-0.35rem 0 0.5rem;">*estimativa visual</p>
-        """,
-        unsafe_allow_html=True,
     )
 
 
@@ -259,10 +108,10 @@ def _render_list_view(
     n_members: int,
     chat_df: pd.DataFrame,
 ) -> None:
-    _render_topbar(title="Conversas", show_back=False)
-
-    n_msgs = len(chat_df) if chat_df is not None and not chat_df.empty else 0
-    _render_stats_row(n_members=n_members, unread=unread, n_msgs=n_msgs)
+    st.markdown(
+        render_wa_list_header_html(),
+        unsafe_allow_html=True,
+    )
 
     list_tab = st.radio(
         "Filtro",
@@ -278,7 +127,7 @@ def _render_list_view(
         label_visibility="collapsed",
     )
 
-    st.markdown('<div class="ml-chat-list-shell">', unsafe_allow_html=True)
+    inject_wa_list_conv_styles()
     render_conv_items_after_search(
         preview=preview,
         time_str=prev_time,
@@ -287,45 +136,37 @@ def _render_list_view(
     )
     st.markdown("</div>", unsafe_allow_html=True)
 
-    label = f"💬 Abrir — {GROUP_CHAT_TITLE}"
+    label = GROUP_CHAT_TITLE
     if unread > 0:
-        label += f" ({unread} nova(s))"
-    if st.button(label, key="ml_chat_open_equipe_btn", type="primary", use_container_width=True):
+        label += f" · {unread} não lida(s)"
+    if st.button(
+        f"💬 {label}",
+        key="ml_chat_open_equipe_btn",
+        type="primary",
+        use_container_width=True,
+    ):
         _set_chat_view("thread")
+        mark_chat_scroll_bottom()
         st.rerun()
-
-    if st.button("📊 Resumo do atendimento", key="ml_chat_go_stats", use_container_width=True):
-        _set_chat_view("stats")
-        st.rerun()
-
-
-def _render_quick_replies(*, key_prefix: str) -> None:
-    st.markdown('<div class="ml-chat-quick-row">', unsafe_allow_html=True)
-    cols = st.columns(len(QUICK_REPLIES))
-    for i, (col, text) in enumerate(zip(cols, QUICK_REPLIES)):
-        with col:
-            if st.button(text, key=f"ml_chat_qr_{key_prefix}_{i}"):
-                st.session_state[f"{key_prefix}_pending_text"] = text
-                mark_chat_scroll_bottom()
-                st.rerun()
-    st.markdown("</div>", unsafe_allow_html=True)
 
 
 @st.fragment(run_every=timedelta(seconds=4))
 def _ml_chat_feed_fragment(members_df: pd.DataFrame) -> None:
-    """Histórico ao vivo (sem recomposer a cada 4s — mantém campo de envio estável)."""
-    load_chat_df, is_user_viewing_chat, render_chat_messages = import_from_main_app(
-        "load_chat_df",
-        "is_user_viewing_chat",
-        "render_chat_messages",
-    )
+    """Histórico ao vivo — bolhas alinhadas estilo WhatsApp."""
+    try:
+        load_chat_df = import_from_main_app("load_chat_df")[0]
+        chat_df = load_chat_df()
+    except (ImportError, AttributeError):
+        chat_df = st.session_state.get("_chat_df_cache")
+        if chat_df is None:
+            chat_df = pd.DataFrame()
 
-    chat_df = load_chat_df()
     st.session_state["_chat_df_cache"] = chat_df
-    if is_user_viewing_chat():
+    if is_user_viewing_chat_mobile():
         st.session_state.chat_unread_count = 0
+
     st.markdown('<div class="ml-chat-feed-area">', unsafe_allow_html=True)
-    render_chat_messages(chat_df, members_df, premium=True)
+    render_wa_mobile_messages(chat_df, members_df)
     st.markdown("</div>", unsafe_allow_html=True)
 
 
@@ -358,12 +199,28 @@ def _render_chat_composer_bar() -> None:
 
 def _render_thread_view(members_df: pd.DataFrame) -> None:
     n = len(members_df) if members_df is not None else 0
-    _render_topbar(title=GROUP_CHAT_TITLE, show_back=True)
-    st.markdown('<div class="ml-chat-thread-shell">', unsafe_allow_html=True)
-    render_thread_header_html(n)
-    st.markdown("</div>", unsafe_allow_html=True)
-    _render_quick_replies(key_prefix="group_chat")
+    online = f"{min(6, n)} online" if n else "Grupo oficial"
+
+    c_back, c_head, c_info = st.columns([0.5, 5, 0.5])
+    with c_back:
+        with st.container(key="ml_chat_back"):
+            if st.button("←", key="ml_chat_back_btn", help="Conversas"):
+                _set_chat_view("list")
+                st.rerun()
+    with c_head:
+        st.markdown(
+            render_wa_thread_header_html(member_count=n, online_hint=online),
+            unsafe_allow_html=True,
+        )
+    with c_info:
+        with st.container(key="ml_chat_info_btn"):
+            if st.button("ℹ️", key="ml_chat_info_open", help="Informações do grupo"):
+                _set_chat_view("info")
+                st.rerun()
+
+    st.markdown('<div class="wa-thread-layout">', unsafe_allow_html=True)
     _ml_chat_feed_fragment(members_df)
+    st.markdown("</div>", unsafe_allow_html=True)
     _render_chat_composer_bar()
 
 
@@ -381,7 +238,17 @@ def _render_info_view(
         )
     )
 
-    _render_topbar(title="Informações", show_back=True)
+    c_back, _ = st.columns([0.7, 5.3])
+    with c_back:
+        with st.container(key="ml_chat_back"):
+            if st.button("←", key="ml_chat_info_back_list", help="Voltar"):
+                _set_chat_view("thread")
+                st.rerun()
+    st.markdown(
+        f'<h2 style="margin:0 0 0.75rem;font-size:1.2rem;color:#e9edef;">Informações</h2>',
+        unsafe_allow_html=True,
+    )
+
     member_rows: list[tuple[str, str, str, str]] = []
     visible = members_visible_to_group(members_df)
     online_n = min(6, len(visible)) if not visible.empty else 0
@@ -405,24 +272,6 @@ def _render_info_view(
     )
     st.markdown("</div>", unsafe_allow_html=True)
 
-    my_email = str(st.session_state.get("user_email", "")).strip().lower()
-    if not visible.empty and "email" in visible.columns:
-        me = visible[visible["email"].astype(str).str.lower() == my_email]
-        if not me.empty:
-            r = me.iloc[0]
-            st.markdown("#### Seu cadastro no grupo")
-            st.caption(f"**E-mail:** {r.get('email', '')}")
-            phone = str(r.get("phone", "")).strip()
-            if phone:
-                st.caption(f"**WhatsApp / telefone:** {phone}")
-            bio = str(r.get("bio", "")).strip()
-            if bio:
-                st.caption(f"**Sobre:** {bio}")
-
-    if st.button("← Voltar ao chat", key="ml_chat_info_back_thread", use_container_width=True):
-        _set_chat_view("thread")
-        st.rerun()
-
 
 def _render_stats_view(
     *,
@@ -430,7 +279,13 @@ def _render_stats_view(
     unread: int,
     chat_df: pd.DataFrame,
 ) -> None:
-    _render_topbar(title="Resumo", show_back=True)
+    c_back, _ = st.columns([0.7, 5.3])
+    with c_back:
+        with st.container(key="ml_chat_back"):
+            if st.button("←", key="ml_chat_stats_back", help="Voltar"):
+                _set_chat_view("list")
+                st.rerun()
+
     today = datetime.now().date()
     n_today = 0
     if chat_df is not None and not chat_df.empty:
@@ -442,25 +297,30 @@ def _render_stats_view(
 
     st.markdown(
         f"""
-        <div class="ml-chat-stat-grid">
-          <div class="ml-chat-stat"><strong>{n_members}</strong><span>Integrantes ativos</span></div>
-          <div class="ml-chat-stat"><strong>{unread}</strong><span>Mensagens não lidas</span></div>
-          <div class="ml-chat-stat"><strong>{n_today}</strong><span>Mensagens hoje</span></div>
-          <div class="ml-chat-stat"><strong>1</strong><span>Grupo oficial</span></div>
+        <div class="ml-chat-stat-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0.75rem 0;">
+          <div class="ml-chat-stat" style="padding:12px;border-radius:12px;background:#202c33;">
+            <strong style="color:#e9edef;font-size:1.1rem;">{n_members}</strong>
+            <span style="font-size:0.68rem;color:#8696a0;">Integrantes</span>
+          </div>
+          <div class="ml-chat-stat" style="padding:12px;border-radius:12px;background:#202c33;">
+            <strong style="color:#e9edef;font-size:1.1rem;">{unread}</strong>
+            <span style="font-size:0.68rem;color:#8696a0;">Não lidas</span>
+          </div>
+          <div class="ml-chat-stat" style="padding:12px;border-radius:12px;background:#202c33;">
+            <strong style="color:#e9edef;font-size:1.1rem;">{n_today}</strong>
+            <span style="font-size:0.68rem;color:#8696a0;">Hoje</span>
+          </div>
+          <div class="ml-chat-stat" style="padding:12px;border-radius:12px;background:#202c33;">
+            <strong style="color:#e9edef;font-size:1.1rem;">1</strong>
+            <span style="font-size:0.68rem;color:#8696a0;">Grupo oficial</span>
+          </div>
         </div>
         """,
         unsafe_allow_html=True,
     )
-    st.info(
-        "Central de conversas do **ministério de louvor**. "
-        "Use o grupo **Equipe de Louvor** para avisos de ensaio, culto e alinhamentos. "
-        "Anexe fotos, PDFs e áudios pelo botão ➕ na conversa."
-    )
-    if st.button("Abrir Equipe de Louvor", type="primary", use_container_width=True):
+    if st.button("Abrir conversa", type="primary", use_container_width=True):
         _set_chat_view("thread")
-        st.rerun()
-    if st.button("← Voltar", use_container_width=True):
-        _set_chat_view("list")
+        mark_chat_scroll_bottom()
         st.rerun()
 
 
@@ -488,6 +348,7 @@ def render_mobile_chat_page(chat_df: pd.DataFrame, members_df: pd.DataFrame) -> 
     pending = st.session_state.pop(pending_key, None)
     if pending and str(pending).strip():
         append_chat_message(message=str(pending).strip(), message_type="text", media_file="")
+        mark_chat_scroll_bottom()
 
     chat_df = load_chat_df()
     if _chat_view() == "thread":
@@ -499,13 +360,7 @@ def render_mobile_chat_page(chat_df: pd.DataFrame, members_df: pd.DataFrame) -> 
 
     render_chat_page_open()
     st.markdown(
-        f"""
-        <div id="ml-chat-page" class="ml-page">
-          <p style="margin:0 0 0.5rem;font-size:0.78rem;color:#94a3b8;">
-            Central de conversas · {_esc(GROUP_CHAT_SUB)}
-          </p>
-        </div>
-        """,
+        '<div id="ml-chat-page" class="ml-page wa-chat-page"></div>',
         unsafe_allow_html=True,
     )
 
@@ -517,6 +372,7 @@ def render_mobile_chat_page(chat_df: pd.DataFrame, members_df: pd.DataFrame) -> 
     elif view == "stats":
         _render_stats_view(n_members=n_members, unread=unread, chat_df=chat_df)
     else:
+        st.markdown('<div class="wa-chat-list-view">', unsafe_allow_html=True)
         _render_list_view(
             preview=preview,
             prev_time=prev_time,
@@ -524,5 +380,6 @@ def render_mobile_chat_page(chat_df: pd.DataFrame, members_df: pd.DataFrame) -> 
             n_members=n_members,
             chat_df=chat_df,
         )
+        st.markdown("</div>", unsafe_allow_html=True)
 
     render_chat_page_close()

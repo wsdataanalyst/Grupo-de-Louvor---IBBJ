@@ -134,7 +134,7 @@ def render_simple_chat_composer(
                 st.session_state[ak] = None
                 st.rerun()
 
-    row = st.columns([1, 12])
+    row = st.columns([1, 1, 10, 1])
     with row[0]:
         with st.popover("➕", use_container_width=True):
             if st.button("🖼️ Galeria", use_container_width=True, key=f"{key_prefix}_m_gal"):
@@ -150,8 +150,26 @@ def render_simple_chat_composer(
                 st.session_state[ak] = "record"
                 st.rerun()
 
-    placeholder = "Digite sua mensagem..."
-    prompt = st.chat_input(placeholder, key=f"{key_prefix}_input")
+    with row[1]:
+        with st.popover("😊", use_container_width=True):
+            emojis = ("👍", "🙏", "✅", "❤️", "🎵", "⛪", "😊", "🎤")
+            ec = st.columns(len(emojis))
+            for i, (col, em) in enumerate(zip(ec, emojis)):
+                with col:
+                    if st.button(em, key=f"{key_prefix}_em_{i}"):
+                        prev = st.session_state.get(f"{key_prefix}_pending_text", "")
+                        st.session_state[f"{key_prefix}_pending_text"] = f"{prev}{em}".strip()
+                        mark_chat_scroll_bottom()
+                        st.rerun()
+
+    with row[3]:
+        if st.button("🎤", key=f"{key_prefix}_mic_short", help="Gravar áudio"):
+            st.session_state[ak] = "record"
+            st.rerun()
+
+    placeholder = "Mensagem"
+    with row[2]:
+        prompt = st.chat_input(placeholder, key=f"{key_prefix}_input")
     if prompt and prompt.strip():
         st.session_state[f"{key_prefix}_pending_text"] = prompt.strip()
         st.rerun()
@@ -167,7 +185,7 @@ def render_whatsapp_chat_composer(
     image_prefix: str,
     data_dir: Path,
 ) -> None:
-    st.markdown('<div class="chat-compose-bar">', unsafe_allow_html=True)
+    st.markdown('<div class="chat-compose-bar wa-compose-bar">', unsafe_allow_html=True)
     render_simple_chat_composer(
         key_prefix=key_prefix,
         append_fn=append_fn,
