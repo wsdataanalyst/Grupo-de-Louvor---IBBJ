@@ -2845,9 +2845,25 @@ def chat_has_new_messages() -> bool:
     return count_unread_chat_messages() > 0
 
 
+def is_user_viewing_chat() -> bool:
+    """True quando o usuário está na tela ativa do chat (mensagens visíveis)."""
+    if str(st.session_state.get("app_menu", "")).strip() == "Chat":
+        return True
+    try:
+        from mobile_lab import is_mobile_lab_enabled
+
+        if not is_mobile_lab_enabled():
+            return False
+        if str(st.session_state.get("ml_page", "")).strip() != "Chat":
+            return False
+        return str(st.session_state.get("ml_chat_view", "thread")).strip() == "thread"
+    except Exception:
+        return False
+
+
 def count_unread_chat_messages(chat_df: pd.DataFrame | None = None) -> int:
     """Mensagens de outros integrantes após o último acesso ao chat."""
-    if st.session_state.get("app_menu") == "Chat":
+    if is_user_viewing_chat():
         return 0
     if chat_df is None:
         chat_df = st.session_state.get("_chat_df_cache")
@@ -2884,14 +2900,16 @@ def mark_chat_scroll_bottom() -> None:
     st.session_state["_chat_scroll_bottom"] = True
 
 
-def inject_chat_unread_badges(unread: int) -> None:
+def inject_chat_unread_badges(unread: int, *, pulse: bool = False) -> None:
     """Badge flutuante no item Chat da sidebar e nos atalhos do dashboard."""
+    from notification_badge import format_unread_count, notification_badge_css
+
     unread = max(0, int(unread))
-    label = "99+" if unread > 99 else str(unread)
-    show = "flex" if unread > 0 else "none"
+    label = format_unread_count(unread)
     inject_page_html(
         f"""
         <style>
+        {notification_badge_css()}
         section[data-testid="stSidebar"] [data-testid="stRadio"] label {{
             position: relative !important;
         }}
@@ -2899,19 +2917,19 @@ def inject_chat_unread_badges(unread: int) -> None:
             position: absolute;
             top: 0.15rem;
             right: 0.35rem;
-            min-width: 1.15rem;
-            height: 1.15rem;
-            padding: 0 0.3rem;
+            min-width: 1.125rem;
+            height: 1.125rem;
+            padding: 0 0.35rem;
             border-radius: 999px;
             background: #ef4444;
             color: #fff !important;
-            font-size: 0.65rem;
-            font-weight: 700;
-            display: {show};
+            font-size: 0.62rem;
+            font-weight: 800;
             align-items: center;
             justify-content: center;
             line-height: 1;
-            box-shadow: 0 2px 8px rgba(239, 68, 68, 0.55);
+            box-shadow: 0 2px 10px rgba(239, 68, 68, 0.55);
+            border: 2px solid rgba(15, 23, 42, 0.95);
             z-index: 6;
             pointer-events: none;
         }}
@@ -2927,7 +2945,8 @@ def inject_chat_unread_badges(unread: int) -> None:
         (function () {{
           var count = {unread};
           var label = {label!r};
-          var display = count > 0 ? "flex" : "none";
+          var display = count > 0 ? "inline-flex" : "none";
+          var pulse = {str(pulse and unread > 0).lower()};
           var doc = window.parent.document;
           function attach() {{
             var sidebar = doc.querySelector('[data-testid="stSidebar"]');
@@ -2943,6 +2962,7 @@ def inject_chat_unread_badges(unread: int) -> None:
                   }}
                   b.textContent = label;
                   b.style.display = display;
+                  b.className = "chat-unread-badge" + (pulse ? " ig-unread-badge--pulse" : "");
                 }}
               }});
             }}
@@ -2955,6 +2975,7 @@ def inject_chat_unread_badges(unread: int) -> None:
               }}
               b.textContent = label;
               b.style.display = display;
+              b.className = "chat-unread-badge" + (pulse ? " ig-unread-badge--pulse" : "");
             }});
           }}
           attach();
@@ -4367,8 +4388,7 @@ def _chat_global_sync():
     else:
         st.session_state._chat_rev = new_rev
 
-    menu = str(st.session_state.get("app_menu", ""))
-    if menu == "Chat":
+    if is_user_viewing_chat():
         st.session_state.chat_unread_count = 0
         st.session_state._chat_unread_prev = 0
         return
@@ -9815,6 +9835,7 @@ def _run_app() -> None:
         inject_mobile_lab_app_shell()
         init_ml_navigation()
         sync_ml_can_gerenciar()
+        _chat_global_sync()
 
         email_hdr = str(st.session_state.get("user_email", "")).strip().lower()
         photo_hdr = profile_photo_to_data_uri(
@@ -9915,10 +9936,18 @@ def _run_app() -> None:
                 feed_posts_df=feed_posts_df,
             )
 
+        _chat_global_sync()
+        chat_unread = int(st.session_state.get("chat_unread_count", 0))
+        prev_unread = int(st.session_state.get("_chat_unread_prev", 0))
+        badge_pulse = chat_unread > prev_unread and chat_unread > 0
+        if chat_unread != prev_unread:
+            st.session_state._chat_unread_prev = chat_unread
+
         render_mobile_lab_nav(
             ml_page,
             chat_unread=chat_unread,
             can_gerenciar=bool(st.session_state.get("ml_can_gerenciar")),
+            badge_pulse=badge_pulse,
         )
         if mobile_lab_request_logout() or st.session_state.pop("request_logout", False):
             logout_user()

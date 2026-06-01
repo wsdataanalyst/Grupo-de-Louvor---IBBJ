@@ -313,11 +313,12 @@ def _render_quick_replies(*, key_prefix: str) -> None:
 @st.fragment(run_every=timedelta(seconds=4))
 def _ml_chat_feed_fragment(members_df: pd.DataFrame) -> None:
     """Histórico ao vivo (sem recomposer a cada 4s — mantém campo de envio estável)."""
-    from app import load_chat_df, render_chat_messages
+    from app import is_user_viewing_chat, load_chat_df, render_chat_messages
 
     chat_df = load_chat_df()
     st.session_state["_chat_df_cache"] = chat_df
-    st.session_state.chat_unread_count = 0
+    if is_user_viewing_chat():
+        st.session_state.chat_unread_count = 0
     st.markdown('<div class="ml-chat-feed-area">', unsafe_allow_html=True)
     render_chat_messages(chat_df, members_df, premium=True)
     st.markdown("</div>", unsafe_allow_html=True)
@@ -466,7 +467,8 @@ def render_mobile_chat_page(chat_df: pd.DataFrame, members_df: pd.DataFrame) -> 
         append_chat_message(message=str(pending).strip(), message_type="text", media_file="")
 
     chat_df = load_chat_df()
-    mark_chat_seen(chat_df)
+    if _chat_view() == "thread":
+        mark_chat_seen(chat_df)
     unread = count_unread_chat_messages(chat_df)
     preview, prev_time = last_group_preview(chat_df)
     n_members = len(members_visible_to_group(members_df))

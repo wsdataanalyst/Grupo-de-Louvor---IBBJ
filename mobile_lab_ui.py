@@ -411,6 +411,16 @@ def mobile_lab_css() -> str:
     body:has(#ml-bottom-nav-start) [class*="st-key-ml_bottom_nav"] .stButton > button[kind="primary"] p{
       color: rgba(233,213,255,.98) !important;
     }
+    body:has(#ml-bottom-nav-start) [class*="st-key-ml_nav_chat_wrap"]{
+      position: relative !important;
+    }
+    body:has(#ml-bottom-nav-start) [class*="st-key-ml_nav_chat_wrap"] .ig-unread-badge--nav{
+      position: absolute !important;
+      top: 0.05rem !important;
+      right: 0.35rem !important;
+      z-index: 20 !important;
+      pointer-events: none !important;
+    }
     body:has(#ml-bottom-nav-start) [class*="st-key-ml_nav_Gerenciar_Escalas"] .stButton > button[kind="primary"],
     body:has(#ml-bottom-nav-start) [class*="st-key-ml_nav_Gerenciar_Escalas"] .stButton > button[kind="primary"] p{
       background: linear-gradient(135deg, #facc15, #ca8a04) !important;
@@ -918,7 +928,9 @@ def render_mobile_lab_dashboard(
             cols = st.columns(2, gap="small")
         label = f"{icon}\n{name}"
         if page == "Chat" and int(chat_unread) > 0:
-            label = f"{icon} ({min(99, int(chat_unread))})\nChat"
+            from notification_badge import format_unread_count
+
+            label = f"{icon}\n({format_unread_count(int(chat_unread))})\nChat"
         if name == "Sugestão de louvor":
             label = f"{icon}\nSugestões"
         btn_key = f"ml_quick_nav_{idx}"

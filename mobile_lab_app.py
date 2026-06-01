@@ -229,6 +229,7 @@ def render_mobile_lab_nav(
     *,
     chat_unread: int = 0,
     can_gerenciar: bool | None = None,
+    badge_pulse: bool = False,
 ) -> None:
     """
     Bottom navigation premium — um único nível (botões Streamlit estilizados).
@@ -236,8 +237,10 @@ def render_mobile_lab_nav(
     Navegação interna via session_state (sem links / sem abrir outro navegador).
     """
     from mobile_lab_ui import inject_mobile_lab_hide_streamlit_chrome
+    from notification_badge import chat_notification_counter_html, notification_badge_css
 
     inject_mobile_lab_theme()
+    st.markdown(f"<style>{notification_badge_css()}</style>", unsafe_allow_html=True)
     inject_mobile_lab_hide_streamlit_chrome()
 
     # Toggle drawer (menu ☰) sempre disponível
@@ -260,7 +263,8 @@ def render_mobile_lab_nav(
     )
     with st.container(key="ml_bottom_nav"):
         cols = st.columns(5, gap="small")
-        for col, (page, icon, badge) in zip(cols, items):
+        nav_unread = max(0, int(chat_unread))
+        for col, (page, icon, _badge_unused) in zip(cols, items):
             with col:
                 short = {
                     "Início": "Início",
@@ -274,21 +278,32 @@ def render_mobile_lab_nav(
                 if page == "Gerenciar Escalas" and current != page:
                     btn_type = "secondary"
                 label = f"{icon}\n{short}"
-                if page == "Chat" and badge > 0:
-                    label = f"{icon}\n{short}"
                 if page == "Gerenciar Escalas" and current != page:
                     label = f"🎯\n{short}"
-                if st.button(
-                    label,
-                    key=f"ml_nav_{page.replace(' ', '_')}",
-                    use_container_width=True,
-                    type=btn_type,
-                ):
-                    navigate_ml_page(
-                        page,
-                        pin=(page == "Gerenciar Escalas"),
-                    )
-                    st.rerun()
+                wrap_key = (
+                    "ml_nav_chat_wrap"
+                    if page == "Chat"
+                    else f"ml_nav_{page.replace(' ', '_')}_wrap"
+                )
+                with st.container(key=wrap_key):
+                    if st.button(
+                        label,
+                        key=f"ml_nav_{page.replace(' ', '_')}",
+                        use_container_width=True,
+                        type=btn_type,
+                    ):
+                        navigate_ml_page(
+                            page,
+                            pin=(page == "Gerenciar Escalas"),
+                        )
+                        st.rerun()
+                    if page == "Chat" and nav_unread > 0:
+                        st.markdown(
+                            chat_notification_counter_html(
+                                nav_unread, pulse=badge_pulse
+                            ),
+                            unsafe_allow_html=True,
+                        )
 
 
 def _render_page_header(title: str) -> None:

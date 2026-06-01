@@ -848,6 +848,8 @@ def render_conv_items_after_search(
     list_tab: str,
 ) -> None:
     """Lista de conversas (após campo de busca)."""
+    from notification_badge import format_unread_count
+
     convs = [
         {
             "id": GROUP_CHAT_ID,
@@ -862,7 +864,7 @@ def render_conv_items_after_search(
         },
     ]
     for d in DECOR_CONVERSATIONS:
-        convs.append({**d, "active": False, "muted": list_tab == "Não lidas"})
+        convs.append({**d, "active": False, "muted": list_tab == "Não lidas", "unread": 0})
 
     if list_tab == "Não lidas" and unread <= 0:
         inject_ui_html(
@@ -871,18 +873,22 @@ def render_conv_items_after_search(
         )
         return
 
+    convs.sort(key=lambda c: (-int(c.get("unread", 0) or 0), c.get("title", "")))
+
     items = []
     for c in convs:
         if list_tab == "Não lidas" and c.get("unread", 0) <= 0 and c["id"] != GROUP_CHAT_ID:
             continue
         active = " is-active" if c.get("active") else ""
         muted = " is-muted" if c.get("muted") and not c.get("active") else ""
+        has_unread = int(c.get("unread", 0) or 0) > 0
+        unread_cls = " is-unread" if has_unread else ""
         badge = ""
-        if c.get("unread", 0) > 0 and c["id"] == GROUP_CHAT_ID:
-            n = unread if unread <= 99 else "99+"
-            badge = f'<span class="ig-chat-unread">{n}</span>'
+        if has_unread:
+            n = format_unread_count(int(c.get("unread", 0)))
+            badge = f'<span class="ig-chat-unread ig-unread-badge ig-unread-badge--conv">{n}</span>'
         items.append(
-            f'<div class="ig-chat-conv{active}{muted}">'
+            f'<div class="ig-chat-conv{active}{muted}{unread_cls}">'
             f'<div class="ig-chat-av {c["icon_cls"]}">{c["icon"]}</div>'
             f'<div class="ig-chat-conv-body">'
             f'<div class="ig-chat-conv-top">'
