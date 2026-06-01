@@ -7,6 +7,8 @@ from datetime import date, datetime, timedelta
 import pandas as pd
 import streamlit as st
 
+from ui_html import inject_page_script
+
 
 def mobile_lab_css() -> str:
     return r"""
@@ -125,7 +127,7 @@ def mobile_lab_css() -> str:
     }
     @keyframes ml-verse-marquee{
       from { transform: translate3d(0, 0, 0); }
-      to { transform: translate3d(var(--ml-verse-shift, -50%), 0, 0); }
+      to { transform: translate3d(-50%, 0, 0); }
     }
     @media (prefers-reduced-motion: reduce){
       body:has(#ml-mobile-lab-mode) #ml-verse-strip .ml-verse-marquee{
@@ -607,50 +609,47 @@ _ML_CHROME_HIDE_JS = r"""
 
 _ML_VERSE_MARQUEE_JS = r"""
 (function () {
+  var doc = (window.parent && window.parent.document) ? window.parent.document : document;
+
   function tune() {
-    var strip = document.getElementById("ml-verse-strip");
+    var strip = doc.getElementById("ml-verse-strip");
     if (!strip) return;
     var track = strip.querySelector(".ml-verse-marquee-track");
     if (!track) return;
     var half = track.scrollWidth / 2;
     if (!half || half < 8) return;
     var pxPerSec = 48;
-    var sec = Math.max(16, Math.min(60, half / pxPerSec));
+    var sec = Math.max(16, Math.min(90, half / pxPerSec));
     strip.style.setProperty("--ml-verse-dur", sec + "s");
-    strip.style.setProperty("--ml-verse-shift", "-" + half + "px");
+    track.style.animation = "none";
+    void track.offsetWidth;
+    track.style.removeProperty("animation");
   }
-  tune();
-  [120, 500, 1500, 3000].forEach(function (ms) {
-    setTimeout(tune, ms);
+
+  function run() {
+    tune();
+  }
+
+  run();
+  [120, 500, 1500, 3000, 6000].forEach(function (ms) {
+    setTimeout(run, ms);
   });
   try {
     var obs = new MutationObserver(function () {
-      setTimeout(tune, 150);
+      setTimeout(run, 150);
     });
-    obs.observe(document.body, { childList: true, subtree: true });
+    obs.observe(doc.body, { childList: true, subtree: true });
     setTimeout(function () {
       obs.disconnect();
-    }, 10000);
+    }, 15000);
   } catch (e) {}
 })();
 """
 
 
 def _inject_verse_marquee_script() -> None:
-    """Ajusta velocidade do letreiro conforme largura do texto (após render Streamlit)."""
-    try:
-        st.html(
-            f"<script>{_ML_VERSE_MARQUEE_JS}</script>",
-            unsafe_allow_javascript=True,
-        )
-    except Exception:
-        import streamlit.components.v1 as components
-
-        components.html(
-            f'<div aria-hidden="true" style="display:none"><script>{_ML_VERSE_MARQUEE_JS}</script></div>',
-            height=0,
-            scrolling=False,
-        )
+    """Ajusta velocidade do letreiro no documento pai (iframe do Streamlit)."""
+    inject_page_script(_ML_VERSE_MARQUEE_JS)
 
 
 def inject_mobile_lab_hide_streamlit_chrome() -> None:
