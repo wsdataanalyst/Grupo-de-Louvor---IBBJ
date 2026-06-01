@@ -80,7 +80,7 @@ def mobile_escalas_css() -> str:
       box-shadow: 0 0 22px rgba(139,92,246,.22) !important;
     }
     body:has(#ml-escalas-page) [class*="st-key-ml_esc_quick_"] .stButton > button{
-      min-height: 5.5rem !important;
+      min-height: 4.2rem !important;
       border-radius: 22px !important;
       background: rgba(15,23,42,.72) !important;
       border: 1px solid rgba(255,255,255,.08) !important;
@@ -133,9 +133,9 @@ def mobile_escalas_css() -> str:
       line-height: 1.25 !important;
     }
     .ml-esc-hero{
-      border-radius: 28px;
-      padding: 1rem;
-      margin-bottom: 1rem;
+      border-radius: 22px;
+      padding: 0.75rem;
+      margin-bottom: 0.5rem;
       position: relative;
       overflow: hidden;
     }
@@ -151,12 +151,12 @@ def mobile_escalas_css() -> str:
     .ml-esc-team-row{
       display: flex;
       align-items: center;
-      gap: 12px;
-      padding: 12px;
-      border-radius: 20px;
+      gap: 10px;
+      padding: 8px 10px;
+      border-radius: 16px;
       background: rgba(15,23,42,.55);
       border: 1px solid rgba(255,255,255,.08);
-      margin-bottom: 10px;
+      margin-bottom: 6px;
     }
     .ml-esc-team-row img, .ml-esc-team-av{
       width: 52px;
@@ -175,11 +175,11 @@ def mobile_escalas_css() -> str:
       color: rgba(226,232,240,.95);
     }
     .ml-esc-song{
-      border-radius: 22px;
-      padding: 14px;
+      border-radius: 18px;
+      padding: 10px 12px;
       background: rgba(15,23,42,.72);
       border: 1px solid rgba(255,255,255,.08);
-      margin-bottom: 12px;
+      margin-bottom: 6px;
     }
     .ml-esc-song h4{ margin: 0; font-size: 1rem; font-weight: 800; }
     .ml-esc-song p{ margin: 4px 0 0; color: rgba(148,163,184,.92); font-size: 0.82rem; }
@@ -197,26 +197,17 @@ def mobile_escalas_css() -> str:
     """
 
 
-def _render_header(*, search_key: str = "ml_esc_search") -> None:
+def _render_header() -> None:
     st.markdown(
         """
         <div id="ml-escalas-page" class="ml-page">
-          <div class="ml-esc-header" style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:1rem;">
-            <div>
-              <h1>Escalas</h1>
-              <p>Gerencie ensaios e cultos</p>
-            </div>
-            <div class="ml-glass ml-iconbtn" style="width:52px;height:52px;border-radius:20px;display:flex;align-items:center;justify-content:center;font-size:1.25rem;">🔍</div>
+          <div class="ml-esc-header" style="margin-bottom:0.5rem;">
+            <h1>Escalas</h1>
+            <p>Gerencie ensaios e cultos</p>
           </div>
         </div>
         """,
         unsafe_allow_html=True,
-    )
-    st.text_input(
-        "Buscar escalas",
-        placeholder="Buscar culto, função...",
-        key=search_key,
-        label_visibility="collapsed",
     )
 
 
@@ -259,7 +250,7 @@ def _render_quick_access() -> None:
     from mobile_lab_nav import user_can_gerenciar_escalas
 
     st.markdown(
-        '<div style="font-size:1.15rem;font-weight:900;margin:0.5rem 0 0.75rem;">Acesso rápido</div>',
+        '<div style="font-size:1.05rem;font-weight:900;margin:0.35rem 0 0.45rem;">Acesso rápido</div>',
         unsafe_allow_html=True,
     )
     if user_can_gerenciar_escalas() or bool(st.session_state.get("ml_can_gerenciar")):
@@ -346,7 +337,6 @@ def _render_tab_equipe(
     minhas: list[dict],
     members_df: pd.DataFrame,
     equipe_df: pd.DataFrame,
-    search_q: str,
 ) -> None:
     _render_hero_hub()
     _render_quick_access()
@@ -355,18 +345,14 @@ def _render_tab_equipe(
         return
 
     st.markdown(
-        '<div style="font-size:1.05rem;font-weight:900;margin:1rem 0 0.5rem;">Equipe escalada</div>',
+        '<div style="font-size:1.05rem;font-weight:900;margin:0.5rem 0 0.35rem;">Equipe escalada</div>',
         unsafe_allow_html=True,
     )
     from app import format_rehearsal_date_pt, profile_photo_to_data_uri, rehearsal_date_is_set
 
-    q = search_q.strip().lower()
     for item in minhas:
         escala = item["escala"]
-        funcao = str(item.get("funcao", "Integrante"))
         ev = str(escala.get("event", "Culto"))
-        if q and q not in ev.lower() and q not in funcao.lower():
-            continue
         dt = pd.to_datetime(escala.get("date"), errors="coerce")
         date_txt = dt.strftime("%d/%m/%Y") if pd.notna(dt) else ""
         ensaio = (
@@ -376,12 +362,12 @@ def _render_tab_equipe(
         )
         st.markdown(
             f"""
-            <div class="ml-glass" style="border-radius:22px;padding:14px;margin-bottom:12px;">
-              <div style="font-size:0.72rem;font-weight:800;color:rgba(148,163,184,.92);text-transform:uppercase;letter-spacing:0.04em;">
+            <div class="ml-glass" style="border-radius:18px;padding:10px 12px;margin-bottom:6px;">
+              <div style="font-size:0.68rem;font-weight:800;color:rgba(148,163,184,.92);text-transform:uppercase;letter-spacing:0.04em;">
                 Culto · { _esc(date_txt) }
               </div>
-              <div style="font-size:1.2rem;font-weight:900;margin:6px 0 4px;">{_esc(ev)}</div>
-              <div style="color:rgba(148,163,184,.92);font-size:0.85rem;">📅 {_esc(ensaio)}</div>
+              <div style="font-size:1.05rem;font-weight:900;margin:4px 0 2px;">{_esc(ev)}</div>
+              <div style="color:rgba(148,163,184,.92);font-size:0.8rem;">📅 {_esc(ensaio)}</div>
             </div>
             """,
             unsafe_allow_html=True,
@@ -392,8 +378,6 @@ def _render_tab_equipe(
         team = integrantes_escalados(escala, equipe_df, members_df)
         for p in team:
             nome = str(p.get("nome", ""))
-            if q and q not in nome.lower():
-                continue
             email = str(p.get("email", "")).strip().lower()
             foto = _photo_uri(email)
             st.markdown(
@@ -410,7 +394,6 @@ def _render_tab_todas(
     members_df: pd.DataFrame,
     programa_df: pd.DataFrame,
     louvores_df: pd.DataFrame,
-    search_q: str,
 ) -> None:
     from app import member_escala_occurrences, render_culto_programa
 
@@ -418,16 +401,13 @@ def _render_tab_todas(
     if not occ:
         st.info("Você ainda não aparece em nenhuma escala registrada.")
         return
-    q = search_q.strip().lower()
     st.caption(f"{len(occ)} culto(s) no seu histórico.")
     for i, (_culto_d, eid, _ev) in enumerate(occ):
         row_match = escalas_df[escalas_df["id"].astype(str) == str(eid)]
         if row_match.empty:
             continue
         ev = str(row_match.iloc[0].get("event", ""))
-        if q and q not in ev.lower():
-            continue
-        with st.expander(f"📅 {_esc(ev)}", expanded=(i == 0 and not q)):
+        with st.expander(f"📅 {_esc(ev)}", expanded=(i == 0)):
             render_culto_programa(
                 row_match.iloc[0],
                 programa_df,
@@ -578,14 +558,11 @@ def render_mobile_escalas_page(
     _render_header()
     _render_tabs(active)
 
-    search_q = str(st.session_state.get("ml_esc_search", "") or "")
-
     if active == "equipe":
         _render_tab_equipe(
             minhas=minhas,
             members_df=members_df,
             equipe_df=equipe_df,
-            search_q=search_q,
         )
     elif active == "todas":
         _render_tab_todas(
@@ -595,7 +572,6 @@ def render_mobile_escalas_page(
             members_df=members_df,
             programa_df=programa_df,
             louvores_df=louvores_df,
-            search_q=search_q,
         )
     elif active == "sequencia":
         _render_tab_sequencia(

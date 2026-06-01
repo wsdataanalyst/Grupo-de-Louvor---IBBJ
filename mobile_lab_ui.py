@@ -89,24 +89,45 @@ def mobile_lab_css() -> str:
       flex: 0 0 auto;
       font-size: 16px;
     }
-    body:has(#ml-mobile-lab-mode) #ml-verse-strip .ml-verse-txt{
+    body:has(#ml-mobile-lab-mode) #ml-verse-strip .ml-verse-marquee{
+      flex: 1 1 auto;
       min-width: 0;
+      overflow: hidden;
+      -webkit-mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
+      mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
+    }
+    body:has(#ml-mobile-lab-mode) #ml-verse-strip .ml-verse-marquee-track{
+      display: inline-flex;
+      align-items: center;
+      gap: 3rem;
+      white-space: nowrap;
+      animation: ml-verse-marquee 32s linear infinite;
+      will-change: transform;
+    }
+    body:has(#ml-mobile-lab-mode) #ml-verse-strip .ml-verse-marquee-item{
       color: rgba(226,232,240,.96);
       font-family: 'Manrope', system-ui, sans-serif;
       font-size: 12px;
       line-height: 1.15;
       font-weight: 700;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
     }
-    body:has(#ml-mobile-lab-mode) #ml-verse-strip .ml-verse-ref{
+    body:has(#ml-mobile-lab-mode) #ml-verse-strip .ml-verse-marquee-item .ml-verse-ref{
       color: rgba(148,163,184,.92);
       font-size: 11px;
       font-weight: 800;
-      margin-left: 8px;
-      white-space: nowrap;
-      flex: 0 0 auto;
+      margin-left: 10px;
+    }
+    @keyframes ml-verse-marquee{
+      0% { transform: translateX(-50%); }
+      100% { transform: translateX(0); }
+    }
+    @media (prefers-reduced-motion: reduce){
+      body:has(#ml-mobile-lab-mode) #ml-verse-strip .ml-verse-marquee-track{
+        animation: none;
+        transform: none;
+        flex-wrap: wrap;
+        white-space: normal;
+      }
     }
     body:has(#ml-bottom-nav-start) [data-testid="stAppViewContainer"],
     body:has(.ml-page) [data-testid="stAppViewContainer"] {
@@ -598,12 +619,17 @@ def inject_mobile_lab_app_shell() -> None:
     if verse_text:
         safe_txt = verse_text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
         safe_ref = verse_ref.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        line = safe_txt
+        if safe_ref:
+            line += f' <span class="ml-verse-ref">— {safe_ref}</span>'
         strip_html = (
             '<div id="ml-verse-strip" aria-label="Versículo do dia">'
             '<div class="ml-verse-ico">📖</div>'
-            f'<div class="ml-verse-txt">{safe_txt}</div>'
-            f'<div class="ml-verse-ref">{safe_ref}</div>'
-            "</div>"
+            '<div class="ml-verse-marquee">'
+            '<div class="ml-verse-marquee-track">'
+            f'<span class="ml-verse-marquee-item">{line}</span>'
+            f'<span class="ml-verse-marquee-item" aria-hidden="true">{line}</span>'
+            "</div></div></div>"
         )
 
     st.markdown(

@@ -31,6 +31,26 @@ INSTRUMENT_ROLES = {
 }
 TECH_ROLE = "Técnico de som"
 
+# Equipe sugerida por culto: 4 vozes + instrumentos + técnico de som
+REQUIRED_VOCAL_SLOTS: tuple[str, ...] = (
+    "Vocalista - Baritono",
+    "Vocalista - Contralto",
+    "Vocalista - Soprano",
+    "Vocalista - Mezzo Soprano",
+)
+REQUIRED_INSTRUMENT_SLOTS: tuple[str, ...] = (
+    "Tecladista",
+    "Baterista",
+    "Violonista",
+    "Guitarrista",
+    "Baixista",
+)
+REQUIRED_ESCALA_SLOTS: tuple[str, ...] = (
+    *REQUIRED_VOCAL_SLOTS,
+    *REQUIRED_INSTRUMENT_SLOTS,
+    TECH_ROLE,
+)
+
 FUNCAO_MINISTRADOR = "Ministrador"
 FUNCAO_INTEGRANTE = "Integrante"
 FUNCAO_BANDA = "Banda"
@@ -58,6 +78,7 @@ class MemberCandidate:
     email: str
     name: str
     tracks: frozenset[str]
+    musician_roles: frozenset[str]
     default_funcao: str
     month_count: int
     year_count: int
@@ -112,6 +133,15 @@ def _parse_date(value) -> date | None:
     if pd.isna(dt):
         return None
     return dt.date()
+
+
+def member_musician_roles(roles_str: str) -> frozenset[str]:
+    parts = [p.strip() for p in str(roles_str).split(",") if p.strip()]
+    return frozenset(
+        p
+        for p in parts
+        if p in VOCAL_ROLES or p in INSTRUMENT_ROLES or p == TECH_ROLE
+    )
 
 
 def member_role_tracks(roles_str: str) -> frozenset[str]:
@@ -228,13 +258,16 @@ def build_candidates(
         fn = str(row.get("first_name", "")).strip()
         ln = str(row.get("last_name", "")).strip()
         name = f"{fn} {ln}".strip() or email
-        tracks = member_role_tracks(str(row.get("roles", "")))
+        roles_raw = str(row.get("roles", ""))
+        tracks = member_role_tracks(roles_raw)
+        m_roles = member_musician_roles(roles_raw)
         stats = member_escala_stats(email, escalas_df, equipe_df, ref=culto_ref)
         out.append(
             MemberCandidate(
                 email=email,
                 name=name,
                 tracks=tracks,
+                musician_roles=m_roles,
                 default_funcao=default_funcao_for_member(tracks),
                 month_count=stats.month_count,
                 year_count=stats.year_count,
@@ -360,12 +393,70 @@ def _record_assignment(
                 pass
 
 
+def _track_for_role_label(role_label: str) -> str:
+    if role_label in VOCAL_ROLES:
+        return "vocal"
+    if role_label in INSTRUMENT_ROLES:
+        return "instrument"
+    if role_label == TECH_ROLE:
+        return "tech"
+    return funcao_to_track(role_label)
+
+
+def _pick_for_role_label(
+    candidates: list[MemberCandidate],
+    culto_date: date,
+    last_by_email_track: dict[tuple[str, str], date],
+    *,
+    role_label: str,
+    picked_emails: set[str],
+) -> tuple[MemberCandidate | None, str]:
+    """Escolhe integrante para função específica (ex.: Vocalista - Soprano)."""
+    track = _track_for_role_label(role_label)
+    funcao = (
+        FUNCAO_TECNICO
+        if role_label == TECH_ROLE
+        else FUNCAO_BANDA
+        if track == "instrument"
+        else FUNCAO_INTEGRANTE
+    )
+
+    def score(c: MemberCandidate, *, require_role: bool) -> float:
+        if c.email in picked_emails:
+            return -1e9
+        if require_role and role_label not in c.musician_roles:
+            return -1e9
+        return _score_member(
+            c,
+            culto_date,
+            role=funcao,
+            last_by_email_track=last_by_email_track,
+            already_picked=picked_emails,
+            prefer_track=track,
+        )
+
+    best: MemberCandidate | None = None
+    best_sc = -1e9
+    for c in candidates:
+        sc = score(c, require_role=True)
+        if sc > best_sc:
+            best_sc = sc
+            best = c
+    if best is None or best_sc <= -1e8:
+        for c in candidates:
+            sc = score(c, require_role=False)
+            if sc > best_sc:
+                best_sc = sc
+                best = c
+    return best, funcao
+
+
 def pick_equipe_for_culto(
     candidates: list[MemberCandidate],
     culto_date: date,
     last_by_email_track: dict[tuple[str, str], date],
     *,
-    team_size: int = 6,
+    team_size: int | None = None,
 ) -> tuple[EquipeSlot, list[EquipeSlot], list[str]]:
     notes: list[str] = []
     picked_emails: set[str] = set()
@@ -409,49 +500,31 @@ def pick_equipe_for_culto(
     )
 
     equipe: list[EquipeSlot] = []
-    slots_plan = [
-        (FUNCAO_BANDA, "instrument"),
-        (FUNCAO_BANDA, "instrument"),
-        (FUNCAO_INTEGRANTE, "vocal"),
-        (FUNCAO_INTEGRANTE, "vocal"),
-        (FUNCAO_TECNICO, "tech"),
-    ]
-    remaining = max(0, team_size - 1)
-    plan = slots_plan[:remaining]
+    slot_labels = list(REQUIRED_ESCALA_SLOTS)
+    if team_size is not None and team_size > 1:
+        slot_labels = slot_labels[: max(0, team_size - 1)]
 
-    for funcao, prefer in plan:
-        best = None
-        best_sc = -1e9
-        for c in candidates:
-            sc = _score_member(
-                c,
-                culto_date,
-                role=funcao,
-                last_by_email_track=last_by_email_track,
-                already_picked=picked_emails,
-                prefer_track=prefer,
-            )
-            if sc > best_sc:
-                best_sc = sc
-                best = c
-        if best is None or best_sc <= -1e8:
-            for c in candidates:
-                sc = _score_member(
-                    c,
-                    culto_date,
-                    role=FUNCAO_INTEGRANTE,
-                    last_by_email_track=last_by_email_track,
-                    already_picked=picked_emails,
-                )
-                if sc > best_sc:
-                    best_sc = sc
-                    best = c
-                    funcao = FUNCAO_INTEGRANTE
+    for role_label in slot_labels:
+        best, funcao = _pick_for_role_label(
+            candidates,
+            culto_date,
+            last_by_email_track,
+            role_label=role_label,
+            picked_emails=picked_emails,
+        )
         if best is None:
+            notes.append(f"Sem candidato para {role_label}.")
             continue
-        tr = funcao_to_track(funcao)
+        if role_label not in best.musician_roles:
+            notes.append(f"{role_label}: atribuído por proximidade de função.")
+        tr = _track_for_role_label(role_label)
         equipe.append(
-            EquipeSlot(email=best.email, name=best.name, funcao=funcao, track=tr)
+            EquipeSlot(
+                email=best.email,
+                name=best.name,
+                funcao=role_label,
+                track=tr,
+            )
         )
         picked_emails.add(best.email)
         _record_assignment(
@@ -573,7 +646,7 @@ def generate_escala_suggestions(
     louvores_df: pd.DataFrame,
     *,
     ref: date | None = None,
-    team_size: int = 6,
+    team_size: int | None = None,
 ) -> list[CultoSuggestion]:
     ref = ref or date.today()
     start, end = horizon_date_range(horizon, ref)

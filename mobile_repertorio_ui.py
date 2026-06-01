@@ -78,8 +78,30 @@ def mobile_repertorio_css() -> str:
       color: #fff !important;
       font-size: 0.95rem !important;
     }
+    body:has(#ml-repertorio-page) [class*="st-key-ml_rep_quick_row"] [data-testid="stHorizontalBlock"]{
+      flex-wrap: nowrap !important;
+      gap: 0.4rem !important;
+    }
+    body:has(#ml-repertorio-page) [class*="st-key-ml_rep_quick_row"] [data-testid="stHorizontalBlock"] > [data-testid="stColumn"],
+    body:has(#ml-repertorio-page) [class*="st-key-ml_rep_quick_row"] [data-testid="column"]{
+      flex: 1 1 25% !important;
+      width: 25% !important;
+      max-width: 25% !important;
+      min-width: 0 !important;
+    }
+    @media (max-width: 380px){
+      body:has(#ml-repertorio-page) [class*="st-key-ml_rep_quick_row"] [data-testid="stHorizontalBlock"]{
+        flex-wrap: wrap !important;
+      }
+      body:has(#ml-repertorio-page) [class*="st-key-ml_rep_quick_row"] [data-testid="stHorizontalBlock"] > [data-testid="stColumn"],
+      body:has(#ml-repertorio-page) [class*="st-key-ml_rep_quick_row"] [data-testid="column"]{
+        flex: 1 1 calc(50% - 4px) !important;
+        width: calc(50% - 4px) !important;
+        max-width: calc(50% - 4px) !important;
+      }
+    }
     body:has(#ml-repertorio-page) [class*="st-key-ml_rep_quick_"] .stButton > button{
-      min-height: 4.6rem !important;
+      min-height: 3.4rem !important;
       border-radius: 22px !important;
       font-weight: 800 !important;
       font-size: 0.82rem !important;
@@ -412,23 +434,24 @@ def _render_stats(stats: dict, added_month: int) -> None:
 
 
 def _render_quick_actions() -> None:
-    cols = st.columns(4, gap="small")
-    for col, (key, icon, label, bg) in zip(cols, QUICK_ACTIONS):
-        with col:
-            with st.container(key=f"ml_rep_quick_{key}"):
-                if st.button(f"{icon}\n{label}", key=f"ml_rep_quick_btn_{key}"):
-                    if key == "filtros":
-                        st.session_state.ml_rep_show_filters = True
-                    elif key == "tags":
-                        st.session_state.ml_rep_show_tags = True
-                    elif key == "favoritos":
-                        st.session_state.ml_rep_f_fav = True
-                        _set_view("lista")
-                        st.session_state.ml_rep_list_tab = "favoritas"
-                    elif key == "novas":
-                        st.session_state.ml_rep_novas = True
-                        _set_view("lista")
-                    st.rerun()
+    with st.container(key="ml_rep_quick_row"):
+        cols = st.columns(4, gap="small")
+        for col, (key, icon, label, bg) in zip(cols, QUICK_ACTIONS):
+            with col:
+                with st.container(key=f"ml_rep_quick_{key}"):
+                    if st.button(f"{icon}\n{label}", key=f"ml_rep_quick_btn_{key}"):
+                        if key == "filtros":
+                            st.session_state.ml_rep_show_filters = True
+                        elif key == "tags":
+                            st.session_state.ml_rep_show_tags = True
+                        elif key == "favoritos":
+                            st.session_state.ml_rep_f_fav = True
+                            _set_view("lista")
+                            st.session_state.ml_rep_list_tab = "favoritas"
+                        elif key == "novas":
+                            st.session_state.ml_rep_novas = True
+                            _set_view("lista")
+                        st.rerun()
 
 
 def _render_filters_ui(louvores_df: pd.DataFrame) -> tuple[str, str, str, str, list[str], list[str], bool]:

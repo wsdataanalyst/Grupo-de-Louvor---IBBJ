@@ -95,7 +95,10 @@ def render_mobile_perfil_page(
     inject_mobile_lab_theme()
     st.markdown(f"<style>{mobile_perfil_css()}</style>", unsafe_allow_html=True)
 
+    from app import sync_user_profile_photo_field
+
     members_df = prepare_members(members_df)
+    members_df = sync_user_profile_photo_field(members_df)
     _, row = get_current_member_row(members_df)
     if row is None:
         st.error("Não foi possível carregar o perfil.")

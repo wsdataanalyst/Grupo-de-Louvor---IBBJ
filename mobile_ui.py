@@ -74,6 +74,17 @@ def mobile_first_css() -> str:
                 min-width: max-content !important;
             }}
 
+            /* Mobile Lab Repertório: atalhos Filtros/Tags/Favoritos/Novas em linha */
+            body:has(#ml-repertorio-page) [class*="st-key-ml_rep_quick_row"] [data-testid="stHorizontalBlock"] {{
+                flex-wrap: nowrap !important;
+            }}
+            body:has(#ml-repertorio-page) [class*="st-key-ml_rep_quick_row"] [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {{
+                flex: 1 1 25% !important;
+                width: 25% !important;
+                max-width: 25% !important;
+                min-width: 0 !important;
+            }}
+
             /* Linhas que devem ficar lado a lado (2 colunas no máximo) */
             .ig-m-row-2 [data-testid="stHorizontalBlock"] {{
                 flex-wrap: nowrap !important;

@@ -33,9 +33,9 @@ def render_escala_suggestions_panel(
     )
     st.caption(
         "Sugestão com base no **histórico** de escalas e no repertório. "
-        "Evita repetir o mesmo integrante em **cultos seguidos** na mesma função (vocal ou instrumento); "
-        "quem canta e toca pode aparecer em cultos consecutivos em funções diferentes. "
-        "No mês, a mesma pessoa pode voltar se houver **intercalação**. "
+        "Cada culto inclui **4 vozes** (barítono, contralto, soprano, mezzo), "
+        "**5 instrumentos** (teclado, bateria, violão, guitarra, baixo) e **técnico de som**, "
+        "além do ministrador. Evita repetir o mesmo integrante em cultos seguidos na mesma trilha. "
         "Santa Ceia (1º domingo do mês): **6 louvores**; demais cultos: **5**."
     )
 
