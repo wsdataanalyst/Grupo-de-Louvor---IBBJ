@@ -9,7 +9,7 @@ import pandas as pd
 import streamlit as st
 
 # Altere ao publicar — confirme no rodapé do chat se o Cloud atualizou
-ML_CHAT_BUILD = "2026-06-01-ml-chat-3"
+ML_CHAT_BUILD = "2026-06-01-ml-chat-4"
 
 from app_runtime import import_from_main_app
 from chat_runtime import (

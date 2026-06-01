@@ -12,6 +12,32 @@ def html_block(raw: str) -> str:
     return textwrap.dedent(raw).strip()
 
 
+def inject_page_script(javascript: str) -> None:
+    """
+    Executa JavaScript no app (documento pai no iframe do Streamlit).
+
+    st.markdown(..., unsafe_allow_html=True) remove <script> e pode exibir o código
+  na tela; use esta função para scroll, lightbox e listeners.
+    """
+    js = javascript.strip()
+    if not js:
+        return
+    wrapped = f"<script>\n{js}\n</script>"
+    try:
+        st.html(wrapped, unsafe_allow_javascript=True)
+        return
+    except Exception:
+        pass
+    import streamlit.components.v1 as components
+
+    components.html(
+        '<div style="position:fixed;left:0;top:0;width:0;height:0;overflow:hidden;'
+        f'opacity:0;pointer-events:none;">{wrapped}</div>',
+        height=0,
+        scrolling=False,
+    )
+
+
 def inject_ui_html(fragment: str, *, sidebar: bool = False) -> None:
     """
     Renderiza HTML com estilos do app (app_theme.css).

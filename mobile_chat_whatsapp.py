@@ -11,7 +11,7 @@ import streamlit as st
 from chat_runtime import chat_media_html, sort_chat_messages
 from chat_ui import GROUP_CHAT_SUB, GROUP_CHAT_TITLE
 from notification_badge import notification_badge_css
-from ui_html import inject_ui_html
+from ui_html import inject_page_script, inject_ui_html
 
 _WA_GROUP_AVATAR = "🎵"
 
@@ -598,8 +598,9 @@ def render_wa_list_header_html() -> str:
 def inject_wa_scroll_and_lightbox() -> None:
     force = st.session_state.pop("_chat_scroll_bottom", False)
     force_js = "true" if force else "false"
-    st.markdown(
-        f"""
+
+    inject_ui_html(
+        """
         <button type="button" class="wa-jump-bottom" id="wa-jump-bottom" aria-label="Ir para última mensagem">
           ↓ Última mensagem
         </button>
@@ -617,7 +618,11 @@ def inject_wa_scroll_and_lightbox() -> None:
             <div id="wa-lb-caption"></div>
           </div>
         </div>
-        <script>
+        """
+    )
+
+    inject_page_script(
+        f"""
         (function () {{
           var doc = window.parent.document;
           var forceScroll = {force_js};
@@ -724,9 +729,7 @@ def inject_wa_scroll_and_lightbox() -> None:
             }}, {{ passive: true }});
           }}
         }})();
-        </script>
-        """,
-        unsafe_allow_html=True,
+        """
     )
 
 
