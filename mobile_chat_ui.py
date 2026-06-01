@@ -9,7 +9,13 @@ import pandas as pd
 import streamlit as st
 
 from app_runtime import import_from_main_app
-from chat_runtime import is_user_viewing_chat_mobile
+from chat_runtime import (
+    CHAT_AUDIO_DIR,
+    CHAT_IMAGES_DIR,
+    is_user_viewing_chat_mobile,
+    load_chat_df_live,
+    pending_text_key,
+)
 from chat_ui import (
     CHAT_LIST_TABS,
     GROUP_CHAT_SUB,
@@ -152,11 +158,10 @@ def _render_list_view(
 
 @st.fragment(run_every=timedelta(seconds=4))
 def _ml_chat_feed_fragment(members_df: pd.DataFrame) -> None:
-    """Histórico ao vivo — bolhas alinhadas estilo WhatsApp."""
+    """Histórico ao vivo — sem importar app.py (evita AttributeError no Cloud)."""
     try:
-        load_chat_df = import_from_main_app("load_chat_df")[0]
-        chat_df = load_chat_df()
-    except (ImportError, AttributeError):
+        chat_df = load_chat_df_live()
+    except Exception:
         chat_df = st.session_state.get("_chat_df_cache")
         if chat_df is None:
             chat_df = pd.DataFrame()
@@ -171,17 +176,11 @@ def _ml_chat_feed_fragment(members_df: pd.DataFrame) -> None:
 
 
 def _render_chat_composer_bar() -> None:
-    (
-        CHAT_AUDIO_DIR,
-        CHAT_IMAGES_DIR,
-        append_chat_message,
-        render_chat_composer,
-    ) = import_from_main_app(
-        "CHAT_AUDIO_DIR",
-        "CHAT_IMAGES_DIR",
-        "append_chat_message",
-        "render_chat_composer",
-    )
+    bundle = st.session_state.get("_ml_chat_bundle") or {}
+    append_chat_message = bundle.get("append_chat_message")
+    render_chat_composer = bundle.get("render_chat_composer")
+    if not append_chat_message or not render_chat_composer:
+        return
 
     def _append(**kwargs):
         append_chat_message(**kwargs)
@@ -325,32 +324,48 @@ def _render_stats_view(
 
 
 def render_mobile_chat_page(chat_df: pd.DataFrame, members_df: pd.DataFrame) -> None:
-    (
-        append_chat_message,
-        count_unread_chat_messages,
-        load_chat_df,
-        mark_chat_seen,
-        members_visible_to_group,
-        pending_text_key,
-    ) = import_from_main_app(
-        "append_chat_message",
-        "count_unread_chat_messages",
-        "load_chat_df",
-        "mark_chat_seen",
-        "members_visible_to_group",
-        "pending_text_key",
-    )
+    try:
+        (
+            append_chat_message,
+            count_unread_chat_messages,
+            load_chat_df,
+            mark_chat_seen,
+            members_visible_to_group,
+        ) = import_from_main_app(
+            "append_chat_message",
+            "count_unread_chat_messages",
+            "load_chat_df",
+            "mark_chat_seen",
+            "members_visible_to_group",
+        )
+        render_chat_composer = import_from_main_app("render_chat_composer")[0]
+    except (ImportError, AttributeError):
+        append_chat_message = None
+        count_unread_chat_messages = lambda _df=None: 0
+        load_chat_df = load_chat_df_live
+        mark_chat_seen = lambda _df: None
+        members_visible_to_group = lambda m: m
+        render_chat_composer = None
+
+    st.session_state["_ml_chat_bundle"] = {
+        "append_chat_message": append_chat_message,
+        "render_chat_composer": render_chat_composer,
+    }
 
     inject_mobile_lab_theme()
     st.markdown(f"<style>{mobile_chat_css()}</style>", unsafe_allow_html=True)
 
     pending_key = pending_text_key("group_chat")
     pending = st.session_state.pop(pending_key, None)
-    if pending and str(pending).strip():
+    if pending and str(pending).strip() and append_chat_message:
         append_chat_message(message=str(pending).strip(), message_type="text", media_file="")
         mark_chat_scroll_bottom()
 
-    chat_df = load_chat_df()
+    try:
+        chat_df = load_chat_df()
+    except Exception:
+        chat_df = load_chat_df_live()
+    st.session_state["_chat_df_cache"] = chat_df
     if _chat_view() == "thread":
         mark_chat_seen(chat_df)
     unread = count_unread_chat_messages(chat_df)

@@ -13,6 +13,49 @@ import streamlit as st
 from chat_media import media_absolute_path
 
 DATA_DIR = Path("data")
+CHAT_FILE = DATA_DIR / "chat.csv"
+CHAT_COLUMNS = ("timestamp", "email", "name", "message", "message_type", "media_file")
+CHAT_AUDIO_DIR = DATA_DIR / "chat_audio"
+CHAT_IMAGES_DIR = DATA_DIR / "chat_images"
+
+
+def pending_text_key(key_prefix: str) -> str:
+    return f"{key_prefix}_pending_text"
+
+
+def prepare_chat_df(df: pd.DataFrame) -> pd.DataFrame:
+    from app_time import normalize_chat_timestamp_str
+    from chat_media import ensure_chat_media_columns
+
+    df = ensure_chat_media_columns(df, CHAT_COLUMNS)
+    if df.empty:
+        return df
+    df = df.copy()
+    df["email"] = df["email"].astype(str).str.strip().str.lower()
+    df["timestamp"] = df["timestamp"].apply(normalize_chat_timestamp_str)
+    df = df[df["timestamp"].astype(str).str.strip() != ""].copy()
+    df = df.drop_duplicates(subset=["email", "message", "timestamp"], keep="first")
+    return sort_chat_messages(df)
+
+
+def load_chat_df_live() -> pd.DataFrame:
+    """Recarrega chat.csv sem importar app.py (seguro em @st.fragment no Cloud)."""
+    from data_persistence import load_csv_preserve_rows
+
+    try:
+        from remote_store import dataframe_from_remote, is_remote_enabled, should_sync_file
+
+        if should_sync_file(CHAT_FILE) and is_remote_enabled():
+            df = dataframe_from_remote(CHAT_COLUMNS, CHAT_FILE.name)
+            if df is not None:
+                CHAT_FILE.parent.mkdir(parents=True, exist_ok=True)
+                df.to_csv(CHAT_FILE, index=False)
+                return prepare_chat_df(df)
+    except Exception:
+        pass
+
+    raw = load_csv_preserve_rows(CHAT_FILE, CHAT_COLUMNS)
+    return prepare_chat_df(raw)
 
 
 def is_user_viewing_chat_mobile() -> bool:
