@@ -29,6 +29,8 @@ def wa_mobile_chat_css() -> str:
       --wa-bg: #0b141a;
       --wa-header: #202c33;
       --wa-compose: #202c33;
+      --ml-compose-clearance: 5.75rem;
+      --ml-thread-header: 3.25rem;
       --wa-bubble-in: #202c33;
       --wa-bubble-out: #005c4b;
       --wa-text: #e9edef;
@@ -181,19 +183,33 @@ def wa_mobile_chat_css() -> str:
       flex: 1;
       width: 100%;
       max-width: 100%;
-      min-height: calc(100dvh - var(--ml-nav-height) - var(--ml-verse-height) - 11rem);
-      max-height: calc(100dvh - var(--ml-nav-height) - var(--ml-verse-height) - 11rem);
+      min-height: calc(
+        100dvh - var(--ml-nav-height) - var(--ml-verse-height) - var(--ml-nav-offset)
+        - var(--ml-thread-header) - var(--ml-compose-clearance) - 1.5rem
+      );
+      max-height: calc(
+        100dvh - var(--ml-nav-height) - var(--ml-verse-height) - var(--ml-nav-offset)
+        - var(--ml-thread-header) - var(--ml-compose-clearance) - 1.5rem
+      );
       overflow-y: auto !important;
       overflow-x: hidden;
       -webkit-overflow-scrolling: touch;
       scroll-behavior: smooth;
-      padding: 0.5rem 0.55rem 0.75rem;
+      box-sizing: border-box !important;
+      padding: 0.5rem 0.55rem calc(var(--ml-compose-clearance) + 0.65rem) !important;
       margin: 0;
       background: transparent !important;
       border: none !important;
       display: flex;
       flex-direction: column;
       gap: 0;
+    }
+    #chat-scroll-end.wa-feed-bottom-spacer {
+      flex-shrink: 0;
+      width: 100%;
+      min-height: var(--ml-compose-clearance);
+      height: var(--ml-compose-clearance);
+      pointer-events: none;
     }
     .wa-msg-row {
       display: flex;
@@ -312,7 +328,10 @@ def wa_mobile_chat_css() -> str:
     .wa-jump-bottom {
       position: fixed;
       right: 1rem;
-      bottom: calc(var(--ml-nav-height) + var(--ml-verse-height) + var(--ml-nav-offset) + 5.5rem);
+      bottom: calc(
+        var(--ml-nav-height) + var(--ml-verse-height) + var(--ml-nav-offset)
+        + var(--ml-compose-clearance, 5.75rem) + 0.25rem
+      );
       z-index: 2147483648;
       display: none;
       align-items: center;
@@ -486,9 +505,13 @@ def wa_mobile_chat_css() -> str:
       font-size: 1.15rem !important;
       line-height: 1 !important;
     }
-    body:has(#ml-chat-page) #chat-scroll-box.wa-chat-feed {
-      min-height: calc(100dvh - var(--ml-nav-height) - var(--ml-verse-height) - 8.5rem);
-      max-height: calc(100dvh - var(--ml-nav-height) - var(--ml-verse-height) - 8.5rem);
+    body:has(#ml-chat-page) .wa-thread-layout {
+      padding-bottom: 0 !important;
+      margin-bottom: 0 !important;
+    }
+    body:has(#ml-chat-page) .ml-chat-feed-area {
+      margin-bottom: 0 !important;
+      padding-bottom: 0 !important;
     }
     body:has(#ml-chat-page) [class*="st-key-ml_chat_back"] .stButton > button {
       background: transparent !important;
@@ -656,7 +679,7 @@ def render_wa_mobile_messages(
     html_block = build_wa_messages_html_cached(chat_df, members_df, rev=feed_rev)
     st.markdown(
         f'<div id="chat-scroll-box" class="chat-feed wa-chat-feed">{html_block}'
-        f'<div id="chat-scroll-end" style="height:1px;"></div></div>',
+        f'<div id="chat-scroll-end" class="wa-feed-bottom-spacer" aria-hidden="true"></div></div>',
         unsafe_allow_html=True,
     )
     inject_wa_scroll_and_lightbox()
@@ -675,7 +698,7 @@ def render_wa_feed_from_cache(members_df: pd.DataFrame) -> bool:
         return False
     st.markdown(
         f'<div id="chat-scroll-box" class="chat-feed wa-chat-feed">{html_block}'
-        f'<div id="chat-scroll-end" style="height:1px;"></div></div>',
+        f'<div id="chat-scroll-end" class="wa-feed-bottom-spacer" aria-hidden="true"></div></div>',
         unsafe_allow_html=True,
     )
     return True
@@ -717,6 +740,19 @@ def inject_wa_scroll_nudge_only() -> None:
         """
         (function () {
           var doc = window.parent.document;
+          function syncComposeClearance() {
+            var box = doc.getElementById("chat-scroll-box");
+            var comp = doc.querySelector('[class*="st-key-ml_chat_composer"]');
+            if (!box) return;
+            var h = 92;
+            if (comp) h = Math.max(72, comp.getBoundingClientRect().height);
+            var clearance = Math.ceil(h + 14) + "px";
+            doc.documentElement.style.setProperty("--ml-compose-clearance", clearance);
+            box.style.paddingBottom = clearance;
+            var end = doc.getElementById("chat-scroll-end");
+            if (end) end.style.height = clearance;
+          }
+          syncComposeClearance();
           var box = doc.getElementById("chat-scroll-box");
           if (box) box.scrollTop = box.scrollHeight + 9999;
           var end = doc.getElementById("chat-scroll-end");
@@ -767,12 +803,24 @@ def inject_wa_scroll_and_lightbox() -> None:
           var lb = doc.getElementById("wa-lightbox");
           if (!box) return;
 
+          function syncComposeClearance() {{
+            var comp = doc.querySelector('[class*="st-key-ml_chat_composer"]');
+            var h = 92;
+            if (comp) h = Math.max(72, comp.getBoundingClientRect().height);
+            var clearance = Math.ceil(h + 16) + "px";
+            doc.documentElement.style.setProperty("--ml-compose-clearance", clearance);
+            box.style.paddingBottom = clearance;
+            var end = doc.getElementById("chat-scroll-end");
+            if (end) end.style.height = clearance;
+          }}
+
           function nearBottom() {{
-            return box.scrollHeight - box.scrollTop - box.clientHeight < 120;
+            return box.scrollHeight - box.scrollTop - box.clientHeight < 160;
           }}
 
           function scrollToEnd(smooth) {{
-            box.scrollTop = box.scrollHeight + 9999;
+            syncComposeClearance();
+            box.scrollTop = box.scrollHeight + 99999;
             var end = doc.getElementById("chat-scroll-end");
             if (end) end.scrollIntoView({{ block: "end", behavior: smooth ? "smooth" : "auto" }});
             if (jumpBtn) jumpBtn.classList.remove("is-visible");
@@ -797,10 +845,22 @@ def inject_wa_scroll_and_lightbox() -> None:
           if (!box.dataset.waObs) {{
             box.dataset.waObs = "1";
             new MutationObserver(function () {{
+              syncComposeClearance();
               if (nearBottom() || forceScroll) scrollToEnd(false);
               else updateJump();
             }}).observe(box, {{ childList: true, subtree: true }});
           }}
+
+          var comp = doc.querySelector('[class*="st-key-ml_chat_composer"]');
+          if (comp && !comp.dataset.waPadObs) {{
+            comp.dataset.waPadObs = "1";
+            new ResizeObserver(function () {{
+              syncComposeClearance();
+              if (nearBottom()) scrollToEnd(false);
+            }}).observe(comp);
+          }}
+
+          syncComposeClearance();
 
           [100, 300, 700, 1200].forEach(function (ms) {{
             setTimeout(function () {{
