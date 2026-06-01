@@ -99,6 +99,13 @@ def mobile_first_css() -> str:
                 min-width: 0 !important;
             }}
 
+            body:has(#ml-chat-page) [data-testid="stMain"] [data-testid="stVerticalBlock"] {{
+                gap: 0.15rem !important;
+            }}
+            body:has(#ml-chat-page) [data-testid="element-container"] {{
+                margin-bottom: 0 !important;
+            }}
+
             /* Linhas que devem ficar lado a lado (2 colunas no máximo) */
             .ig-m-row-2 [data-testid="stHorizontalBlock"] {{
                 flex-wrap: nowrap !important;

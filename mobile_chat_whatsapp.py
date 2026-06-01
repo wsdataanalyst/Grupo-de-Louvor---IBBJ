@@ -42,14 +42,79 @@ def wa_mobile_chat_css() -> str:
       padding-top: 0 !important;
       padding-left: 0 !important;
       padding-right: 0 !important;
+      padding-bottom: 0 !important;
       max-width: 100% !important;
     }
-    #ml-chat-page.wa-chat-page {
-      display: flex;
-      flex-direction: column;
-      min-height: calc(100dvh - var(--ml-nav-height) - var(--ml-verse-height) - 2rem);
-      background: var(--wa-bg);
-      background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.02'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+    body:has(#ml-chat-page) [data-testid="stMain"] > div {
+      padding-top: 0 !important;
+    }
+    #ml-chat-page.wa-chat-thread-shell {
+      display: none !important;
+      height: 0 !important;
+      min-height: 0 !important;
+      margin: 0 !important;
+      padding: 0 !important;
+    }
+    body:has(#ml-chat-page) #chat-scroll-box.wa-chat-feed {
+      position: fixed !important;
+      top: calc(var(--ml-thread-header) + env(safe-area-inset-top, 0px)) !important;
+      left: 0 !important;
+      right: 0 !important;
+      bottom: calc(
+        var(--ml-nav-height) + var(--ml-verse-height) + var(--ml-nav-offset)
+        + var(--ml-compose-clearance, 5.75rem)
+      ) !important;
+      width: 100% !important;
+      max-width: 100% !important;
+      min-height: 0 !important;
+      max-height: none !important;
+      height: auto !important;
+      z-index: 50 !important;
+      background: var(--wa-bg) !important;
+      background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.02'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E") !important;
+    }
+    body:has(#ml-chat-page) [class*="st-key-ml_chat_thread_top"] {
+      position: fixed !important;
+      top: env(safe-area-inset-top, 0px) !important;
+      left: 0 !important;
+      right: 0 !important;
+      z-index: 120 !important;
+      background: var(--wa-header) !important;
+      border-bottom: 1px solid rgba(255,255,255,.08) !important;
+      padding: 0.15rem 0.25rem 0.1rem !important;
+      margin: 0 !important;
+    }
+    body:has(#ml-chat-page) [class*="st-key-ml_chat_thread_top"] [data-testid="stHorizontalBlock"] {
+      display: flex !important;
+      flex-direction: row !important;
+      flex-wrap: nowrap !important;
+      align-items: center !important;
+      gap: 0 !important;
+      margin: 0 !important;
+    }
+    body:has(#ml-chat-page) [class*="st-key-ml_chat_thread_top"] [data-testid="stColumn"]:nth-child(1),
+    body:has(#ml-chat-page) [class*="st-key-ml_chat_thread_top"] [data-testid="stColumn"]:nth-child(3) {
+      flex: 0 0 2.5rem !important;
+      width: 2.5rem !important;
+      max-width: 2.5rem !important;
+      min-width: 2.5rem !important;
+    }
+    body:has(#ml-chat-page) [class*="st-key-ml_chat_thread_top"] [data-testid="stColumn"]:nth-child(2) {
+      flex: 1 1 auto !important;
+      width: auto !important;
+      min-width: 0 !important;
+      max-width: none !important;
+    }
+    body:has(#ml-chat-page) [class*="st-key-ml_chat_feed_wrap"] {
+      height: 0 !important;
+      min-height: 0 !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      overflow: visible !important;
+    }
+    body:has(#ml-chat-page) [class*="st-key-ml_chat_feed_wrap"] .ml-chat-feed-area {
+      margin: 0 !important;
+      padding: 0 !important;
     }
     .wa-chat-list-view {
       padding: 0 0.5rem 0.75rem;
@@ -101,16 +166,11 @@ def wa_mobile_chat_css() -> str:
       border-color: var(--wa-header) !important;
     }
     .wa-thread-layout {
-      display: flex;
-      flex-direction: column;
-      flex: 1;
-      min-height: 0;
-      margin: 0 -0.5rem;
+      display: none;
     }
     .wa-thread-header {
-      position: sticky;
-      top: 0;
-      z-index: 100;
+      position: relative;
+      z-index: 1;
       display: flex;
       align-items: center;
       gap: 0.5rem;
@@ -180,25 +240,13 @@ def wa_mobile_chat_css() -> str:
       position: relative;
     }
     #chat-scroll-box.wa-chat-feed {
-      flex: 1;
-      width: 100%;
-      max-width: 100%;
-      min-height: calc(
-        100dvh - var(--ml-nav-height) - var(--ml-verse-height) - var(--ml-nav-offset)
-        - var(--ml-thread-header) - var(--ml-compose-clearance) - 1.5rem
-      );
-      max-height: calc(
-        100dvh - var(--ml-nav-height) - var(--ml-verse-height) - var(--ml-nav-offset)
-        - var(--ml-thread-header) - var(--ml-compose-clearance) - 1.5rem
-      );
       overflow-y: auto !important;
       overflow-x: hidden;
       -webkit-overflow-scrolling: touch;
       scroll-behavior: smooth;
       box-sizing: border-box !important;
-      padding: 0.5rem 0.55rem calc(var(--ml-compose-clearance) + 0.65rem) !important;
+      padding: 0.45rem 0.5rem 0.5rem !important;
       margin: 0;
-      background: transparent !important;
       border: none !important;
       display: flex;
       flex-direction: column;
@@ -504,14 +552,6 @@ def wa_mobile_chat_css() -> str:
       color: var(--wa-meta) !important;
       font-size: 1.15rem !important;
       line-height: 1 !important;
-    }
-    body:has(#ml-chat-page) .wa-thread-layout {
-      padding-bottom: 0 !important;
-      margin-bottom: 0 !important;
-    }
-    body:has(#ml-chat-page) .ml-chat-feed-area {
-      margin-bottom: 0 !important;
-      padding-bottom: 0 !important;
     }
     body:has(#ml-chat-page) [class*="st-key-ml_chat_back"] .stButton > button {
       background: transparent !important;

@@ -9,7 +9,7 @@ import pandas as pd
 import streamlit as st
 
 # Altere ao publicar — confirme no rodapé do chat se o Cloud atualizou
-ML_CHAT_BUILD = "2026-06-01-ml-chat-7"
+ML_CHAT_BUILD = "2026-06-01-ml-chat-8"
 
 from app_runtime import import_from_main_app
 from chat_runtime import (
@@ -76,6 +76,15 @@ def mobile_chat_css() -> str:
     body:has(#ml-chat-page) .ml-chat-thread-shell { display: none !important; }
     body:has(#ml-chat-page) .ml-chat-quick-row { display: none !important; }
     body:has(#ml-chat-page) #ml-chat-page > p { display: none !important; }
+    body:has(#ml-chat-page) [data-testid="stCaptionContainer"],
+    body:has(#ml-chat-page) .stCaption { display: none !important; }
+    body:has(#ml-chat-page) .ig-chat-page::before { display: none !important; }
+    body:has(#ml-chat-page) .ig-chat-page {
+      min-height: 0 !important;
+      padding: 0 !important;
+      margin: 0 !important;
+      background: transparent !important;
+    }
     body:has(#ml-chat-page) [class*="st-key-ml_chat_open_equipe"] .stButton > button {
       border-radius: 0 !important;
       background: var(--wa-header) !important;
@@ -183,9 +192,7 @@ def _draw_chat_feed(members_df: pd.DataFrame, *, force_reload: bool = False) -> 
     if is_user_viewing_chat_mobile():
         st.session_state.chat_unread_count = 0
 
-    st.markdown('<div class="ml-chat-feed-area">', unsafe_allow_html=True)
     render_wa_mobile_messages(chat_df, members_df, rev=rev)
-    st.markdown("</div>", unsafe_allow_html=True)
 
 
 @st.fragment(run_every=timedelta(seconds=8))
@@ -194,14 +201,12 @@ def _wa_chat_feed_tick(members_df: pd.DataFrame) -> None:
     Atualização leve: _chat_global_sync já recarrega o CSV quando muda.
     Aqui só re-renderiza o feed se a revisão mudou (sem PIL/CSV todo tick).
     """
-    st.markdown('<div class="ml-chat-feed-area">', unsafe_allow_html=True)
     if not render_wa_feed_from_cache(members_df):
         chat_df = st.session_state.get("_chat_df_cache")
         if chat_df is None:
             chat_df = pd.DataFrame()
         rev = str(st.session_state.get("_chat_rev", ""))
         render_wa_mobile_messages(chat_df, members_df, rev=rev)
-    st.markdown("</div>", unsafe_allow_html=True)
 
 
 def _render_chat_composer_bar() -> None:
@@ -228,26 +233,27 @@ def _render_thread_view(members_df: pd.DataFrame) -> None:
     n = len(members_df) if members_df is not None else 0
     online = f"{min(6, n)} online" if n else "Grupo oficial"
 
-    c_back, c_head, c_info = st.columns([0.5, 5, 0.5])
-    with c_back:
-        with st.container(key="ml_chat_back"):
-            if st.button("←", key="ml_chat_back_btn", help="Conversas"):
-                _set_chat_view("list")
-                st.rerun()
-    with c_head:
-        st.markdown(
-            render_wa_thread_header_html(member_count=n, online_hint=online),
-            unsafe_allow_html=True,
-        )
-    with c_info:
-        with st.container(key="ml_chat_info_btn"):
-            if st.button("ℹ️", key="ml_chat_info_open", help="Informações do grupo"):
-                _set_chat_view("info")
-                st.rerun()
+    with st.container(key="ml_chat_thread_top"):
+        c_back, c_head, c_info = st.columns([0.55, 5, 0.55], gap="small")
+        with c_back:
+            with st.container(key="ml_chat_back"):
+                if st.button("←", key="ml_chat_back_btn", help="Conversas"):
+                    _set_chat_view("list")
+                    st.rerun()
+        with c_head:
+            st.markdown(
+                render_wa_thread_header_html(member_count=n, online_hint=online),
+                unsafe_allow_html=True,
+            )
+        with c_info:
+            with st.container(key="ml_chat_info_btn"):
+                if st.button("ℹ️", key="ml_chat_info_open", help="Informações do grupo"):
+                    _set_chat_view("info")
+                    st.rerun()
 
-    st.markdown('<div class="wa-thread-layout">', unsafe_allow_html=True)
-    _wa_chat_feed_tick(members_df)
-    st.markdown("</div>", unsafe_allow_html=True)
+    with st.container(key="ml_chat_feed_wrap"):
+        _wa_chat_feed_tick(members_df)
+
     _render_chat_composer_bar()
 
 
@@ -404,10 +410,10 @@ def render_mobile_chat_page(chat_df: pd.DataFrame, members_df: pd.DataFrame) -> 
 
     render_chat_page_open()
     st.markdown(
-        f'<div id="ml-chat-page" class="ml-page wa-chat-page" data-build="{_esc(ML_CHAT_BUILD)}"></div>',
+        f'<div id="ml-chat-page" class="ml-page wa-chat-thread-shell" '
+        f'data-build="{_esc(ML_CHAT_BUILD)}" aria-hidden="true"></div>',
         unsafe_allow_html=True,
     )
-    st.caption(f"Chat mobile · build `{ML_CHAT_BUILD}`")
 
     view = _chat_view()
     if view == "thread":
