@@ -60,6 +60,80 @@ def chat_data_revision() -> str:
         return "local:missing"
 
 
+def is_chat_moderator(roles: str | None = None) -> bool:
+    """Líder, organizador musical/vocal ou desenvolvedor (mesma regra da escala)."""
+    r = str(roles if roles is not None else st.session_state.get("user_roles", ""))
+    try:
+        from app_runtime import import_from_main_app
+
+        is_scale_manager = import_from_main_app("is_scale_manager")[0]
+        return bool(is_scale_manager(r))
+    except Exception:
+        low = r.lower()
+        if "desenvolvedor" in low:
+            return True
+        if "lider" in low or "líder" in low:
+            return True
+        if "organizador musical" in low or "organizador vocal" in low:
+            return True
+        return False
+
+
+def can_delete_chat_message(
+    msg_email: str,
+    *,
+    roles: str | None = None,
+    my_email: str | None = None,
+) -> bool:
+    """Membro apaga só as próprias; líderes/organizadores apagam qualquer uma."""
+    mine = str(my_email or st.session_state.get("user_email", "")).strip().lower()
+    target = str(msg_email or "").strip().lower()
+    if not target:
+        return False
+    if mine and mine == target:
+        return True
+    return is_chat_moderator(roles)
+
+
+def delete_chat_message_row(timestamp: str, email: str) -> bool:
+    """Remove mensagem do CSV (quem chama deve validar permissão antes)."""
+    ts = str(timestamp).strip()
+    em = str(email).strip().lower()
+    if not ts or not em:
+        return False
+    from data_persistence import load_csv_preserve_rows
+
+    raw = load_csv_preserve_rows(CHAT_FILE, CHAT_COLUMNS)
+    df = prepare_chat_df(raw)
+    if df.empty:
+        return False
+    mask = ~(
+        (df["timestamp"].astype(str) == ts)
+        & (df["email"].astype(str).str.strip().str.lower() == em)
+    )
+    if len(df[mask]) == len(df):
+        return False
+    out = df[mask]
+    saved = False
+    try:
+        from app_runtime import import_from_main_app
+
+        save_data = import_from_main_app("save_data")[0]
+        saved = bool(save_data(out, CHAT_FILE))
+    except Exception:
+        saved = False
+    if not saved:
+        CHAT_FILE.parent.mkdir(parents=True, exist_ok=True)
+        out.to_csv(CHAT_FILE, index=False)
+    st.session_state["_chat_df_cache"] = out
+    try:
+        st.session_state["_chat_rev"] = chat_data_revision()
+    except Exception:
+        pass
+    invalidate_chat_feed_cache()
+    return True
+
+
 def invalidate_chat_feed_cache() -> None:
     """Força reconstruir HTML do feed após enviar/editar mensagem."""
     st.session_state.pop(_FEED_HTML_KEY, None)

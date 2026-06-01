@@ -4,17 +4,20 @@ from __future__ import annotations
 
 import html
 from datetime import datetime, timedelta
+from urllib.parse import unquote
 
 import pandas as pd
 import streamlit as st
 
 # Altere ao publicar — confirme no rodapé do chat se o Cloud atualizou
-ML_CHAT_BUILD = "2026-06-01-ml-chat-8"
+ML_CHAT_BUILD = "2026-06-01-ml-chat-9"
 
 from app_runtime import import_from_main_app
 from chat_runtime import (
     CHAT_AUDIO_DIR,
     CHAT_IMAGES_DIR,
+    can_delete_chat_message,
+    delete_chat_message_row,
     invalidate_chat_feed_cache,
     is_user_viewing_chat_mobile,
     load_chat_df_live,
@@ -63,6 +66,33 @@ def _chat_view() -> str:
 def _set_chat_view(view: str) -> None:
     if view in _CHAT_VIEWS:
         st.session_state.ml_chat_view = view
+
+
+def _process_mobile_chat_delete_request() -> None:
+    """Após long-press: ?ml_del=timestamp|email"""
+    raw = st.query_params.get("ml_del")
+    if not raw:
+        return
+    if isinstance(raw, list):
+        raw = raw[0]
+    try:
+        del st.query_params["ml_del"]
+    except Exception:
+        pass
+    parts = unquote(str(raw)).split("|", 1)
+    if len(parts) != 2:
+        return
+    ts, em = parts[0].strip(), parts[1].strip().lower()
+    if not ts or not em:
+        return
+    if not can_delete_chat_message(em):
+        st.toast("Você não pode apagar esta mensagem.", icon="🚫")
+        return
+    if delete_chat_message_row(ts, em):
+        mark_chat_scroll_bottom()
+        st.toast("Mensagem apagada.", icon="🗑️")
+        st.rerun()
+    st.toast("Não foi possível apagar a mensagem.", icon="⚠️")
 
 
 def mobile_chat_css() -> str:
@@ -381,6 +411,8 @@ def render_mobile_chat_page(chat_df: pd.DataFrame, members_df: pd.DataFrame) -> 
         pass
 
     st.session_state["_ml_append_chat"] = append_chat_message
+
+    _process_mobile_chat_delete_request()
 
     inject_mobile_lab_theme()
     st.markdown(f"<style>{mobile_chat_css()}</style>", unsafe_allow_html=True)

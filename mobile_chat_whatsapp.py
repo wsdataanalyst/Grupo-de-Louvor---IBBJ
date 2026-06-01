@@ -342,6 +342,64 @@ def wa_mobile_chat_css() -> str:
       color: var(--wa-meta);
     }
     .wa-ticks--read { color: #53bdeb; }
+    .wa-msg-row[data-can-delete="1"] .wa-bubble {
+      -webkit-user-select: none;
+      user-select: none;
+      touch-action: manipulation;
+    }
+    .wa-msg-row.wa-msg-hold .wa-bubble {
+      filter: brightness(1.08);
+      box-shadow: 0 0 0 2px rgba(0, 168, 132, 0.4);
+    }
+    #wa-msg-actions {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 2147483646;
+      align-items: flex-end;
+      justify-content: center;
+    }
+    #wa-msg-actions.is-open { display: flex; }
+    .wa-msg-actions-backdrop {
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.55);
+    }
+    .wa-msg-actions-sheet {
+      position: relative;
+      width: 100%;
+      max-width: 480px;
+      background: #1f2c34;
+      border-radius: 14px 14px 0 0;
+      padding: 0.85rem 1rem calc(1rem + env(safe-area-inset-bottom, 0px));
+      box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.35);
+    }
+    .wa-msg-actions-preview {
+      margin: 0 0 0.75rem;
+      font-size: 0.8rem;
+      color: #8696a0;
+      line-height: 1.35;
+      max-height: 3.2em;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .wa-msg-actions-btn {
+      display: block;
+      width: 100%;
+      margin: 0.35rem 0;
+      padding: 0.75rem 1rem;
+      border: none;
+      border-radius: 10px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      background: #2a3942;
+      color: #e9edef;
+    }
+    .wa-msg-actions-btn--danger {
+      background: rgba(234, 67, 53, 0.18);
+      color: #ea4335;
+    }
     .wa-doc-card {
       display: flex;
       align-items: center;
@@ -641,7 +699,10 @@ def build_wa_messages_html(chat_df: pd.DataFrame, members_df: pd.DataFrame) -> s
             "Envie a primeira mensagem para o grupo.</div>"
         )
 
+    from chat_runtime import can_delete_chat_message
+
     my_email = str(st.session_state.get("user_email", "")).strip().lower()
+    roles = str(st.session_state.get("user_roles", ""))
     chat_sorted = sort_chat_messages(chat_df)
     parts: list[str] = []
     prev_email = ""
@@ -677,8 +738,14 @@ def build_wa_messages_html(chat_df: pd.DataFrame, members_df: pd.DataFrame) -> s
         name_html = (
             f'<div class="wa-sender-name">{_esc(display_name)}</div>' if show_name else ""
         )
+        can_del = (
+            "1"
+            if can_delete_chat_message(email, roles=roles, my_email=my_email)
+            else "0"
+        )
         parts.append(
-            f'<div class="{row_cls}">'
+            f'<div class="{row_cls}" data-msg-ts="{_esc(ts_raw)}" data-msg-email="{_esc(email)}" '
+            f'data-can-delete="{can_del}" data-sender-name="{_esc(display_name)}">'
             f'<div class="wa-bubble-wrap">'
             f"{name_html}"
             f'<div class="wa-bubble wa-bubble--{side}">'
@@ -830,6 +897,16 @@ def inject_wa_scroll_and_lightbox() -> None:
             <div id="wa-lb-caption"></div>
           </div>
         </div>
+        <div id="wa-msg-actions" role="dialog" aria-hidden="true" aria-label="Ações da mensagem">
+          <div class="wa-msg-actions-backdrop"></div>
+          <div class="wa-msg-actions-sheet">
+            <p class="wa-msg-actions-preview" id="wa-msg-actions-preview"></p>
+            <button type="button" id="wa-msg-actions-delete" class="wa-msg-actions-btn wa-msg-actions-btn--danger">
+              Apagar mensagem
+            </button>
+            <button type="button" id="wa-msg-actions-cancel" class="wa-msg-actions-btn">Cancelar</button>
+          </div>
+        </div>
         """
     )
 
@@ -963,6 +1040,132 @@ def inject_wa_scroll_and_lightbox() -> None:
               var stage = doc.getElementById("wa-lb-img");
               if (stage && item) stage.src = item.src;
             }}, {{ passive: true }});
+          }}
+
+          var msgSheet = doc.getElementById("wa-msg-actions");
+          var HOLD_MS = 520;
+
+          function bindMessageLongPress() {{
+            if (!msgSheet) return;
+            var rows = box.querySelectorAll('.wa-msg-row[data-can-delete="1"] .wa-bubble');
+            rows.forEach(function (bubble) {{
+              if (bubble.dataset.waHoldBound) return;
+              bubble.dataset.waHoldBound = "1";
+              var row = bubble.closest(".wa-msg-row");
+              if (!row) return;
+              var timer = null;
+              var blockClick = false;
+              var startX = 0;
+              var startY = 0;
+
+              function clearHold() {{
+                if (timer) clearTimeout(timer);
+                timer = null;
+                if (row) row.classList.remove("wa-msg-hold");
+              }}
+
+              function openMsgSheet() {{
+                var ts = row.dataset.msgTs;
+                var em = row.dataset.msgEmail;
+                if (!ts || !em) return;
+                msgSheet.dataset.msgTs = ts;
+                msgSheet.dataset.msgEmail = em;
+                msgSheet.dataset.senderName = row.dataset.senderName || "";
+                var preview = doc.getElementById("wa-msg-actions-preview");
+                var name = row.dataset.senderName || "Mensagem";
+                var txt = row.querySelector(".chat-text");
+                var snippet = "Mensagem";
+                if (txt && txt.textContent) snippet = txt.textContent.trim().slice(0, 72);
+                else if (row.querySelector("img.wa-media-img, .wa-bubble img")) snippet = "Foto";
+                else if (row.querySelector("audio")) snippet = "Áudio";
+                else if (row.querySelector(".wa-doc-card")) snippet = "Documento";
+                if (preview) preview.textContent = name + ": " + snippet;
+                msgSheet.classList.add("is-open");
+                msgSheet.setAttribute("aria-hidden", "false");
+              }}
+
+              function onStart(e) {{
+                if (e.type === "mousedown" && e.button !== 0) return;
+                blockClick = false;
+                startX = e.touches ? e.touches[0].clientX : e.clientX;
+                startY = e.touches ? e.touches[0].clientY : e.clientY;
+                clearHold();
+                timer = setTimeout(function () {{
+                  row.classList.add("wa-msg-hold");
+                  blockClick = true;
+                  if (navigator.vibrate) {{
+                    try {{ navigator.vibrate(15); }} catch (err) {{}}
+                  }}
+                  openMsgSheet();
+                }}, HOLD_MS);
+              }}
+
+              function onMove(e) {{
+                if (!timer) return;
+                var x = e.touches ? e.touches[0].clientX : e.clientX;
+                var y = e.touches ? e.touches[0].clientY : e.clientY;
+                if (Math.abs(x - startX) > 14 || Math.abs(y - startY) > 14) clearHold();
+              }}
+
+              bubble.addEventListener("touchstart", onStart, {{ passive: true }});
+              bubble.addEventListener("touchmove", onMove, {{ passive: true }});
+              bubble.addEventListener("touchend", clearHold);
+              bubble.addEventListener("touchcancel", clearHold);
+              bubble.addEventListener("mousedown", onStart);
+              bubble.addEventListener("mouseup", clearHold);
+              bubble.addEventListener("mouseleave", clearHold);
+              bubble.addEventListener("click", function (e) {{
+                if (blockClick) {{
+                  e.preventDefault();
+                  e.stopPropagation();
+                  blockClick = false;
+                }}
+              }}, true);
+            }});
+          }}
+
+          function closeMsgSheet() {{
+            if (!msgSheet) return;
+            msgSheet.classList.remove("is-open");
+            msgSheet.setAttribute("aria-hidden", "true");
+            box.querySelectorAll(".wa-msg-hold").forEach(function (r) {{
+              r.classList.remove("wa-msg-hold");
+            }});
+          }}
+
+          if (msgSheet && !msgSheet.dataset.bound) {{
+            msgSheet.dataset.bound = "1";
+            var cancelBtn = doc.getElementById("wa-msg-actions-cancel");
+            var delBtn = doc.getElementById("wa-msg-actions-delete");
+            var backdrop = msgSheet.querySelector(".wa-msg-actions-backdrop");
+            if (cancelBtn) cancelBtn.addEventListener("click", closeMsgSheet);
+            if (backdrop) backdrop.addEventListener("click", closeMsgSheet);
+            if (delBtn) delBtn.addEventListener("click", function () {{
+              var ts = msgSheet.dataset.msgTs;
+              var em = msgSheet.dataset.msgEmail;
+              if (!ts || !em) return;
+              var who = msgSheet.dataset.senderName || "esta mensagem";
+              var prompt = who === "Você"
+                ? "Apagar sua mensagem?"
+                : "Apagar mensagem de " + who + "?";
+              if (!confirm(prompt)) return;
+              closeMsgSheet();
+              var url = new URL(window.parent.location.href);
+              url.searchParams.set(
+                "ml_del",
+                encodeURIComponent(ts) + "|" + encodeURIComponent(em)
+              );
+              window.parent.location.href = url.toString();
+            }});
+          }}
+
+          bindMessageLongPress();
+
+          if (!box.dataset.waMsgDelObs) {{
+            box.dataset.waMsgDelObs = "1";
+            new MutationObserver(function () {{
+              bindMessageLongPress();
+            }}).observe(box, {{ childList: true, subtree: true }});
           }}
         }})();
         """
