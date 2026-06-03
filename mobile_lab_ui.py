@@ -244,6 +244,12 @@ def mobile_lab_css() -> str:
     .ml-glow-purple{ box-shadow: 0 0 30px rgba(139,92,246,.25); }
     .ml-glow-gold{ box-shadow: 0 0 30px rgba(212,160,23,.20); }
 
+    body:has(#ml-dashboard-page) [class*="st-key-ml_drawer_toggle"]{
+      display: none !important;
+    }
+    body:has(#ml-dashboard-page) .ml-top{
+      padding-right: 0 !important;
+    }
     .ml-top{
       display:flex; align-items:center; justify-content:space-between; gap:12px;
       margin-bottom: 12px;
@@ -292,7 +298,46 @@ def mobile_lab_css() -> str:
       margin-bottom: 10px;
     }
     .ml-hero h2{ margin:0; font-size: 26px; font-weight: 900; letter-spacing:-0.02em; }
-    .ml-meta{ margin-top: 8px; display:flex; gap:12px; color: rgba(226,232,240,.9); font-size: 13px; }
+    .ml-meta{ margin-top: 8px; display:flex; flex-direction:column; gap:10px; color: rgba(226,232,240,.9); font-size: 13px; }
+    .ml-meta-block{ display:flex; flex-direction:column; gap:3px; }
+    .ml-meta-label{ font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:0.06em; color:rgba(167,139,250,.9); }
+    .ml-meta-line{ display:flex; align-items:center; gap:6px; }
+    .ml-hero-btns{ margin-top: -4px; margin-bottom: 8px; }
+    .ml-hero-btns [data-testid="stHorizontalBlock"]{ gap: 0.5rem !important; }
+    .ml-hero-btns .stButton > button{
+      border-radius: 16px !important;
+      min-height: 2.5rem !important;
+      font-weight: 800 !important;
+      font-size: 0.78rem !important;
+    }
+    .ml-hero-btns [class*="st-key-ml_dash_escala_full"] .stButton > button{
+      background: linear-gradient(90deg, rgba(124,58,237,1), rgba(139,92,246,1)) !important;
+      color: #fff !important;
+      border: none !important;
+    }
+    .ml-dash-top-actions{ margin: 0 0 10px 0 !important; }
+    .ml-dash-top-actions [data-testid="stHorizontalBlock"]{ gap: 0.45rem !important; justify-content: flex-end !important; }
+    body:has(#ml-dashboard-page) [class*="st-key-ml_dash_header_row"] [data-testid="stHorizontalBlock"]{
+      align-items: flex-start !important;
+      gap: 0.5rem !important;
+    }
+    body:has(#ml-dashboard-page) [class*="st-key-ml_dash_header_row"] [data-testid="column"]:last-child{
+      flex: 0 0 auto !important;
+      width: auto !important;
+      min-width: 6.5rem !important;
+    }
+    .ml-dash-top-actions .stButton > button{
+      width: 44px !important;
+      min-width: 44px !important;
+      height: 44px !important;
+      min-height: 44px !important;
+      padding: 0 !important;
+      border-radius: 18px !important;
+      background: rgba(15,23,42,.72) !important;
+      border: 1px solid rgba(255,255,255,.08) !important;
+      font-size: 1.1rem !important;
+    }
+    .ml-metric .ml-lbl-sub{ margin-top: 4px; color: rgba(134,239,172,.92); font-size: 11px; font-weight: 700; }
     .ml-hero-row{ margin-top: 12px; display:flex; gap:10px; align-items:center; justify-content:space-between; flex-wrap: wrap;}
     .ml-mini{ padding: 10px 12px; border-radius: 18px; font-size: 13px; white-space: nowrap;}
     .ml-cta{
@@ -827,24 +872,95 @@ def _pt_weekday(d: date) -> str:
     return dias[d.weekday()]
 
 
+def _format_culto_time(row: pd.Series, dt: datetime) -> str:
+    raw = str(row.get("time", row.get("hora", ""))).strip()
+    if raw and raw.lower() not in ("nan", "none", "00:00", "00h00"):
+        return raw
+    if dt.hour or dt.minute:
+        return dt.strftime("%Hh%M")
+    return "19h00"
+
+
+def _format_ensaio_parts(row: pd.Series) -> tuple[str, str]:
+    try:
+        from app import format_rehearsal_date_pt, rehearsal_date_is_set
+    except Exception:
+        return "A definir", ""
+    if not rehearsal_date_is_set(row):
+        return "A definir", ""
+    rd = pd.to_datetime(row.get("rehearsal_date"), errors="coerce")
+    if pd.isna(rd):
+        return "A definir", ""
+    py = rd.to_pydatetime()
+    date_txt = format_rehearsal_date_pt(row)
+    time_txt = py.strftime("%Hh%M") if (py.hour or py.minute) else ""
+    return date_txt, time_txt
+
+
 def _next_culto(escalas_df: pd.DataFrame) -> dict:
     if escalas_df is None or escalas_df.empty:
         return {}
     df = escalas_df.copy()
     df["_dt"] = pd.to_datetime(df.get("date"), errors="coerce")
     df = df[df["_dt"].notna()].sort_values("_dt")
-    now = datetime.now()
-    df = df[df["_dt"] >= now]
+    today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    df = df[df["_dt"].dt.date >= date.today()]
     if df.empty:
         return {}
     row = df.iloc[0]
     dt = row["_dt"].to_pydatetime()
+    culto_d = dt.date()
+    ensaio_date, ensaio_time = _format_ensaio_parts(row)
     return {
+        "id": str(row.get("id", "")).strip(),
         "event": str(row.get("event", "Culto")).strip() or "Culto",
-        "weekday": _pt_weekday(dt.date()),
-        "time": dt.strftime("%Hh%M"),
-        "date": dt.date(),
+        "weekday": _pt_weekday(culto_d),
+        "date": culto_d,
+        "date_str": culto_d.strftime("%d/%m/%Y"),
+        "date_full": f"{_pt_weekday(culto_d)}, {culto_d.strftime('%d/%m/%Y')}",
+        "time": _format_culto_time(row, dt),
+        "ensaio_date": ensaio_date,
+        "ensaio_time": ensaio_time,
     }
+
+
+def _my_sugestoes_dashboard_stats(
+    sugestoes_df: pd.DataFrame | None,
+    email: str,
+) -> tuple[int, int]:
+    """(enviadas no mês, aprovadas do usuário)."""
+    email = str(email or "").strip().lower()
+    if not email or sugestoes_df is None or sugestoes_df.empty:
+        return 0, 0
+    if "suggester_email" not in sugestoes_df.columns:
+        return 0, 0
+    mine = sugestoes_df[
+        sugestoes_df["suggester_email"].astype(str).str.strip().str.lower() == email
+    ]
+    if mine.empty:
+        return 0, 0
+    month_start = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    n_month = 0
+    n_aprov = 0
+    for _, row in mine.iterrows():
+        status = str(row.get("status", "")).strip().lower()
+        if "aprov" in status:
+            n_aprov += 1
+        created = pd.to_datetime(row.get("created_at", ""), errors="coerce")
+        if pd.notna(created) and created.to_pydatetime() >= month_start:
+            n_month += 1
+    return n_month, n_aprov
+
+
+def _open_escala_in_app(*, escala_id: str, tab: str = "equipe") -> None:
+    from mobile_lab_nav import navigate_ml_page
+
+    eid = str(escala_id or "").strip()
+    if eid:
+        st.session_state.focus_escala_id = eid
+        st.session_state.ml_escalas_focus_id = eid
+    st.session_state.ml_escalas_tab = tab
+    navigate_ml_page("Escalas")
 
 
 _ML_MENU_TO_PAGE: dict[str, str] = {
@@ -866,9 +982,11 @@ def render_mobile_lab_dashboard(
     members_df: pd.DataFrame,
     louvores_df: pd.DataFrame,
     escalas_df: pd.DataFrame,
+    sugestoes_df: pd.DataFrame | None = None,
     chat_unread: int = 0,
     user_full_name: str = "",
     photo_uri: str = "",
+    my_email: str = "",
     notif_count: int = 0,
     is_manager: bool = False,
     quick_links: list[tuple[str, str]] | None = None,
@@ -891,7 +1009,12 @@ def render_mobile_lab_dashboard(
         end = start + timedelta(days=7)
         cultos_semana = int(((dt >= start) & (dt <= end)).sum())
 
-    pendencias = int(max(0, chat_unread))
+    n_sug_mes, n_sug_aprov = _my_sugestoes_dashboard_stats(sugestoes_df, my_email)
+    sug_aprov_txt = (
+        f"{n_sug_aprov} aprovada{'s' if n_sug_aprov != 1 else ''}"
+        if n_sug_aprov
+        else "Nenhuma aprovada ainda"
+    )
 
     avatar_html = ""
     if photo_uri:
@@ -904,43 +1027,120 @@ def render_mobile_lab_dashboard(
             f'font-family:Manrope,system-ui,sans-serif;font-size:18px;">{initial}</div>'
         )
 
-    hero_title = next_culto.get("event", "Próximo culto")
-    hero_weekday = next_culto.get("weekday", "")
-    hero_time = next_culto.get("time", "")
-
-    st.markdown(
-        f"""
-        <div class="ml-page">
-          <div class="ml-top">
-            <div class="ml-user">
-              <div class="ml-avatar">{avatar_html}</div>
-              <div class="ml-hello">
-                <h1>Olá, {hello} 👋</h1>
-                <p>Que bom te ver por aqui!</p>
-              </div>
-            </div>
-            <div class="ml-actions">
-              <div class="ml-glass ml-iconbtn ml-glow-purple">🔔</div>
-              <div class="ml-glass ml-iconbtn">☰</div>
-            </div>
-          </div>
-
+    hero_block = ""
+    if next_culto:
+        hero_title = html.escape(str(next_culto.get("event", "Próximo culto")))
+        culto_date = html.escape(str(next_culto.get("date_full", "")))
+        culto_time = html.escape(str(next_culto.get("time", "19h00")))
+        ensaio_date = html.escape(str(next_culto.get("ensaio_date", "A definir")))
+        ensaio_time = html.escape(str(next_culto.get("ensaio_time", "")))
+        ensaio_time_line = (
+            f'<span class="ml-meta-line">🕘 {ensaio_time}</span>'
+            if ensaio_time
+            else ""
+        )
+        hero_block = f"""
           <div class="ml-glass ml-hero ml-glow-purple">
             <img src="https://images.unsplash.com/photo-1504052434569-70ad5836ab65?q=80&w=1200&auto=format&fit=crop" />
             <div class="ml-hero-inner">
               <div class="ml-pill">📅 PRÓXIMO CULTO</div>
               <h2>{hero_title}</h2>
               <div class="ml-meta">
-                <span>📆 {hero_weekday}</span>
-                <span>🕘 {hero_time}</span>
-              </div>
-              <div class="ml-hero-row">
-                <div class="ml-glass ml-mini">👥 Escala no app</div>
-                <button class="ml-cta">Ver escala completa</button>
+                <div class="ml-meta-block">
+                  <span class="ml-meta-label">Culto</span>
+                  <span class="ml-meta-line">📆 {culto_date}</span>
+                  <span class="ml-meta-line">🕘 {culto_time}</span>
+                </div>
+                <div class="ml-meta-block">
+                  <span class="ml-meta-label">Ensaio</span>
+                  <span class="ml-meta-line">📅 {ensaio_date}</span>
+                  {ensaio_time_line}
+                </div>
               </div>
             </div>
           </div>
+        """
+    else:
+        hero_block = """
+          <div class="ml-glass ml-hero ml-glow-purple">
+            <div class="ml-hero-inner">
+              <div class="ml-pill">📅 PRÓXIMO CULTO</div>
+              <h2>Nenhum culto agendado</h2>
+              <div class="ml-meta"><span>Cadastre a próxima escala em Gerenciar Escalas.</span></div>
+            </div>
+          </div>
+        """
 
+    st.markdown(
+        '<span id="ml-dashboard-page" aria-hidden="true"></span><div class="ml-page">',
+        unsafe_allow_html=True,
+    )
+
+    from mobile_lab_nav import navigate_ml_page, user_can_gerenciar_escalas
+
+    with st.container(key="ml_dash_header_row"):
+        h_left, h_right = st.columns([4, 1], gap="small")
+        with h_left:
+            st.markdown(
+                f"""
+                <div class="ml-top" style="margin-bottom:0;padding-right:0;">
+                  <div class="ml-user">
+                    <div class="ml-avatar">{avatar_html}</div>
+                    <div class="ml-hello">
+                      <h1>Olá, {html.escape(hello)} 👋</h1>
+                      <p>Que bom te ver por aqui!</p>
+                    </div>
+                  </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+        with h_right:
+            st.markdown('<div class="ml-dash-top-actions">', unsafe_allow_html=True)
+            hm1, hm2 = st.columns(2, gap="small")
+            with hm1:
+                if st.button("☰", key="ml_dash_menu_btn", use_container_width=True):
+                    st.session_state.ml_drawer_open = True
+                    st.rerun()
+            with hm2:
+                if st.button(
+                    f"🔔\n{max(0, int(notif_count))}",
+                    key="ml_dash_bell_btn",
+                    use_container_width=True,
+                ):
+                    navigate_ml_page("Notificações")
+                    st.rerun()
+            st.markdown("</div>", unsafe_allow_html=True)
+
+    st.markdown(hero_block, unsafe_allow_html=True)
+
+    if next_culto:
+        st.markdown('<div class="ml-hero-btns">', unsafe_allow_html=True)
+        hb1, hb2 = st.columns(2, gap="small")
+        eid = str(next_culto.get("id", ""))
+        with hb1:
+            with st.container(key="ml_dash_escala_app"):
+                if st.button(
+                    "👥 Escala no app",
+                    key="ml_dash_escala_app_btn",
+                    use_container_width=True,
+                ):
+                    _open_escala_in_app(escala_id=eid, tab="equipe")
+                    st.rerun()
+        with hb2:
+            with st.container(key="ml_dash_escala_full"):
+                if st.button(
+                    "Ver escala completa",
+                    key="ml_dash_escala_full_btn",
+                    use_container_width=True,
+                    type="primary",
+                ):
+                    _open_escala_in_app(escala_id=eid, tab="sequencia")
+                    st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    st.markdown(
+        f"""
           <div class="ml-grid2">
             <div class="ml-glass ml-card ml-metric ml-glow-purple">
               <div class="ml-emoji">🎵</div>
@@ -957,13 +1157,13 @@ def render_mobile_lab_dashboard(
               <div class="ml-val">{cultos_semana}</div>
               <div class="ml-lbl">Cultos esta semana</div>
             </div>
-            <div class="ml-glass ml-card ml-metric" style="border:1px solid rgba(34,197,94,.18);">
-              <div class="ml-emoji">✅</div>
-              <div class="ml-val">{pendencias}</div>
-              <div class="ml-lbl">Pendências para você</div>
+            <div class="ml-glass ml-card ml-metric" style="border:1px solid rgba(167,139,250,.22);">
+              <div class="ml-emoji">💡</div>
+              <div class="ml-val">{n_sug_mes}</div>
+              <div class="ml-lbl">Minhas sugestões este mês</div>
+              <div class="ml-lbl-sub">{html.escape(sug_aprov_txt)}</div>
             </div>
           </div>
-
           <div class="ml-section-h">
             <h3>Acesso rápido</h3>
             <div class="ml-link">Ver tudo</div>
@@ -972,24 +1172,6 @@ def render_mobile_lab_dashboard(
         """,
         unsafe_allow_html=True,
     )
-
-    from mobile_lab_nav import navigate_ml_page, user_can_gerenciar_escalas
-
-    ha1, ha2 = st.columns([1, 1], gap="small")
-    with ha1:
-        with st.container(key="ml_dash_bell"):
-            if st.button(
-                f"🔔\n{max(0, int(notif_count))}",
-                key="ml_dash_bell_btn",
-                use_container_width=True,
-            ):
-                navigate_ml_page("Notificações")
-                st.rerun()
-    with ha2:
-        with st.container(key="ml_dash_menu"):
-            if st.button("☰\nMenu", key="ml_dash_menu_btn", use_container_width=True):
-                st.session_state.ml_drawer_open = True
-                st.rerun()
 
     if can_gerenciar is None:
         can_gerenciar = bool(st.session_state.get("ml_can_gerenciar"))

@@ -5963,11 +5963,13 @@ def show_dashboard(
             members_df=members_df,
             louvores_df=louvores_df,
             escalas_df=escalas_df,
+            sugestoes_df=sug_df,
             chat_unread=chat_unread,
             user_full_name=nome,
             photo_uri=profile_photo_to_data_uri(
                 my_email, str(st.session_state.get("user_profile_photo", ""))
             ),
+            my_email=my_email,
             notif_count=pend,
             quick_links=quick,
             is_manager=can_ger,

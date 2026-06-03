@@ -558,6 +558,16 @@ def render_mobile_escalas_page(
     _render_header()
     _render_tabs(active)
 
+    focus_id = str(st.session_state.get("ml_escalas_focus_id", "")).strip()
+    if focus_id and not escalas_df.empty:
+        m = escalas_df[escalas_df["id"].astype(str) == focus_id]
+        if not m.empty:
+            row = m.iloc[0]
+            dt = pd.to_datetime(row.get("date"), errors="coerce")
+            dt_txt = dt.strftime("%d/%m/%Y") if pd.notna(dt) else ""
+            ev = str(row.get("event", "Culto"))
+            st.success(f"📅 **{ev}** · Culto em {dt_txt}")
+
     if active == "equipe":
         _render_tab_equipe(
             minhas=minhas,
