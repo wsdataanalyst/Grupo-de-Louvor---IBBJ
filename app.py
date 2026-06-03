@@ -106,31 +106,36 @@ from escala_pdf import (
     format_period_label,
     suggested_filename,
 )
-from sequencia_culto import (
-    PROGRAMA_SEQUENCIA_COLUMNS,
-    TOM_OPCOES,
-    build_trechos_banda_ui,
-    build_trechos_vocal_ui,
-    default_cifra_from_louvor,
-    default_lyrics_from_louvor,
-    display_cifra_transposed,
-    effective_tom,
-    get_sequencia_row,
-    join_paragraphs,
-    markup_to_json,
-    parse_markup,
-    render_cifra_direcoes_html,
-    render_cifra_html,
-    render_lyrics_annotated_html,
-    sequencia_culto_css,
-    split_lyrics_paragraphs,
-    trechos_banda_from_markup,
-    trechos_from_markup,
-    upsert_sequencia_row,
-    autosave_sequencia_trabalho,
-    integrantes_marcacao_opts,
-    banda_escala,
-)
+from sequencia_culto_css import sequencia_culto_css
+
+try:
+    from sequencia_culto import (
+        PROGRAMA_SEQUENCIA_COLUMNS,
+        TOM_OPCOES,
+        build_trechos_banda_ui,
+        build_trechos_vocal_ui,
+        default_cifra_from_louvor,
+        default_lyrics_from_louvor,
+        display_cifra_transposed,
+        effective_tom,
+        get_sequencia_row,
+        join_paragraphs,
+        markup_to_json,
+        parse_markup,
+        render_cifra_direcoes_html,
+        render_cifra_html,
+        render_lyrics_annotated_html,
+        split_lyrics_paragraphs,
+        trechos_banda_from_markup,
+        trechos_from_markup,
+        upsert_sequencia_row,
+        autosave_sequencia_trabalho,
+        integrantes_marcacao_opts,
+        banda_escala,
+    )
+except ImportError as _seq_import_err:
+    st.exception(_seq_import_err)
+    st.stop()
 from user_feedback import (
     MSG_IMPROVEMENTS,
     show_exception_error,

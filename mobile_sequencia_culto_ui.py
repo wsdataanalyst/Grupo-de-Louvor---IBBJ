@@ -41,7 +41,7 @@ def _set_sub(sub: str) -> None:
 
 
 def mobile_sequencia_css() -> str:
-    from sequencia_culto import sequencia_culto_css
+    from sequencia_culto_css import sequencia_culto_css
 
     return sequencia_culto_css() + r"""
     body:has(#ml-sequencia-page) .ml-seq-header{

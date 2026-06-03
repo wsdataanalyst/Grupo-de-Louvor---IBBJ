@@ -20,7 +20,7 @@ Não regredir estas escolhas de UX sem pedido explícito:
 - Campo **Direcionamento opcional** em todo trecho; deve aparecer na visualização final (letra e painel acima da cifra), mesmo em Uníssono/Todos.
 
 ## Visualização final
-- `render_lyrics_annotated_html`: letra à esquerda, chave direita `}` com rótulos curtos (`Solo: Nome`, `Uníssono`, banda, direcionamento) por trecho; `sequencia_culto_css()` na web e no Mobile Lab.
+- `render_lyrics_annotated_html`: letra à esquerda, chave direita `}` com rótulos curtos (`Solo: Nome`, `Uníssono`, banda, direcionamento) por trecho; CSS em `sequencia_culto_css.py` (web e Mobile Lab).
 - `render_cifra_direcoes_html`: resumo dos trechos acima da cifra.
 - Cifra estilo Cifra Club (`render_cifra_html` + `normalize_cifra_text`); sem lixo de site.
 
