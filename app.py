@@ -7680,19 +7680,60 @@ def render_ensaio_chat(
     escala_id: str,
     chat_ensaio_df: pd.DataFrame,
     members_df: pd.DataFrame,
+    *,
+    title: str = "",
+    subtitle: str = "",
 ):
-    st.subheader("💬 Chat do ensaio")
-    st.caption(
-        "Chat do ensaio · **+** galeria/câmera sob demanda · **segure** o mic para gravar."
-    )
-    saved = list_ensaio_audio_files(escala_id)
-    if saved:
-        with st.expander(f"🎧 Áudios de ensaio ({len(saved)})", expanded=False):
-            for path in saved:
-                st.caption(path.name)
-                st.audio(str(path))
+    from mobile_lab import is_mobile_lab_enabled
 
-    def _append_ensaio(**kwargs):
+    if is_mobile_lab_enabled():
+        from mobile_ensaio_chat_ui import render_mobile_ensaio_chat
+
+        render_mobile_ensaio_chat(
+            escala_id,
+            members_df,
+            title=title or "Chat do ensaio",
+            subtitle=subtitle or "Equipe deste culto",
+        )
+        return
+
+    _render_ensaio_chat_web(escala_id, chat_ensaio_df, members_df)
+
+
+@st.fragment(run_every=timedelta(seconds=4))
+def _ensaio_chat_live_web(escala_id: str, members_df: pd.DataFrame) -> None:
+    subset = prepare_chat_ensaio(load_data(CHAT_ENSAIO_FILE, CHAT_ENSAIO_COLUMNS))
+    subset = subset[subset["escala_id"].astype(str) == str(escala_id)].copy()
+    my_email = st.session_state.user_email.strip().lower()
+
+    def _del_ensaio(ts, em):
+        delete_own_ensaio_message(ts, escala_id, em)
+
+    def _upd_ensaio(ts, em, txt):
+        update_own_ensaio_message(ts, escala_id, em, txt)
+
+    render_chat_messages(
+        subset,
+        members_df,
+        delete_fn=_del_ensaio,
+        update_fn=_upd_ensaio,
+        key_prefix=f"ensaio_{escala_id}",
+        premium=True,
+    )
+    ensaio_dir = ENSAIO_AUDIO_DIR / str(escala_id)
+    ensaio_dir.mkdir(parents=True, exist_ok=True)
+    render_chat_composer(
+        key_prefix=f"ensaio_{escala_id}",
+        append_fn=_append_ensaio_message_fn(escala_id),
+        audio_dir=ensaio_dir,
+        audio_prefix=f"ensaio_{escala_id}",
+        images_dir=CHAT_IMAGES_DIR,
+        image_prefix=f"ensaio_{escala_id}",
+    )
+
+
+def _append_ensaio_message_fn(escala_id: str):
+    def _append(**kwargs):
         fresh = prepare_chat_ensaio(load_data(CHAT_ENSAIO_FILE, CHAT_ENSAIO_COLUMNS))
         base = {
             "timestamp": timestamp_now(),
@@ -7711,42 +7752,36 @@ def render_ensaio_chat(
             mark_chat_scroll_bottom()
             st.rerun()
 
+    return _append
+
+
+def _render_ensaio_chat_web(
+    escala_id: str,
+    chat_ensaio_df: pd.DataFrame,
+    members_df: pd.DataFrame,
+):
+    st.subheader("💬 Chat do ensaio")
+    st.caption(
+        "Chat do ensaio · **+** galeria/câmera sob demanda · **segure** o mic para gravar."
+    )
+    saved = list_ensaio_audio_files(escala_id)
+    if saved:
+        with st.expander(f"🎧 Áudios de ensaio ({len(saved)})", expanded=False):
+            for path in saved:
+                st.caption(path.name)
+                st.audio(str(path))
+
     pending_key = pending_text_key(f"ensaio_{escala_id}")
     pending = st.session_state.pop(pending_key, None)
     if pending and str(pending).strip():
-        _append_ensaio(message=str(pending).strip(), message_type="text", media_file="")
+        _append_ensaio_message_fn(escala_id)(
+            message=str(pending).strip(), message_type="text", media_file=""
+        )
         return
 
-    subset = prepare_chat_ensaio(load_data(CHAT_ENSAIO_FILE, CHAT_ENSAIO_COLUMNS))
-    subset = subset[subset["escala_id"].astype(str) == str(escala_id)].copy()
-
-    my_email = st.session_state.user_email.strip().lower()
-
-    def _del_ensaio(ts, em):
-        delete_own_ensaio_message(ts, escala_id, em)
-
-    def _upd_ensaio(ts, em, txt):
-        update_own_ensaio_message(ts, escala_id, em, txt)
-
-    render_chat_messages(
-        subset,
-        members_df,
-        delete_fn=_del_ensaio,
-        update_fn=_upd_ensaio,
-        key_prefix=f"ensaio_{escala_id}",
-    )
-
-    ensaio_dir = ENSAIO_AUDIO_DIR / str(escala_id)
-    ensaio_dir.mkdir(parents=True, exist_ok=True)
-
-    render_chat_composer(
-        key_prefix=f"ensaio_{escala_id}",
-        append_fn=_append_ensaio,
-        audio_dir=ensaio_dir,
-        audio_prefix=f"ensaio_{escala_id}",
-        images_dir=CHAT_IMAGES_DIR,
-        image_prefix=f"ensaio_{escala_id}",
-    )
+    st.markdown('<div class="ig-chat-compose-wrap">', unsafe_allow_html=True)
+    _ensaio_chat_live_web(escala_id, members_df)
+    st.markdown("</div>", unsafe_allow_html=True)
 
 
 def render_escalas_pdf_export(

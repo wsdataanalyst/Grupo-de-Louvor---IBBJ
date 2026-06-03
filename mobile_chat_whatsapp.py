@@ -763,16 +763,20 @@ def build_wa_messages_html(chat_df: pd.DataFrame, members_df: pd.DataFrame) -> s
 
 
 def build_wa_messages_html_cached(
-    chat_df: pd.DataFrame, members_df: pd.DataFrame, *, rev: str
+    chat_df: pd.DataFrame,
+    members_df: pd.DataFrame,
+    *,
+    rev: str,
+    html_key: str | None = None,
+    rev_key: str | None = None,
 ) -> str:
-    if (
-        st.session_state.get(_FEED_REV_KEY) == rev
-        and st.session_state.get(_FEED_HTML_KEY)
-    ):
-        return str(st.session_state[_FEED_HTML_KEY])
+    hk = html_key or _FEED_HTML_KEY
+    rk = rev_key or _FEED_REV_KEY
+    if st.session_state.get(rk) == rev and st.session_state.get(hk):
+        return str(st.session_state[hk])
     html_block = build_wa_messages_html(chat_df, members_df)
-    st.session_state[_FEED_HTML_KEY] = html_block
-    st.session_state[_FEED_REV_KEY] = rev
+    st.session_state[hk] = html_block
+    st.session_state[rk] = rev
     return html_block
 
 
@@ -781,15 +785,30 @@ def render_wa_mobile_messages(
     members_df: pd.DataFrame,
     *,
     rev: str | None = None,
+    html_key: str | None = None,
+    rev_key: str | None = None,
+    scroll_box_id: str = "chat-scroll-box",
+    delete_query_param: str = "ml_del",
+    composer_selector: str = '[class*="st-key-ml_chat_composer"]',
 ) -> None:
     feed_rev = rev if rev is not None else str(st.session_state.get("_chat_rev", ""))
-    html_block = build_wa_messages_html_cached(chat_df, members_df, rev=feed_rev)
+    html_block = build_wa_messages_html_cached(
+        chat_df,
+        members_df,
+        rev=feed_rev,
+        html_key=html_key,
+        rev_key=rev_key,
+    )
     st.markdown(
-        f'<div id="chat-scroll-box" class="chat-feed wa-chat-feed">{html_block}'
+        f'<div id="{scroll_box_id}" class="chat-feed wa-chat-feed">{html_block}'
         f'<div id="chat-scroll-end" class="wa-feed-bottom-spacer" aria-hidden="true"></div></div>',
         unsafe_allow_html=True,
     )
-    inject_wa_scroll_and_lightbox()
+    inject_wa_scroll_and_lightbox(
+        scroll_box_id=scroll_box_id,
+        delete_query_param=delete_query_param,
+        composer_selector=composer_selector,
+    )
 
 
 def render_wa_feed_from_cache(members_df: pd.DataFrame) -> bool:
@@ -812,14 +831,25 @@ def render_wa_feed_from_cache(members_df: pd.DataFrame) -> bool:
     return True
 
 
-def render_wa_thread_header_html(*, member_count: int, online_hint: str = "") -> str:
-    status = online_hint or f"{member_count} participantes"
+def render_wa_thread_header_html(
+    *,
+    member_count: int = 0,
+    online_hint: str = "",
+    title: str = "",
+    subtitle: str = "",
+    avatar: str = "",
+) -> str:
+    title_show = title or GROUP_CHAT_TITLE
+    status = subtitle or online_hint or (
+        f"{member_count} participantes" if member_count else GROUP_CHAT_SUB
+    )
+    avatar_show = avatar or _WA_GROUP_AVATAR
     online_cls = " is-online" if online_hint and "online" in online_hint.lower() else ""
     return f"""
     <header class="wa-thread-header" aria-label="Cabeçalho do chat">
-      <div class="wa-thread-header__avatar">{_WA_GROUP_AVATAR}</div>
+      <div class="wa-thread-header__avatar">{avatar_show}</div>
       <div class="wa-thread-header__body">
-        <p class="wa-thread-header__title">{_esc(GROUP_CHAT_TITLE)}</p>
+        <p class="wa-thread-header__title">{_esc(title_show)}</p>
         <p class="wa-thread-header__status{online_cls}">{_esc(status)}</p>
       </div>
       <div class="wa-thread-header__actions">
@@ -845,11 +875,19 @@ def inject_wa_scroll_nudge_only() -> None:
     inject_wa_scroll_and_lightbox()
 
 
-def inject_wa_scroll_and_lightbox() -> None:
+def inject_wa_scroll_and_lightbox(
+    *,
+    scroll_box_id: str = "chat-scroll-box",
+    delete_query_param: str = "ml_del",
+    composer_selector: str = '[class*="st-key-ml_chat_composer"]',
+) -> None:
     from chat_whatsapp import should_force_chat_scroll
 
     force = should_force_chat_scroll()
     force_js = "true" if force else "false"
+    del_param_js = delete_query_param.replace("\\", "\\\\").replace('"', '\\"')
+    composer_sel_js = composer_selector.replace("\\", "\\\\").replace('"', '\\"')
+    scroll_id_js = scroll_box_id.replace("\\", "\\\\").replace('"', '\\"')
 
     if not st.session_state.get("_wa_lightbox_html"):
         st.session_state["_wa_lightbox_html"] = True
@@ -890,13 +928,13 @@ def inject_wa_scroll_and_lightbox() -> None:
         (function () {{
           var doc = window.parent.document;
           var forceScroll = {force_js};
-          var box = doc.getElementById("chat-scroll-box");
+          var box = doc.getElementById("{scroll_id_js}");
           var jumpBtn = doc.getElementById("wa-jump-bottom");
           var lb = doc.getElementById("wa-lightbox");
           if (!box) return;
 
           function syncComposeClearance() {{
-            var comp = doc.querySelector('[class*="st-key-ml_chat_composer"]');
+            var comp = doc.querySelector("{composer_sel_js}");
             var h = 92;
             if (comp) h = Math.max(72, comp.getBoundingClientRect().height);
             var clearance = Math.ceil(h + 16) + "px";
@@ -1128,7 +1166,7 @@ def inject_wa_scroll_and_lightbox() -> None:
               closeMsgSheet();
               var url = new URL(window.parent.location.href);
               url.searchParams.set(
-                "ml_del",
+                "{del_param_js}",
                 encodeURIComponent(ts) + "|" + encodeURIComponent(em)
               );
               window.parent.location.href = url.toString();

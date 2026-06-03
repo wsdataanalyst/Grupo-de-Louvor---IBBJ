@@ -688,7 +688,6 @@ def _render_tab_ensaio(
     from app import (
         escala_label,
         format_rehearsal_date_pt,
-        is_scale_manager,
         render_ensaio_chat,
         rehearsal_date_is_set,
     )
@@ -703,18 +702,24 @@ def _render_tab_ensaio(
         eid = str(escala.get("id", ""))
         labels[escala_label(escala)] = eid
 
-    escolha = st.selectbox("Escala / culto", list(labels.keys()), key="ml_esc_ensaio_pick")
-    escala_row = escalas_df[escalas_df["id"].astype(str) == str(labels[escolha])].iloc[0]
-    is_mgr_ensaio = is_scale_manager(st.session_state.user_roles)
-    if rehearsal_date_is_set(escala_row):
-        st.success(f"📅 Ensaio: {format_rehearsal_date_pt(escala_row)}")
-    elif is_mgr_ensaio:
-        st.warning(
-            "⚠️ **Definir data do ensaio** — cadastre em **Gerenciar Escalas**."
+    with st.container(key="ml_ensaio_pick"):
+        escolha = st.selectbox(
+            "Escala / culto",
+            list(labels.keys()),
+            key="ml_esc_ensaio_pick",
         )
+    escala_row = escalas_df[escalas_df["id"].astype(str) == str(labels[escolha])].iloc[0]
+    if rehearsal_date_is_set(escala_row):
+        ensaio_sub = f"Ensaio: {format_rehearsal_date_pt(escala_row)}"
     else:
-        st.warning("⏳ **Definir data do ensaio** — aguardando o líder confirmar.")
-    render_ensaio_chat(labels[escolha], chat_ensaio_df, members_df)
+        ensaio_sub = "Ensaio: a confirmar"
+    render_ensaio_chat(
+        labels[escolha],
+        chat_ensaio_df,
+        members_df,
+        title=escolha,
+        subtitle=ensaio_sub,
+    )
 
 
 def render_mobile_escalas_page(
