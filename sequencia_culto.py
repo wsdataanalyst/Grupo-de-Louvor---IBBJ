@@ -884,12 +884,13 @@ def _apply_banda_preset(
 
 
 def _render_inline_lyric_text(
-    st,
     para: str,
     border: str,
     num: int,
     marcacoes: list[tuple[str, str]] | None = None,
 ) -> None:
+    import streamlit as st
+
     st.markdown(
         render_trecho_block_html(
             para,
