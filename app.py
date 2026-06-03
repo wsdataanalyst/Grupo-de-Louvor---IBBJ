@@ -8829,8 +8829,11 @@ def _render_louvor_validation_search(louvores_df: pd.DataFrame):
         st.info(res["guidance"])
 
 
-def _render_louvores_edit_manager(louvores_df: pd.DataFrame):
-    key_prefix = "edit_rep"
+def _render_louvores_edit_manager(
+    louvores_df: pd.DataFrame,
+    *,
+    key_prefix: str = "edit_rep",
+):
     qkey = f"{key_prefix}_lq"
     active_key = f"{key_prefix}_lq_active"
     if active_key not in st.session_state:
@@ -9026,7 +9029,7 @@ def show_louvores_catalog(
     if st.session_state.get("rep_add_open"):
         with st.expander("➕ Adicionar música ao repertório", expanded=True):
             if mgr:
-                _render_louvores_edit_manager(louvores_df)
+                _render_louvores_edit_manager(louvores_df, key_prefix="edit_rep_add")
             else:
                 st.info(
                     "Envie sugestões em **Sugestão de louvor** — a liderança analisa e "
@@ -9231,7 +9234,14 @@ def show_louvores_catalog(
                 ):
                     _render_louvor_validation_search(louvores_df)
                 with st.expander("✏️ Editar / excluir louvor", expanded=False):
-                    _render_louvores_edit_manager(louvores_df)
+                    if not st.session_state.get("rep_add_open"):
+                        _render_louvores_edit_manager(
+                            louvores_df, key_prefix="edit_rep_tools"
+                        )
+                    else:
+                        st.caption(
+                            "O editor já está aberto em **Adicionar música** acima."
+                        )
 
     with col_side:
         render_repertorio_sidebar(louvores_df, programa_df, is_manager=mgr)

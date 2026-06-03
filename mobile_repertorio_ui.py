@@ -616,7 +616,7 @@ def _render_hub(
             if is_mgr:
                 from app import _render_louvores_edit_manager
 
-                _render_louvores_edit_manager(louvores_df)
+                _render_louvores_edit_manager(louvores_df, key_prefix="edit_rep_ml_add")
             else:
                 st.info(
                     "Envie sugestões em **Sugestão de louvor** — a liderança analisa e "
@@ -896,7 +896,10 @@ def _render_ferramentas(louvores_df: pd.DataFrame, *, is_mgr: bool) -> None:
             _render_louvor_validation_search(louvores_df)
     if st.session_state.get("ml_rep_tool_open_importar"):
         with st.expander("Editar / importar louvores", expanded=True):
-            _render_louvores_edit_manager(louvores_df)
+            if st.session_state.get("rep_add_open"):
+                st.caption("O editor já está aberto em **Adicionar música**.")
+            else:
+                _render_louvores_edit_manager(louvores_df, key_prefix="edit_rep_ml_tool")
 
     completas = count_louvores_with_full_content(louvores_df)
     faltam = count_louvores_missing_content(louvores_df)
