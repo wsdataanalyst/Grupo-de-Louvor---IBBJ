@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import html
 from datetime import date, datetime, timedelta
 
 import pandas as pd
