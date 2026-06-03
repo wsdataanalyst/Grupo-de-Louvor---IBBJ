@@ -205,7 +205,7 @@ def render_marcacao_brace_html(marcacoes: list[tuple[str, str]]) -> str:
     )
     return (
         f'<div class="seq-marc-rail" style="--seq-brace-color:{primary}">'
-        f'<span class="seq-brace-glyph" aria-hidden="true">}}</span>'
+        f'<span class="seq-brace-glyph" aria-hidden="true">&#125;</span>'
         f'<div class="seq-marc-stack">{lines}</div></div>'
     )
 

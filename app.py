@@ -106,8 +106,6 @@ from escala_pdf import (
     format_period_label,
     suggested_filename,
 )
-from sequencia_culto_css import sequencia_culto_css
-
 try:
     from sequencia_culto import (
         PROGRAMA_SEQUENCIA_COLUMNS,
@@ -8417,7 +8415,6 @@ def show_sequencia_culto_page(
     st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown("#### 📝 Letra com marcações (vocal e banda)")
-    st.markdown(f"<style>{sequencia_culto_css()}</style>", unsafe_allow_html=True)
     lyrics_edit = lyrics_default
     cifra_edit = cifra_default
     tom_new = tom_prog if tom_prog in TOM_OPCOES else (tom_base if tom_base in TOM_OPCOES else "C")

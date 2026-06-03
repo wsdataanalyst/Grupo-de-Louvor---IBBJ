@@ -1423,6 +1423,7 @@ def inject_ibbj_theme() -> None:
     from mobile_ui import mobile_first_css
     from sugestao_louvor_ui import sugestao_louvor_page_css
     from repertorio_ui import repertorio_page_css
+    from sequencia_culto_css import sequencia_culto_css
     from sidebar_icons import sidebar_nav_icons_css, sidebar_tool_icons_css
 
     st.markdown(
@@ -1441,6 +1442,7 @@ def inject_ibbj_theme() -> None:
         + sugestao_louvor_page_css()
         + chat_page_css()
         + mobile_first_css()
+        + sequencia_culto_css()
     )
     st.markdown(f"<style>{ibbj_theme_css()}{extra}</style>", unsafe_allow_html=True)
 

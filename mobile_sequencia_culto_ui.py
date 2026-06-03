@@ -41,9 +41,8 @@ def _set_sub(sub: str) -> None:
 
 
 def mobile_sequencia_css() -> str:
-    from sequencia_culto_css import sequencia_culto_css
-
-    return sequencia_culto_css() + r"""
+    """Extras Mobile Lab — base em sequencia_culto_css via inject_ibbj_theme."""
+    return r"""
     body:has(#ml-sequencia-page) .ml-seq-header{
       background: rgba(11,18,39,.75);
       border: 1px solid rgba(255,255,255,.06);
@@ -272,15 +271,13 @@ def mobile_sequencia_css() -> str:
 
 
 def _inject_sequencia_page_shell() -> None:
-    """Marca a página e injeta CSS (blocos separados — evita CSS visível como texto)."""
+    """Marca a página e injeta CSS mobile (st.markdown — alcança o HTML da letra)."""
     st.markdown(
         '<span id="ml-sequencia-page" aria-hidden="true"></span>',
         unsafe_allow_html=True,
     )
     css = mobile_sequencia_css()
-    try:
-        st.html(f"<style>{css}</style>", unsafe_allow_javascript=False)
-    except Exception:
+    if css.strip():
         st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
 
 
