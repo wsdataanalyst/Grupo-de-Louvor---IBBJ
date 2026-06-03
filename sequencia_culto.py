@@ -957,7 +957,6 @@ def build_trechos_vocal_ui(
 
         with st.container(border=True):
             _render_inline_lyric_text(
-                st,
                 para,
                 border,
                 i + 1,
@@ -1084,7 +1083,6 @@ def build_trechos_banda_ui(
 
         with st.container(border=True):
             _render_inline_lyric_text(
-                st,
                 para,
                 border,
                 i + 1,
