@@ -10,17 +10,6 @@ import streamlit as st
 from ui_html import inject_page_script, inject_ui_html
 
 
-def _esc(s: object) -> str:
-    """Escape HTML sem importar o módulo html (evita NameError no Cloud)."""
-    text = str(s) if s is not None else ""
-    return (
-        text.replace("&", "&amp;")
-        .replace("<", "&lt;")
-        .replace(">", "&gt;")
-        .replace('"', "&quot;")
-    )
-
-
 def mobile_lab_css() -> str:
     return r"""
     @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
@@ -1003,6 +992,18 @@ def render_mobile_lab_dashboard(
     quick_links: list[tuple[str, str]] | None = None,
     can_gerenciar: bool | None = None,
 ) -> None:
+    def _dash_escape(val: object) -> str:
+        """Escape HTML inline (sem módulo html nem helper global — evita NameError no Cloud)."""
+        text = "" if val is None else str(val)
+        for old, new in (
+            ("&", "&amp;"),
+            ("<", "&lt;"),
+            (">", "&gt;"),
+            ('"', "&quot;"),
+        ):
+            text = text.replace(old, new)
+        return text
+
     inject_mobile_lab_theme()
 
     first = (str(user_full_name).strip().split(" ") or [""])[:1][0]
@@ -1029,24 +1030,24 @@ def render_mobile_lab_dashboard(
 
     avatar_html = ""
     if photo_uri:
-        avatar_html = '<img src="' + _esc(photo_uri) + '" alt="avatar" />'
+        avatar_html = '<img src="' + _dash_escape(photo_uri) + '" alt="avatar" />'
     else:
         initial = (first[:1] or "•").upper()
         avatar_html = (
             '<div style="width:100%;height:100%;display:flex;align-items:center;'
             "justify-content:center;font-weight:900;color:rgba(226,232,240,.95);"
             'font-family:Manrope,system-ui,sans-serif;font-size:18px;">'
-            + _esc(initial)
+            + _dash_escape(initial)
             + "</div>"
         )
 
     hero_block = ""
     if next_culto:
-        hero_title = _esc(next_culto.get("event", "Próximo culto"))
-        culto_date = _esc(next_culto.get("date_full", ""))
-        culto_time = _esc(next_culto.get("time", "19h00"))
-        ensaio_date = _esc(next_culto.get("ensaio_date", "A definir"))
-        ensaio_time = _esc(next_culto.get("ensaio_time", ""))
+        hero_title = _dash_escape(next_culto.get("event", "Próximo culto"))
+        culto_date = _dash_escape(next_culto.get("date_full", ""))
+        culto_time = _dash_escape(next_culto.get("time", "19h00"))
+        ensaio_date = _dash_escape(next_culto.get("ensaio_date", "A definir"))
+        ensaio_time = _dash_escape(next_culto.get("ensaio_time", ""))
         ensaio_time_line = (
             '<span class="ml-meta-line">🕘 ' + ensaio_time + "</span>"
             if ensaio_time
@@ -1115,7 +1116,7 @@ def render_mobile_lab_dashboard(
                 + """</div>
                     <div class="ml-hello">
                       <h1>Olá, """
-                + _esc(hello)
+                + _dash_escape(hello)
                 + """ 👋</h1>
                       <p>Que bom te ver por aqui!</p>
                     </div>
@@ -1199,7 +1200,7 @@ def render_mobile_lab_dashboard(
         + """</div>
               <div class="ml-lbl">Minhas sugestões este mês</div>
               <div class="ml-lbl-sub">"""
-        + _esc(sug_aprov_txt)
+        + _dash_escape(sug_aprov_txt)
         + """</div>
             </div>
           </div>
