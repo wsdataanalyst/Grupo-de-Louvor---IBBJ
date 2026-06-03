@@ -2,13 +2,19 @@
 
 from __future__ import annotations
 
-import html
 from datetime import date, datetime, timedelta
 
 import pandas as pd
 import streamlit as st
 
 from ui_html import inject_page_script, inject_ui_html
+
+
+def _esc(s: object) -> str:
+    """Escape HTML (módulo stdlib, não confundir com ui_html)."""
+    import html as std_html
+
+    return std_html.escape(str(s) if s is not None else "")
 
 
 def mobile_lab_css() -> str:
@@ -1030,11 +1036,11 @@ def render_mobile_lab_dashboard(
 
     hero_block = ""
     if next_culto:
-        hero_title = html.escape(str(next_culto.get("event", "Próximo culto")))
-        culto_date = html.escape(str(next_culto.get("date_full", "")))
-        culto_time = html.escape(str(next_culto.get("time", "19h00")))
-        ensaio_date = html.escape(str(next_culto.get("ensaio_date", "A definir")))
-        ensaio_time = html.escape(str(next_culto.get("ensaio_time", "")))
+        hero_title = _esc(next_culto.get("event", "Próximo culto"))
+        culto_date = _esc(next_culto.get("date_full", ""))
+        culto_time = _esc(next_culto.get("time", "19h00"))
+        ensaio_date = _esc(next_culto.get("ensaio_date", "A definir"))
+        ensaio_time = _esc(next_culto.get("ensaio_time", ""))
         ensaio_time_line = (
             f'<span class="ml-meta-line">🕘 {ensaio_time}</span>'
             if ensaio_time
@@ -1088,7 +1094,7 @@ def render_mobile_lab_dashboard(
                   <div class="ml-user">
                     <div class="ml-avatar">{avatar_html}</div>
                     <div class="ml-hello">
-                      <h1>Olá, {html.escape(hello)} 👋</h1>
+                      <h1>Olá, {_esc(hello)} 👋</h1>
                       <p>Que bom te ver por aqui!</p>
                     </div>
                   </div>
@@ -1162,7 +1168,7 @@ def render_mobile_lab_dashboard(
               <div class="ml-emoji">💡</div>
               <div class="ml-val">{n_sug_mes}</div>
               <div class="ml-lbl">Minhas sugestões este mês</div>
-              <div class="ml-lbl-sub">{html.escape(sug_aprov_txt)}</div>
+              <div class="ml-lbl-sub">{_esc(sug_aprov_txt)}</div>
             </div>
           </div>
           <div class="ml-section-h">
