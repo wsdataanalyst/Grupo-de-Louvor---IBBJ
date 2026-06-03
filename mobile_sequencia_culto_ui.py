@@ -223,6 +223,19 @@ def mobile_sequencia_css() -> str:
       color: #fff !important;
       border: none !important;
     }
+    body:has(#ml-sequencia-page) [class*="st-key-ml_seq_btn_wa"] [data-testid="stLinkButton"] > a{
+      width: 100% !important;
+      min-height: 3.1rem !important;
+      border-radius: 18px !important;
+      font-weight: 800 !important;
+      background: linear-gradient(135deg, #15803d, #22c55e) !important;
+      color: #fff !important;
+      border: none !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      text-decoration: none !important;
+    }
     body:has(#ml-sequencia-page) [class*="st-key-ml_seq_btn_danger"] .stButton > button{
       width: 100% !important;
       min-height: 2.8rem !important;
@@ -231,6 +244,29 @@ def mobile_sequencia_css() -> str:
       background: #111827 !important;
       border: 1px solid rgba(239,68,68,.4) !important;
       color: #ef4444 !important;
+    }
+    body:has(#ml-sequencia-page) [class*="st-key-ml_seq_actions_footer"]{
+      padding-bottom: calc(
+        var(--ml-nav-height, 64px) + var(--ml-verse-height, 0px) +
+        var(--ml-nav-offset, 16px) + 28px
+      ) !important;
+      margin-top: 0.65rem;
+    }
+    body:has(#ml-sequencia-page) [class*="st-key-ml_seq_actions_footer"] [data-testid="stDownloadButton"] > button,
+    body:has(#ml-sequencia-page) [class*="st-key-ml_seq_actions_footer"] [data-testid="stLinkButton"] > a{
+      width: 100% !important;
+      min-height: 3.1rem !important;
+      border-radius: 18px !important;
+      font-weight: 800 !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      text-decoration: none !important;
+    }
+    body:has(#ml-sequencia-page) [class*="st-key-ml_seq_actions_footer"] [data-testid="stDownloadButton"] > button{
+      background: linear-gradient(135deg, #1d4ed8, #3b82f6) !important;
+      color: #fff !important;
+      border: none !important;
     }
   """
 
@@ -431,12 +467,94 @@ def _load_song_bundle(
     }
 
 
+def _render_lista_export_block(
+    *,
+    escala_id: str,
+    escalas_df: pd.DataFrame,
+    programa_df: pd.DataFrame,
+    equipe_df: pd.DataFrame,
+    members_df: pd.DataFrame,
+    louvores_df: pd.DataFrame,
+) -> None:
+    """PDF e WhatsApp na própria tela (sem redirecionar para Gerenciar Escalas)."""
+    from app import collect_escala_whatsapp_message, generate_single_escala_pdf
+    from mobile_lab_nav import user_can_gerenciar_escalas
+    from whatsapp_share import (
+        inject_share_pdf_whatsapp,
+        whatsapp_group_phone,
+        whatsapp_share_url,
+    )
+
+    escala_rows = escalas_df[escalas_df["id"].astype(str) == str(escala_id)]
+    if escala_rows.empty:
+        return
+    escala_row = escala_rows.iloc[0]
+    wa_msg = collect_escala_whatsapp_message(
+        escala_row, programa_df, equipe_df, members_df, louvores_df
+    )
+    pdf_key = f"ml_seq_pdf_{escala_id}"
+    phone = whatsapp_group_phone()
+
+    with st.container(key="ml_seq_actions_footer"):
+        with st.container(key="ml_seq_btn_green"):
+            if st.button(
+                "📄 Exportar sequência (PDF)",
+                use_container_width=True,
+                key=f"ml_seq_gen_pdf_{escala_id}",
+            ):
+                try:
+                    pdf_b, pdf_n = generate_single_escala_pdf(
+                        escala_row, programa_df, equipe_df, members_df
+                    )
+                    st.session_state[pdf_key] = {"bytes": pdf_b, "name": pdf_n}
+                    st.success("PDF pronto! Toque em **Baixar PDF** abaixo.")
+                except Exception as exc:
+                    st.error(f"Não foi possível gerar o PDF: {exc}")
+
+        cached = st.session_state.get(pdf_key)
+        if cached:
+            pdf_b = cached["bytes"]
+            pdf_n = str(cached.get("name") or "escala.pdf")
+            st.download_button(
+                "⬇️ Baixar PDF",
+                data=pdf_b,
+                file_name=pdf_n,
+                mime="application/pdf",
+                use_container_width=True,
+                key=f"ml_seq_dl_{escala_id}",
+            )
+            if len(pdf_b) <= 2_500_000:
+                inject_share_pdf_whatsapp(
+                    pdf_b,
+                    pdf_n,
+                    wa_msg[:300],
+                    element_id=f"ml_seq_wa_pdf_{escala_id}",
+                )
+
+        with st.container(key="ml_seq_btn_wa"):
+            st.link_button(
+                "💬 Enviar para WhatsApp",
+                whatsapp_share_url(wa_msg, phone=phone),
+                use_container_width=True,
+                key=f"ml_seq_wa_link_{escala_id}",
+            )
+
+        if user_can_gerenciar_escalas():
+            st.caption(
+                "Vários cultos no mesmo PDF: **Gerenciar Escalas → PDF**."
+            )
+        else:
+            st.caption("Baixe o PDF ou abra o WhatsApp com a escala completa.")
+
+
 def _render_lista(
     *,
     escala_id: str,
     programa_df: pd.DataFrame,
     louvores_df: pd.DataFrame,
     escalas_df: pd.DataFrame,
+    equipe_df: pd.DataFrame,
+    members_df: pd.DataFrame,
 ) -> None:
     from app import enrich_programa_from_catalog, programa_por_escala
     from catalog_sanitize import louvor_title_artist_from_row_or_label
@@ -485,36 +603,14 @@ def _render_lista(
             unsafe_allow_html=True,
         )
 
-    c1, c2 = st.columns(2)
-    with c1:
-        with st.container(key="ml_seq_btn_green"):
-            if st.button("📄 Exportar sequência (PDF)", use_container_width=True):
-                from mobile_lab import is_mobile_lab_enabled
-                from mobile_lab_nav import navigate_ml_page
-
-                if is_mobile_lab_enabled():
-                    from mobile_lab_nav import navigate_ml_page
-
-                    navigate_ml_page("Gerenciar Escalas", pin=True)
-                else:
-                    st.session_state.app_menu = "Gerenciar Escalas"
-                st.session_state["_ml_ger_open_tab"] = "pdf"
-                st.rerun()
-    with c2:
-        with st.container(key="ml_seq_btn_wa"):
-            if st.button("💬 Enviar para WhatsApp", use_container_width=True):
-                from mobile_lab import is_mobile_lab_enabled
-                from mobile_lab_nav import navigate_ml_page
-
-                if is_mobile_lab_enabled():
-                    from mobile_lab_nav import navigate_ml_page
-
-                    navigate_ml_page("Gerenciar Escalas", pin=True)
-                else:
-                    st.session_state.app_menu = "Gerenciar Escalas"
-                st.session_state["_ml_ger_open_tab"] = "whatsapp"
-                st.rerun()
-    st.caption("PDF e WhatsApp completos em **Gerenciar Escalas**.")
+    _render_lista_export_block(
+        escala_id=escala_id,
+        escalas_df=escalas_df,
+        programa_df=programa_df,
+        equipe_df=equipe_df,
+        members_df=members_df,
+        louvores_df=louvores_df,
+    )
 
 
 def _render_vocal(b: dict[str, Any]) -> None:
@@ -891,6 +987,8 @@ def render_mobile_sequencia_tab(
             programa_df=programa_df,
             louvores_df=louvores_df,
             escalas_df=escalas_df,
+            equipe_df=equipe_df,
+            members_df=members_df,
         )
 
 

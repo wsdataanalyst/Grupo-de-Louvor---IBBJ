@@ -6004,6 +6004,13 @@ def show_dashboard(
             is_manager=can_ger,
             can_gerenciar=can_ger,
         )
+        escalas_alert, _, equipe_alert, trocas_alert = get_escalas_bundle()
+        render_swap_alerts_panel(
+            trocas_alert,
+            escalas_alert,
+            equipe_alert,
+            key_prefix="ml_dash",
+        )
         return
 
     inject_dashboard_ambient()
@@ -10015,6 +10022,16 @@ def _run_app() -> None:
             from mobile_perfil_ui import render_mobile_perfil_page
 
             render_mobile_perfil_page(members_df, escalas_df, equipe_df)
+        elif ml_page == "Eventos":
+            from mobile_eventos_ui import render_mobile_eventos_page
+
+            render_mobile_eventos_page(eventos_df, members_df)
+        elif ml_page == "Membros":
+            from mobile_membros_ui import render_mobile_membros_page
+
+            render_mobile_membros_page(
+                members_df, louvores_df, escalas_df, equipe_df
+            )
         else:
             show_dashboard(
                 escalas_df,

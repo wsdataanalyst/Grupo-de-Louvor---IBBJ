@@ -17,6 +17,7 @@ ESCALAS_TABS: tuple[tuple[str, str, str], ...] = (
     ("sequencia", "🎵", "Sequência"),
     ("trocas", "🔄", "Trocas"),
     ("solicitacoes", "📬", "Solicitações"),
+    ("ensaio", "💬", "Ensaio"),
 )
 
 
@@ -32,6 +33,42 @@ def _active_tab() -> str:
 
 def _set_tab(tab: str) -> None:
     st.session_state.ml_escalas_tab = tab
+
+
+def _member_photo_uri(email: str, members_df: pd.DataFrame) -> str | None:
+    from app import profile_photo_to_data_uri
+
+    email_l = str(email or "").strip().lower()
+    stored = ""
+    if not members_df.empty and "email" in members_df.columns:
+        match = members_df[members_df["email"].astype(str).str.lower() == email_l]
+        if not match.empty:
+            stored = str(match.iloc[0].get("profile_photo", "")).strip()
+    return profile_photo_to_data_uri(email_l, stored)
+
+
+def _render_week_nav() -> None:
+    from app import week_bounds
+
+    if "week_offset" not in st.session_state:
+        st.session_state.week_offset = 0
+    offset = int(st.session_state.get("week_offset", 0))
+    start, end = week_bounds(offset)
+    c1, c2, c3 = st.columns([1, 2, 1])
+    with c1:
+        if st.button("◀", key="ml_esc_week_prev", use_container_width=True):
+            st.session_state.week_offset = offset - 1
+            st.rerun()
+    with c2:
+        st.markdown(
+            f'<div style="text-align:center;font-weight:800;font-size:0.88rem;padding:0.35rem 0;">'
+            f"{start.strftime('%d/%m')} – {end.strftime('%d/%m/%Y')}</div>",
+            unsafe_allow_html=True,
+        )
+    with c3:
+        if st.button("▶", key="ml_esc_week_next", use_container_width=True):
+            st.session_state.week_offset = offset + 1
+            st.rerun()
 
 
 def mobile_escalas_css() -> str:
@@ -285,9 +322,7 @@ def _render_quick_access() -> None:
     with c4:
         with st.container(key="ml_esc_quick_chat"):
             if st.button("💬\nChat ensaio", use_container_width=True):
-                from mobile_lab_nav import navigate_ml_page
-
-                navigate_ml_page("Chat")
+                _set_tab("ensaio")
                 st.rerun()
 
 
@@ -337,53 +372,52 @@ def _render_tab_equipe(
     minhas: list[dict],
     members_df: pd.DataFrame,
     equipe_df: pd.DataFrame,
+    programa_df: pd.DataFrame,
+    louvores_df: pd.DataFrame,
 ) -> None:
+    from app import render_culto_programa
+
     _render_hero_hub()
     _render_quick_access()
+    _render_week_nav()
     if not minhas:
         _render_not_scheduled_warning()
         return
 
-    st.markdown(
-        '<div style="font-size:1.05rem;font-weight:900;margin:0.5rem 0 0.35rem;">Equipe escalada</div>',
-        unsafe_allow_html=True,
-    )
-    from app import format_rehearsal_date_pt, profile_photo_to_data_uri, rehearsal_date_is_set
+    focus_id = str(st.session_state.get("ml_escalas_focus_id", "")).strip()
+    if focus_id:
+        row_f = None
+        for item in minhas:
+            if str(item["escala"].get("id", "")) == focus_id:
+                row_f = item["escala"]
+                break
+        if row_f is not None:
+            st.success("Programação do culto selecionado:")
+            render_culto_programa(
+                row_f,
+                programa_df,
+                equipe_df,
+                members_df,
+                louvores_df,
+                ensaio_notice=True,
+                widget_key_prefix=f"ml_eq_focus_{focus_id}",
+            )
+            st.markdown("---")
 
     for item in minhas:
         escala = item["escala"]
-        ev = str(escala.get("event", "Culto"))
-        dt = pd.to_datetime(escala.get("date"), errors="coerce")
-        date_txt = dt.strftime("%d/%m/%Y") if pd.notna(dt) else ""
-        ensaio = (
-            format_rehearsal_date_pt(escala)
-            if rehearsal_date_is_set(escala)
-            else "Ensaio: a definir"
+        if focus_id and str(escala.get("id", "")) == focus_id:
+            continue
+        eid = str(escala.get("id", ""))
+        render_culto_programa(
+            escala,
+            programa_df,
+            equipe_df,
+            members_df,
+            louvores_df,
+            ensaio_notice=True,
+            widget_key_prefix=f"ml_eq_{eid}",
         )
-        st.markdown(
-            f"""
-            <div class="ml-glass" style="border-radius:18px;padding:10px 12px;margin-bottom:6px;">
-              <div style="font-size:0.68rem;font-weight:800;color:rgba(148,163,184,.92);text-transform:uppercase;letter-spacing:0.04em;">
-                Culto · { _esc(date_txt) }
-              </div>
-              <div style="font-size:1.05rem;font-weight:900;margin:4px 0 2px;">{_esc(ev)}</div>
-              <div style="color:rgba(148,163,184,.92);font-size:0.8rem;">📅 {_esc(ensaio)}</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-        from app import integrantes_escalados, profile_photo_to_data_uri as _photo_uri
-
-        team = integrantes_escalados(escala, equipe_df, members_df)
-        for p in team:
-            nome = str(p.get("nome", ""))
-            email = str(p.get("email", "")).strip().lower()
-            foto = _photo_uri(email)
-            st.markdown(
-                _team_member_card_html(nome, str(p.get("funcao", "Integrante")), foto),
-                unsafe_allow_html=True,
-            )
 
 
 def _render_tab_todas(
@@ -453,7 +487,15 @@ def _render_tab_trocas(
     trocas_df: pd.DataFrame,
     members_df: pd.DataFrame,
 ) -> None:
-    from app import user_escalas
+    from app import (
+        TROCAS_FILE,
+        escala_label_for_user,
+        member_display_name,
+        members_options_escala,
+        new_id,
+        save_data,
+        user_escalas,
+    )
 
     st.markdown(
         """
@@ -469,10 +511,71 @@ def _render_tab_trocas(
     )
     minhas = user_escalas(escalas_df, my_email, equipe_df)
     if minhas.empty:
-        st.warning("Você não está em nenhuma escala para solicitar troca.")
+        st.warning(
+            "Não encontramos culto vinculado ao seu e-mail. "
+            "Confira se você está escalado em **Minha equipe**."
+        )
         return
-    st.dataframe(minhas[["event", "date"]].head(10), use_container_width=True, hide_index=True)
-    st.caption("Use a versão web em Gerenciar Escalas para fluxo completo de troca (em breve no mobile).")
+
+    member_map = members_options_escala(members_df)
+    minhas_opts = {
+        escala_label_for_user(r, my_email, equipe_df): str(r["id"])
+        for _, r in minhas.iterrows()
+    }
+    with st.form(key="ml_troca_form_v2"):
+        minha = st.selectbox("Minha escala", list(minhas_opts.keys()))
+        modo = st.radio(
+            "Tipo de troca",
+            [
+                "Divulgar para qualquer integrante assumir",
+                "Pedir que integrante específico assuma",
+            ],
+        )
+        target_email = ""
+        target_name = ""
+        tipo = "aberta"
+        outros = [label for label, email in member_map.items() if email != my_email]
+        if modo.startswith("Pedir que integrante"):
+            tipo = "direcionada"
+            outro = st.selectbox("Integrante que deve assumir", outros)
+            target_email = member_map[outro]
+            tr = members_df[
+                members_df["email"].astype(str).str.lower() == target_email
+            ].iloc[0]
+            target_name = member_display_name(tr)
+        msg = st.text_input("Mensagem (opcional)")
+        go = st.form_submit_button("📨 Enviar solicitação", type="primary")
+    if go:
+        oid = minhas_opts[minha]
+        if not trocas_df[
+            (trocas_df["status"] == "pendente")
+            & (trocas_df["escala_id_origem"].astype(str) == str(oid))
+        ].empty:
+            st.warning("Já existe solicitação pendente para esta escala.")
+        else:
+            nova = {
+                "id": new_id(),
+                "escala_id_origem": oid,
+                "escala_id_destino": "",
+                "requester_email": my_email,
+                "requester_name": st.session_state.user_full_name
+                or st.session_state.user_name,
+                "target_email": target_email,
+                "target_name": target_name,
+                "status": "pendente",
+                "message": msg.strip(),
+                "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "responded_at": "",
+                "tipo": tipo,
+                "accepter_email": "",
+                "accepter_name": "",
+            }
+            save_data(
+                pd.concat([trocas_df, pd.DataFrame([nova])], ignore_index=True),
+                TROCAS_FILE,
+            )
+            st.success("Solicitação enviada! Veja em **Solicitações** ou no Início.")
+            st.rerun()
 
 
 def _render_tab_solicitacoes(
@@ -482,11 +585,48 @@ def _render_tab_solicitacoes(
     equipe_df: pd.DataFrame,
     trocas_df: pd.DataFrame,
 ) -> None:
-    from app import accept_open_swap, escala_label, swap_alerts_for_user
+    from app import (
+        TROCAS_FILE,
+        accept_open_swap,
+        escala_label,
+        prepare_trocas,
+        save_data,
+        swap_alerts_for_user,
+    )
 
-    _, rec, env = swap_alerts_for_user(
+    name = st.session_state.user_full_name or st.session_state.user_name
+    abertas, rec, env = swap_alerts_for_user(
         trocas_df, my_email, escalas_df=escalas_df, equipe_df=equipe_df
     )
+
+    st.markdown("#### 📢 Abertas (qualquer integrante)")
+    if abertas.empty:
+        st.info("Nenhuma troca aberta no momento.")
+    for _, t in abertas.iterrows():
+        o = escalas_df[escalas_df["id"] == t["escala_id_origem"]]
+        txt = escala_label(o.iloc[0]) if not o.empty else "—"
+        st.markdown(f"**{t['requester_name']}** — {txt}")
+        if t.get("message"):
+            st.caption(str(t["message"]))
+        if st.button(
+            "✅ Assumir esta troca",
+            key=f"ml_open_{t['id']}",
+            use_container_width=True,
+            type="primary",
+        ):
+            escalas_df, equipe_df, trocas_df, ok = accept_open_swap(
+                t, my_email, name, escalas_df, equipe_df, trocas_df
+            )
+            if ok:
+                from app import EQUIPE_FILE, ESCALAS_FILE
+
+                save_data(escalas_df, ESCALAS_FILE)
+                save_data(equipe_df, EQUIPE_FILE)
+                save_data(trocas_df, TROCAS_FILE)
+                st.rerun()
+            else:
+                st.error("Você já está escalado neste culto — não é possível assumir.")
+
     st.markdown("#### 📥 Recebidos")
     if rec.empty:
         st.info("Nenhum pedido direcionado a você.")
@@ -499,12 +639,11 @@ def _render_tab_solicitacoes(
         c1, c2 = st.columns(2)
         with c1:
             if st.button("✅ Aceitar", key=f"ml_acc_{t['id']}", use_container_width=True):
-                name = st.session_state.user_full_name or st.session_state.user_name
                 escalas_df, equipe_df, trocas_df, ok = accept_open_swap(
                     t, my_email, name, escalas_df, equipe_df, trocas_df
                 )
                 if ok:
-                    from app import EQUIPE_FILE, ESCALAS_FILE, TROCAS_FILE, save_data
+                    from app import EQUIPE_FILE, ESCALAS_FILE
 
                     save_data(escalas_df, ESCALAS_FILE)
                     save_data(equipe_df, EQUIPE_FILE)
@@ -514,10 +653,11 @@ def _render_tab_solicitacoes(
                     st.error("Não foi possível aceitar (conflito de escala).")
         with c2:
             if st.button("❌ Recusar", key=f"ml_rec_{t['id']}", use_container_width=True):
-                from app import TROCAS_FILE, prepare_trocas, save_data
-
                 trocas_df = prepare_trocas(trocas_df)
                 trocas_df.loc[trocas_df["id"].astype(str) == str(t["id"]), "status"] = "recusada"
+                trocas_df.loc[
+                    trocas_df["id"].astype(str) == str(t["id"]), "responded_at"
+                ] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 save_data(trocas_df, TROCAS_FILE)
                 st.rerun()
 
@@ -530,6 +670,49 @@ def _render_tab_solicitacoes(
         st.caption(
             f"Aguardando {alvo} · {escala_label(o.iloc[0]) if not o.empty else '—'}"
         )
+        if st.button("Cancelar", key=f"ml_cancel_{t['id']}"):
+            trocas_df.loc[trocas_df["id"] == t["id"], "status"] = "cancelada"
+            save_data(trocas_df, TROCAS_FILE)
+            st.rerun()
+
+
+def _render_tab_ensaio(
+    *,
+    minhas: list[dict],
+    escalas_df: pd.DataFrame,
+    chat_ensaio_df: pd.DataFrame,
+    members_df: pd.DataFrame,
+) -> None:
+    from app import (
+        escala_label,
+        format_rehearsal_date_pt,
+        is_scale_manager,
+        render_ensaio_chat,
+        rehearsal_date_is_set,
+    )
+
+    if not minhas:
+        _render_not_scheduled_warning()
+        return
+
+    labels: dict[str, str] = {}
+    for item in minhas:
+        escala = item["escala"]
+        eid = str(escala.get("id", ""))
+        labels[escala_label(escala)] = eid
+
+    escolha = st.selectbox("Escala / culto", list(labels.keys()), key="ml_esc_ensaio_pick")
+    escala_row = escalas_df[escalas_df["id"].astype(str) == str(labels[escolha])].iloc[0]
+    is_mgr_ensaio = is_scale_manager(st.session_state.user_roles)
+    if rehearsal_date_is_set(escala_row):
+        st.success(f"📅 Ensaio: {format_rehearsal_date_pt(escala_row)}")
+    elif is_mgr_ensaio:
+        st.warning(
+            "⚠️ **Definir data do ensaio** — cadastre em **Gerenciar Escalas**."
+        )
+    else:
+        st.warning("⏳ **Definir data do ensaio** — aguardando o líder confirmar.")
+    render_ensaio_chat(labels[escolha], chat_ensaio_df, members_df)
 
 
 def render_mobile_escalas_page(
@@ -558,6 +741,16 @@ def render_mobile_escalas_page(
     _render_header()
     _render_tabs(active)
 
+    from app import get_escalas_bundle, render_swap_alerts_panel
+
+    escalas_alert, _, equipe_alert, trocas_alert = get_escalas_bundle()
+    render_swap_alerts_panel(
+        trocas_alert,
+        escalas_alert,
+        equipe_alert,
+        key_prefix="ml_esc",
+    )
+
     focus_id = str(st.session_state.get("ml_escalas_focus_id", "")).strip()
     if focus_id and not escalas_df.empty:
         m = escalas_df[escalas_df["id"].astype(str) == focus_id]
@@ -573,6 +766,8 @@ def render_mobile_escalas_page(
             minhas=minhas,
             members_df=members_df,
             equipe_df=equipe_df,
+            programa_df=programa_df,
+            louvores_df=louvores_df,
         )
     elif active == "todas":
         _render_tab_todas(
@@ -607,5 +802,10 @@ def render_mobile_escalas_page(
             equipe_df=equipe_df,
             trocas_df=trocas_df,
         )
-
-    st.markdown("</div>", unsafe_allow_html=True)
+    elif active == "ensaio":
+        _render_tab_ensaio(
+            minhas=minhas,
+            escalas_df=escalas_df,
+            chat_ensaio_df=chat_ensaio_df,
+            members_df=members_df,
+        )

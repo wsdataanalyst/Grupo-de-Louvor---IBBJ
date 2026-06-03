@@ -26,6 +26,8 @@ LAB_PAGES = (
     "Sugestões",
     "Notificações",
     "Perfil",
+    "Eventos",
+    "Membros",
 )
 
 
@@ -40,6 +42,8 @@ _WEB_MENU_TO_ML_PAGE: dict[str, str] = {
     "Sugestão de louvor": "Sugestões",
     "Chat": "Chat",
     "Perfil": "Perfil",
+    "Eventos": "Eventos",
+    "Membros": "Membros",
 }
 
 

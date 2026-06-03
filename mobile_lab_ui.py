@@ -998,6 +998,8 @@ _ML_MENU_TO_PAGE: dict[str, str] = {
     "Notificações": "Notificações",
     "Feed": "Notificações",
     "Perfil": "Perfil",
+    "Eventos": "Eventos",
+    "Membros": "Membros",
 }
 
 

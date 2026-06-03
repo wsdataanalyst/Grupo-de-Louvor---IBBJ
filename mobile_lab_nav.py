@@ -16,6 +16,8 @@ APP_MENU_TO_ML_PAGE: dict[str, str] = {
     "Sugestão de louvor": "Sugestões",
     "Chat": "Chat",
     "Perfil": "Perfil",
+    "Eventos": "Eventos",
+    "Membros": "Membros",
 }
 
 ML_PAGES = frozenset(APP_MENU_TO_ML_PAGE.values())
