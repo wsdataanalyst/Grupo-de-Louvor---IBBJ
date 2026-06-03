@@ -245,10 +245,10 @@ def mobile_lab_css() -> str:
     .ml-glow-gold{ box-shadow: 0 0 30px rgba(212,160,23,.20); }
 
     body:has(#ml-dashboard-page) [class*="st-key-ml_drawer_toggle"]{
-      display: none !important;
+      right: max(62px, calc(env(safe-area-inset-right, 0px) + 52px)) !important;
     }
     body:has(#ml-dashboard-page) .ml-top{
-      padding-right: 0 !important;
+      padding-right: 6.75rem !important;
     }
     .ml-top{
       display:flex; align-items:center; justify-content:space-between; gap:12px;
@@ -315,18 +315,20 @@ def mobile_lab_css() -> str:
       color: #fff !important;
       border: none !important;
     }
-    .ml-dash-top-actions{ margin: 0 0 10px 0 !important; }
-    .ml-dash-top-actions [data-testid="stHorizontalBlock"]{ gap: 0.45rem !important; justify-content: flex-end !important; }
-    body:has(#ml-dashboard-page) [class*="st-key-ml_dash_header_row"] [data-testid="stHorizontalBlock"]{
-      align-items: flex-start !important;
-      gap: 0.5rem !important;
-    }
-    body:has(#ml-dashboard-page) [class*="st-key-ml_dash_header_row"] [data-testid="column"]:last-child{
-      flex: 0 0 auto !important;
+    body:has(#ml-dashboard-page) [class*="st-key-ml_dash_bell"]{
+      position: fixed !important;
+      top: max(10px, env(safe-area-inset-top, 0px)) !important;
+      right: max(10px, env(safe-area-inset-right, 0px)) !important;
+      z-index: 2147483601 !important;
       width: auto !important;
-      min-width: 6.5rem !important;
+      max-width: 3rem !important;
     }
-    .ml-dash-top-actions .stButton > button{
+    body:has(#ml-dashboard-page) [class*="st-key-ml_dash_bell"] [data-testid="stVerticalBlock"],
+    body:has(#ml-dashboard-page) [class*="st-key-ml_dash_bell"] [data-testid="stVerticalBlock"] > div{
+      width: auto !important;
+      position: relative !important;
+    }
+    body:has(#ml-dashboard-page) [class*="st-key-ml_dash_bell"] .stButton > button{
       width: 44px !important;
       min-width: 44px !important;
       height: 44px !important;
@@ -336,6 +338,8 @@ def mobile_lab_css() -> str:
       background: rgba(15,23,42,.72) !important;
       border: 1px solid rgba(255,255,255,.08) !important;
       font-size: 1.1rem !important;
+      line-height: 1 !important;
+      box-shadow: 0 0 18px rgba(139,92,246,.10) !important;
     }
     .ml-metric .ml-lbl-sub{ margin-top: 4px; color: rgba(134,239,172,.92); font-size: 11px; font-weight: 700; }
     .ml-hero-row{ margin-top: 12px; display:flex; gap:10px; align-items:center; justify-content:space-between; flex-wrap: wrap;}
@@ -1104,43 +1108,24 @@ def render_mobile_lab_dashboard(
 
     from mobile_lab_nav import navigate_ml_page, user_can_gerenciar_escalas
 
-    with st.container(key="ml_dash_header_row"):
-        h_left, h_right = st.columns([4, 1], gap="small")
-        with h_left:
-            st.markdown(
-                """
-                <div class="ml-top" style="margin-bottom:0;padding-right:0;">
-                  <div class="ml-user">
-                    <div class="ml-avatar">"""
-                + avatar_html
-                + """</div>
-                    <div class="ml-hello">
-                      <h1>Olá, """
-                + _dash_escape(hello)
-                + """ 👋</h1>
-                      <p>Que bom te ver por aqui!</p>
-                    </div>
-                  </div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-        with h_right:
-            st.markdown('<div class="ml-dash-top-actions">', unsafe_allow_html=True)
-            hm1, hm2 = st.columns(2, gap="small")
-            with hm1:
-                if st.button("☰", key="ml_dash_menu_btn", use_container_width=True):
-                    st.session_state.ml_drawer_open = True
-                    st.rerun()
-            with hm2:
-                if st.button(
-                    f"🔔\n{max(0, int(notif_count))}",
-                    key="ml_dash_bell_btn",
-                    use_container_width=True,
-                ):
-                    navigate_ml_page("Notificações")
-                    st.rerun()
-            st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown(
+        """
+        <div class="ml-top">
+          <div class="ml-user">
+            <div class="ml-avatar">"""
+        + avatar_html
+        + """</div>
+            <div class="ml-hello">
+              <h1>Olá, """
+        + _dash_escape(hello)
+        + """ 👋</h1>
+              <p>Que bom te ver por aqui!</p>
+            </div>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
     st.markdown(hero_block, unsafe_allow_html=True)
 
@@ -1266,3 +1251,18 @@ def render_mobile_lab_dashboard(
                 navigate_ml_page(page)
                 st.rerun()
 
+    with st.container(key="ml_dash_bell"):
+        if st.button("🔔", key="ml_dash_bell_btn"):
+            navigate_ml_page("Notificações")
+            st.rerun()
+        if int(notif_count) > 0:
+            from notification_badge import notification_badge_html
+
+            st.markdown(
+                notification_badge_html(
+                    int(notif_count),
+                    css_class="ig-unread-badge ig-unread-badge--nav",
+                    title="Notificações",
+                ),
+                unsafe_allow_html=True,
+            )
