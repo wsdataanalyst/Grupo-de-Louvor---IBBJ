@@ -11,10 +11,14 @@ from ui_html import inject_page_script, inject_ui_html
 
 
 def _esc(s: object) -> str:
-    """Escape HTML (módulo stdlib, não confundir com ui_html)."""
-    import html as std_html
-
-    return std_html.escape(str(s) if s is not None else "")
+    """Escape HTML sem importar o módulo html (evita NameError no Cloud)."""
+    text = str(s) if s is not None else ""
+    return (
+        text.replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace('"', "&quot;")
+    )
 
 
 def mobile_lab_css() -> str:
@@ -1025,13 +1029,15 @@ def render_mobile_lab_dashboard(
 
     avatar_html = ""
     if photo_uri:
-        avatar_html = f'<img src="{photo_uri}" alt="avatar" />'
+        avatar_html = '<img src="' + _esc(photo_uri) + '" alt="avatar" />'
     else:
         initial = (first[:1] or "•").upper()
         avatar_html = (
-            f'<div style="width:100%;height:100%;display:flex;align-items:center;'
-            f'justify-content:center;font-weight:900;color:rgba(226,232,240,.95);'
-            f'font-family:Manrope,system-ui,sans-serif;font-size:18px;">{initial}</div>'
+            '<div style="width:100%;height:100%;display:flex;align-items:center;'
+            "justify-content:center;font-weight:900;color:rgba(226,232,240,.95);"
+            'font-family:Manrope,system-ui,sans-serif;font-size:18px;">'
+            + _esc(initial)
+            + "</div>"
         )
 
     hero_block = ""
@@ -1042,31 +1048,43 @@ def render_mobile_lab_dashboard(
         ensaio_date = _esc(next_culto.get("ensaio_date", "A definir"))
         ensaio_time = _esc(next_culto.get("ensaio_time", ""))
         ensaio_time_line = (
-            f'<span class="ml-meta-line">🕘 {ensaio_time}</span>'
+            '<span class="ml-meta-line">🕘 ' + ensaio_time + "</span>"
             if ensaio_time
             else ""
         )
-        hero_block = f"""
+        hero_block = (
+            """
           <div class="ml-glass ml-hero ml-glow-purple">
             <img src="https://images.unsplash.com/photo-1504052434569-70ad5836ab65?q=80&w=1200&auto=format&fit=crop" />
             <div class="ml-hero-inner">
               <div class="ml-pill">📅 PRÓXIMO CULTO</div>
-              <h2>{hero_title}</h2>
+              <h2>"""
+            + hero_title
+            + """</h2>
               <div class="ml-meta">
                 <div class="ml-meta-block">
                   <span class="ml-meta-label">Culto</span>
-                  <span class="ml-meta-line">📆 {culto_date}</span>
-                  <span class="ml-meta-line">🕘 {culto_time}</span>
+                  <span class="ml-meta-line">📆 """
+            + culto_date
+            + """</span>
+                  <span class="ml-meta-line">🕘 """
+            + culto_time
+            + """</span>
                 </div>
                 <div class="ml-meta-block">
                   <span class="ml-meta-label">Ensaio</span>
-                  <span class="ml-meta-line">📅 {ensaio_date}</span>
-                  {ensaio_time_line}
+                  <span class="ml-meta-line">📅 """
+            + ensaio_date
+            + """</span>
+                  """
+            + ensaio_time_line
+            + """
                 </div>
               </div>
             </div>
           </div>
         """
+        )
     else:
         hero_block = """
           <div class="ml-glass ml-hero ml-glow-purple">
@@ -1089,12 +1107,16 @@ def render_mobile_lab_dashboard(
         h_left, h_right = st.columns([4, 1], gap="small")
         with h_left:
             st.markdown(
-                f"""
+                """
                 <div class="ml-top" style="margin-bottom:0;padding-right:0;">
                   <div class="ml-user">
-                    <div class="ml-avatar">{avatar_html}</div>
+                    <div class="ml-avatar">"""
+                + avatar_html
+                + """</div>
                     <div class="ml-hello">
-                      <h1>Olá, {_esc(hello)} 👋</h1>
+                      <h1>Olá, """
+                + _esc(hello)
+                + """ 👋</h1>
                       <p>Que bom te ver por aqui!</p>
                     </div>
                   </div>
@@ -1147,28 +1169,38 @@ def render_mobile_lab_dashboard(
         st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown(
-        f"""
+        """
           <div class="ml-grid2">
             <div class="ml-glass ml-card ml-metric ml-glow-purple">
               <div class="ml-emoji">🎵</div>
-              <div class="ml-val">{n_louvores}</div>
+              <div class="ml-val">"""
+        + str(n_louvores)
+        + """</div>
               <div class="ml-lbl">Louvores cadastrados</div>
             </div>
             <div class="ml-glass ml-card ml-metric ml-glow-blue">
               <div class="ml-emoji">👥</div>
-              <div class="ml-val">{n_membros}</div>
+              <div class="ml-val">"""
+        + str(n_membros)
+        + """</div>
               <div class="ml-lbl">Membros ativos</div>
             </div>
             <div class="ml-glass ml-card ml-metric ml-glow-gold">
               <div class="ml-emoji">📅</div>
-              <div class="ml-val">{cultos_semana}</div>
+              <div class="ml-val">"""
+        + str(cultos_semana)
+        + """</div>
               <div class="ml-lbl">Cultos esta semana</div>
             </div>
             <div class="ml-glass ml-card ml-metric" style="border:1px solid rgba(167,139,250,.22);">
               <div class="ml-emoji">💡</div>
-              <div class="ml-val">{n_sug_mes}</div>
+              <div class="ml-val">"""
+        + str(n_sug_mes)
+        + """</div>
               <div class="ml-lbl">Minhas sugestões este mês</div>
-              <div class="ml-lbl-sub">{_esc(sug_aprov_txt)}</div>
+              <div class="ml-lbl-sub">"""
+        + _esc(sug_aprov_txt)
+        + """</div>
             </div>
           </div>
           <div class="ml-section-h">
