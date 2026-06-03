@@ -244,9 +244,6 @@ def mobile_lab_css() -> str:
     .ml-glow-purple{ box-shadow: 0 0 30px rgba(139,92,246,.25); }
     .ml-glow-gold{ box-shadow: 0 0 30px rgba(212,160,23,.20); }
 
-    body:has(#ml-dashboard-page) [class*="st-key-ml_drawer_toggle"]{
-      right: max(62px, calc(env(safe-area-inset-right, 0px) + 52px)) !important;
-    }
     body:has(#ml-dashboard-page) .ml-top{
       padding-right: 6.75rem !important;
     }
@@ -314,32 +311,6 @@ def mobile_lab_css() -> str:
       background: linear-gradient(90deg, rgba(124,58,237,1), rgba(139,92,246,1)) !important;
       color: #fff !important;
       border: none !important;
-    }
-    body:has(#ml-dashboard-page) [class*="st-key-ml_dash_bell"]{
-      position: fixed !important;
-      top: max(10px, env(safe-area-inset-top, 0px)) !important;
-      right: max(10px, env(safe-area-inset-right, 0px)) !important;
-      z-index: 2147483601 !important;
-      width: auto !important;
-      max-width: 3rem !important;
-    }
-    body:has(#ml-dashboard-page) [class*="st-key-ml_dash_bell"] [data-testid="stVerticalBlock"],
-    body:has(#ml-dashboard-page) [class*="st-key-ml_dash_bell"] [data-testid="stVerticalBlock"] > div{
-      width: auto !important;
-      position: relative !important;
-    }
-    body:has(#ml-dashboard-page) [class*="st-key-ml_dash_bell"] .stButton > button{
-      width: 44px !important;
-      min-width: 44px !important;
-      height: 44px !important;
-      min-height: 44px !important;
-      padding: 0 !important;
-      border-radius: 18px !important;
-      background: rgba(15,23,42,.72) !important;
-      border: 1px solid rgba(255,255,255,.08) !important;
-      font-size: 1.1rem !important;
-      line-height: 1 !important;
-      box-shadow: 0 0 18px rgba(139,92,246,.10) !important;
     }
     .ml-metric .ml-lbl-sub{ margin-top: 4px; color: rgba(134,239,172,.92); font-size: 11px; font-weight: 700; }
     .ml-hero-row{ margin-top: 12px; display:flex; gap:10px; align-items:center; justify-content:space-between; flex-wrap: wrap;}
@@ -648,6 +619,50 @@ def mobile_lab_css() -> str:
       border: 1px solid rgba(255,255,255,.08) !important;
       color: rgba(226,232,240,.95) !important;
       box-shadow: 0 0 18px rgba(139,92,246,.10) !important;
+    }
+    /* Dashboard: ☰ + 🔔 no mesmo bloco fixo, lado a lado */
+    body:has(#ml-dashboard-page) [class*="st-key-ml_drawer_toggle"]{
+      display: none !important;
+    }
+    body:has(#ml-dashboard-page) [class*="st-key-ml_dash_topbar"]{
+      position: fixed !important;
+      top: max(10px, env(safe-area-inset-top, 0px)) !important;
+      right: max(10px, env(safe-area-inset-right, 0px)) !important;
+      z-index: 2147483601 !important;
+      width: auto !important;
+      max-width: 6.5rem !important;
+    }
+    body:has(#ml-dashboard-page) [class*="st-key-ml_dash_topbar"] [data-testid="stHorizontalBlock"]{
+      display: flex !important;
+      flex-direction: row !important;
+      flex-wrap: nowrap !important;
+      align-items: center !important;
+      justify-content: flex-end !important;
+      gap: 8px !important;
+      width: auto !important;
+    }
+    body:has(#ml-dashboard-page) [class*="st-key-ml_dash_topbar"] [data-testid="column"]{
+      flex: 0 0 auto !important;
+      width: auto !important;
+      min-width: 0 !important;
+      max-width: 2.75rem !important;
+    }
+    body:has(#ml-dashboard-page) [class*="st-key-ml_dash_topbar"] .stButton > button{
+      width: 44px !important;
+      min-width: 44px !important;
+      height: 44px !important;
+      min-height: 44px !important;
+      padding: 0 !important;
+      border-radius: 18px !important;
+      background: rgba(15,23,42,.72) !important;
+      border: 1px solid rgba(255,255,255,.08) !important;
+      font-size: 1.1rem !important;
+      line-height: 1 !important;
+      box-shadow: 0 0 18px rgba(139,92,246,.10) !important;
+    }
+    body:has(#ml-dashboard-page) [class*="st-key-ml_dash_bell_wrap"] [data-testid="stVerticalBlock"] > div{
+      position: relative !important;
+      width: auto !important;
     }
     """
 
@@ -1251,18 +1266,25 @@ def render_mobile_lab_dashboard(
                 navigate_ml_page(page)
                 st.rerun()
 
-    with st.container(key="ml_dash_bell"):
-        if st.button("🔔", key="ml_dash_bell_btn"):
-            navigate_ml_page("Notificações")
-            st.rerun()
-        if int(notif_count) > 0:
-            from notification_badge import notification_badge_html
+    with st.container(key="ml_dash_topbar"):
+        tb_menu, tb_bell = st.columns(2, gap="small")
+        with tb_menu:
+            if st.button("☰", key="ml_dash_menu_btn"):
+                st.session_state.ml_drawer_open = True
+                st.rerun()
+        with tb_bell:
+            with st.container(key="ml_dash_bell_wrap"):
+                if st.button("🔔", key="ml_dash_bell_btn"):
+                    navigate_ml_page("Notificações")
+                    st.rerun()
+                if int(notif_count) > 0:
+                    from notification_badge import notification_badge_html
 
-            st.markdown(
-                notification_badge_html(
-                    int(notif_count),
-                    css_class="ig-unread-badge ig-unread-badge--nav",
-                    title="Notificações",
-                ),
-                unsafe_allow_html=True,
-            )
+                    st.markdown(
+                        notification_badge_html(
+                            int(notif_count),
+                            css_class="ig-unread-badge ig-unread-badge--nav",
+                            title="Notificações",
+                        ),
+                        unsafe_allow_html=True,
+                    )
