@@ -45,6 +45,43 @@ def format_louvor_display(title: str, artist: str = "") -> str:
     return f"{t} — {a}" if a else t
 
 
+def louvor_title_artist_from_row_or_label(
+    data: dict,
+    label: str = "",
+) -> tuple[str, str]:
+    """Extrai título e artista do dict da linha ou do rótulo 'Música — Artista'."""
+    titulo = sanitize_catalog_text(data.get("title", ""))
+    artista = sanitize_catalog_text(data.get("artist", ""))
+    if not titulo and label:
+        if " — " in label:
+            parts = label.split(" — ", 1)
+            titulo = sanitize_catalog_text(parts[0])
+            artista = sanitize_catalog_text(parts[1]) if len(parts) > 1 else artista
+        else:
+            titulo = sanitize_catalog_text(label)
+    return titulo, artista
+
+
+def format_louvor_search_button(
+    title: str,
+    artist: str = "",
+    *,
+    prefix: str = "➕ ",
+) -> str:
+    """Botão da busca: mostra música e artista; se faltar um, mostra o disponível."""
+    t = sanitize_catalog_text(title)
+    a = sanitize_catalog_text(artist)
+    if t and a:
+        body = f"{t} — {a}"
+    elif t:
+        body = t
+    elif a:
+        body = a
+    else:
+        body = "Louvor"
+    return f"{prefix}{body}" if prefix else body
+
+
 def fix_louvor_display_title(title: str) -> str:
     """Correções ortográficas leves para exibição de títulos de louvor."""
     t = sanitize_catalog_text(title)

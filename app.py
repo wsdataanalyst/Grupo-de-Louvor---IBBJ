@@ -5618,16 +5618,16 @@ def render_playlist_add_search(
     st.caption(f"**{len(catalog)}** encontrado(s) — toque em ➕ para incluir na sua playlist")
     for label in opcoes:
         data = catalog.get(label, {})
-        from catalog_sanitize import sanitize_catalog_text
+        from catalog_sanitize import format_louvor_search_button, louvor_title_artist_from_row_or_label
 
-        titulo = sanitize_catalog_text(data.get("title", label.split(" — ")[0]))
-        btn = f"➕ {titulo}"
-        artista = sanitize_catalog_text(data.get("artist", ""))
-        if artista:
-            btn += f" — {artista}"
+        titulo, artista = louvor_title_artist_from_row_or_label(data, label)
+        btn = format_louvor_search_button(titulo, artista)
         if st.button(btn, key=f"{key_prefix}_pick_{_picker_key_slug(label)}", use_container_width=True):
             add_louvor_to_playlist(playlist_df, data)
-            st.toast(f"Adicionado à playlist: {titulo}", icon="🎧")
+            st.toast(
+                format_louvor_search_button(titulo, artista, prefix=""),
+                icon="🎧",
+            )
             st.rerun()
 
 
@@ -6751,14 +6751,15 @@ def _louvor_search_panel(
     st.markdown('<div class="louvor-dropdown">', unsafe_allow_html=True)
     for label in opcoes:
         data = catalog.get(label, {})
-        from catalog_sanitize import sanitize_catalog_text
+        from catalog_sanitize import (
+            format_louvor_search_button,
+            louvor_title_artist_from_row_or_label,
+            sanitize_catalog_text,
+        )
 
-        titulo = sanitize_catalog_text(data.get("title", label.split(" — ")[0]))
-        artista = sanitize_catalog_text(data.get("artist", ""))
+        titulo, artista = louvor_title_artist_from_row_or_label(data, label)
         tom = sanitize_catalog_text(data.get("key", ""))
-        btn = f"➕ {titulo}"
-        if artista:
-            btn += f" — {artista}"
+        btn = format_louvor_search_button(titulo, artista)
         if tom and tom.lower() not in ("nan", "none", ""):
             btn += f" · Tom {tom}"
         if st.button(
@@ -6770,7 +6771,10 @@ def _louvor_search_panel(
             if label not in current:
                 st.session_state[state_key] = current + [label]
                 _init_picked_meta(key_prefix, label)
-                st.toast(f"Adicionado: {titulo}", icon="🎵")
+                st.toast(
+                    f"Adicionado: {format_louvor_search_button(titulo, artista, prefix='')}",
+                    icon="🎵",
+                )
             st.rerun()
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -6809,14 +6813,16 @@ def _render_picked_louvores_panel(
             _init_picked_meta(key_prefix, label)
         entry = st.session_state[meta_key][label]
         data = full_catalog.get(label, {})
-        titulo = str(data.get("title", label.split(" — ")[0]))
-        artista = str(data.get("artist", ""))
+        from catalog_sanitize import format_louvor_display, louvor_title_artist_from_row_or_label
+
+        titulo, artista = louvor_title_artist_from_row_or_label(data, label)
         slug = _picker_key_slug(label)
+        display_name = format_louvor_display(titulo, artista)
 
         cur_parte = str(entry.get("parte", _default_parte_for_index(i)))
         idx_parte = parte_opts.index(cur_parte) if cur_parte in parte_opts else 0
         parte_sel = st.selectbox(
-            f"Parte — {titulo}",
+            f"Parte — {display_name}",
             parte_opts,
             index=idx_parte,
             key=f"{key_prefix}_parte_{i}_{slug}",
@@ -6829,9 +6835,6 @@ def _render_picked_louvores_panel(
                 key=f"{key_prefix}_parte_out_{i}_{slug}",
             )
         st.session_state[meta_key][label] = entry
-
-        if artista:
-            st.caption(artista)
 
         if st.button("✕ Remover", key=f"{key_prefix}_unpick_{i}_{slug}", use_container_width=True):
             st.session_state[state_key] = [p for p in picked if p != label]
@@ -8801,13 +8804,10 @@ def _render_louvor_validation_search(louvores_df: pd.DataFrame):
     st.caption(f"**{len(catalog)}** encontrado(s) — toque para analisar")
     for label in opcoes:
         data = catalog.get(label, {})
-        from catalog_sanitize import sanitize_catalog_text
+        from catalog_sanitize import format_louvor_search_button, louvor_title_artist_from_row_or_label
 
-        titulo = sanitize_catalog_text(data.get("title", label.split(" — ")[0]))
-        artista = sanitize_catalog_text(data.get("artist", ""))
-        btn = f"🔍 Analisar — {titulo}"
-        if artista:
-            btn += f" ({artista})"
+        titulo, artista = louvor_title_artist_from_row_or_label(data, label)
+        btn = format_louvor_search_button(titulo, artista, prefix="🔍 Analisar — ")
         if st.button(btn, key=f"{key_prefix}_v_{_picker_key_slug(label)}", use_container_width=True):
             themes_v = themes_from_csv(str(data.get("temas", "")))
             if not themes_v:
