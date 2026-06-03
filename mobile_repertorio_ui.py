@@ -162,7 +162,7 @@ def mobile_repertorio_css() -> str:
       background: rgba(12,18,40,.78);
       border: 1px solid rgba(255,255,255,.08);
       border-radius: 28px;
-      padding: 1.25rem 1.1rem 1.1rem;
+      padding: 0.95rem 1rem;
       position: relative;
       overflow: hidden;
       backdrop-filter: blur(14px);
@@ -177,18 +177,31 @@ def mobile_repertorio_css() -> str:
       top:-70px;right:-70px;
       pointer-events:none;
     }
+    .ml-rep-header-row{
+      display:flex;
+      align-items:center;
+      gap:0.75rem;
+      min-width:0;
+    }
     .ml-rep-header-icon{
-      width:56px;height:56px;border-radius:18px;
+      width:48px;height:48px;border-radius:16px;
       background:linear-gradient(135deg,#7c3aed,#5b21b6);
       display:flex;align-items:center;justify-content:center;
-      font-size:1.6rem;margin-bottom:0.85rem;
-      box-shadow:0 0 28px rgba(124,58,237,.32);
+      font-size:1.35rem;
+      flex:0 0 auto;
+      box-shadow:0 0 24px rgba(124,58,237,.28);
     }
+    .ml-rep-header-text{ min-width:0; flex:1 1 auto; }
     .ml-rep-header-title{
-      font-size:1.65rem;font-weight:800;line-height:1.05;margin:0 0 0.35rem;
-      letter-spacing:-0.02em;
+      font-size:1.22rem;font-weight:800;line-height:1.12;margin:0;
+      letter-spacing:-0.025em;
     }
-    .ml-rep-header-sub{color:rgba(161,161,170,.95);font-size:0.92rem;line-height:1.35;}
+    .ml-rep-header-sub{
+      color:rgba(161,161,170,.95);
+      font-size:0.78rem;
+      line-height:1.3;
+      margin:0.2rem 0 0;
+    }
     .ml-rep-info{
       margin-top:0.85rem;
       background:rgba(10,16,38,.88);
@@ -372,9 +385,13 @@ def _render_header_card() -> None:
         """
         <div id="ml-repertorio-page" class="ml-page">
           <div class="ml-rep-header-card">
-            <div class="ml-rep-header-icon" aria-hidden="true">♫</div>
-            <h1 class="ml-rep-header-title">Repertório de Louvores</h1>
-            <p class="ml-rep-header-sub">Ministério • Todas as músicas do ministério</p>
+            <div class="ml-rep-header-row">
+              <div class="ml-rep-header-icon" aria-hidden="true">♫</div>
+              <div class="ml-rep-header-text">
+                <h1 class="ml-rep-header-title">Repertório de Louvores</h1>
+                <p class="ml-rep-header-sub">Ministério • Todas as músicas do ministério</p>
+              </div>
+            </div>
           </div>
         </div>
         """,
@@ -391,7 +408,7 @@ def _render_info_card() -> None:
               display:flex;align-items:center;justify-content:center;color:#60a5fa;font-size:1.2rem;">ⓘ</div>
             <div>
               <div style="font-size:0.9rem;line-height:1.45;font-weight:600;color:rgba(226,232,240,.96);">
-                Navegue pelo repertório com busca, filtros inteligentes e validação bíblica.
+                Navegue pelo repertório com busca, filtros inteligentes e Kits voz e instrumentos para aprendizado contínuo.
               </div>
               <div style="color:#60a5fa;font-weight:700;margin-top:8px;font-size:0.82rem;">
                 Saiba mais sobre o Kit Voz →
@@ -628,9 +645,6 @@ def _render_hub(
                     st.rerun()
 
     _render_info_card()
-    from app import render_voice_kit_link
-
-    render_voice_kit_link()
 
     stats = compute_repertorio_stats(louvores_df)
     added_month = count_added_this_month(sugestoes_df)
