@@ -224,15 +224,26 @@ FEED_COMMENT_COLUMNS = ("id", "post_id", "email", "name", "message", "created_at
 CHAT_ENSAIO_FILE = DATA_DIR / "chat_ensaio.csv"
 
 CULTO_PARTES = [
-    "Abertura / Entrada",
-    "Louvor 1",
-    "Louvor 2",
-    "Louvor 3",
-    "Momento de adoração",
+    "Louvor 01",
+    "Louvor 02",
+    "Louvor 03",
+    "Louvor 04",
+    "Louvor 05",
     "Oferta",
-    "Louvor pós-mensagem",
-    "Apelo / Encerramento",
 ]
+
+_LEGACY_PARTE_MAP = {
+    "Abertura / Entrada": "Louvor 01",
+    "Louvor 1": "Louvor 01",
+    "Louvor 2": "Louvor 02",
+    "Louvor 3": "Louvor 03",
+    "Louvor 4": "Louvor 04",
+    "Louvor 5": "Louvor 05",
+    "Momento de adoração": "Louvor 04",
+    "Louvor pós-mensagem": "Louvor 05",
+    "Apelo / Encerramento": "Oferta",
+    "Outra": "Louvor 01",
+}
 PROGRAMA_COLUMNS = (
     "id",
     "escala_id",
@@ -4942,7 +4953,7 @@ def collect_escala_whatsapp_message(
         programa.append(
             (
                 str(item.get("ordem", "")),
-                str(item.get("parte", "")),
+                _normalize_parte(str(item.get("parte", ""))),
                 titulo,
                 sanitize_catalog_text(item.get("key", "")),
             )
@@ -5172,6 +5183,7 @@ def render_culto_programa(
         dur_item = parse_duracao_min(meta_l.get("duracao_min", ""))
         total_prog_min += dur_item
         dur_txt = format_duracao_total(dur_item)
+        parte_show = _normalize_parte(str(item.get("parte", "")))
         yt = sanitize_catalog_text(item.get("youtube_url", ""))
         cifra = sanitize_catalog_text(item.get("cifra_url", ""))
         if cifra and not cifra.startswith("http"):
@@ -5207,7 +5219,7 @@ def render_culto_programa(
             f"""
             <div class="prog-card">
                 <span class="seq-badge">{item['ordem']}</span>
-                <span class="prog-parte">{item['parte']}</span>
+                <span class="prog-parte">{parte_show}</span>
                 <p class="prog-louvor">{titulo}</p>
                 <p class="prog-meta">{meta}</p>
                 {btns_html}
@@ -6607,10 +6619,17 @@ def _picked_meta_key(key_prefix: str) -> str:
     return f"{key_prefix}_picked_meta"
 
 
+def _normalize_parte(parte: str) -> str:
+    p = str(parte or "").strip()
+    if p in CULTO_PARTES:
+        return p
+    return _LEGACY_PARTE_MAP.get(p, CULTO_PARTES[0])
+
+
 def _default_parte_for_index(index: int) -> str:
-    if index < len(CULTO_PARTES):
-        return CULTO_PARTES[index]
-    return f"Louvor {index + 1}"
+    if index < 5:
+        return f"Louvor {index + 1:02d}"
+    return "Oferta"
 
 
 def _init_picked_meta(key_prefix: str, label: str):
@@ -6622,16 +6641,11 @@ def _init_picked_meta(key_prefix: str, label: str):
         idx = max(0, len(st.session_state.get(state_key, [])) - 1)
         st.session_state[meta_key][label] = {
             "parte": _default_parte_for_index(idx),
-            "parte_outra": "",
         }
 
 
 def _resolve_parte_from_meta(entry: dict) -> str:
-    parte = str(entry.get("parte", CULTO_PARTES[0]))
-    if parte == "Outra":
-        custom = str(entry.get("parte_outra", "")).strip()
-        return custom or "Outra"
-    return parte
+    return _normalize_parte(str(entry.get("parte", CULTO_PARTES[0])))
 
 
 def get_picked_louvores_for_programa(
@@ -6649,7 +6663,7 @@ def get_picked_louvores_for_programa(
     for label in labels:
         data = full_catalog.get(label, {})
         titulo = sanitize_catalog_text(data.get("title", label.split(" — ")[0]))
-        entry = meta.get(label, {"parte": CULTO_PARTES[0], "parte_outra": ""})
+        entry = meta.get(label, {"parte": CULTO_PARTES[0]})
         rows.append(
             {
                 "label": label,
@@ -6812,7 +6826,7 @@ def _render_picked_louvores_panel(
         return
 
     meta_key = _picked_meta_key(key_prefix)
-    parte_opts = CULTO_PARTES + ["Outra"]
+    parte_opts = list(CULTO_PARTES)
     st.markdown('<div class="louvor-selected-box">', unsafe_allow_html=True)
     for i, label in enumerate(picked):
         if label not in st.session_state.get(meta_key, {}):
@@ -6825,7 +6839,7 @@ def _render_picked_louvores_panel(
         slug = _picker_key_slug(label)
         display_name = format_louvor_display(titulo, artista)
 
-        cur_parte = str(entry.get("parte", _default_parte_for_index(i)))
+        cur_parte = _normalize_parte(str(entry.get("parte", _default_parte_for_index(i))))
         idx_parte = parte_opts.index(cur_parte) if cur_parte in parte_opts else 0
         parte_sel = st.selectbox(
             f"Parte — {display_name}",
@@ -6834,12 +6848,6 @@ def _render_picked_louvores_panel(
             key=f"{key_prefix}_parte_{i}_{slug}",
         )
         entry["parte"] = parte_sel
-        if parte_sel == "Outra":
-            entry["parte_outra"] = st.text_input(
-                "Nome da parte",
-                value=str(entry.get("parte_outra", "")),
-                key=f"{key_prefix}_parte_out_{i}_{slug}",
-            )
         st.session_state[meta_key][label] = entry
 
         if st.button("✕ Remover", key=f"{key_prefix}_unpick_{i}_{slug}", use_container_width=True):
@@ -7042,28 +7050,21 @@ def render_programa_louvores_editor(
     )
 
     prog = programa_por_escala(programa_df, escala_id)
-    parte_opts = CULTO_PARTES + ["Outra"]
+    parte_opts = list(CULTO_PARTES)
     if not prog.empty:
         st.markdown("**Programação atual** — edite a parte de cada louvor:")
         for _, prow in prog.iterrows():
             pid = str(prow["id"])
             titulo = str(prow.get("louvor_title", ""))
-            parte_atual = str(prow.get("parte", ""))
+            parte_atual = _normalize_parte(str(prow.get("parte", "")))
             idx_p = parte_opts.index(parte_atual) if parte_atual in parte_opts else 0
             with st.expander(f"{prow.get('ordem', '')}. {parte_atual} — {titulo}", expanded=False):
-                parte_sel = st.selectbox(
+                parte_salvar = st.selectbox(
                     "Parte do culto",
                     parte_opts,
                     index=idx_p,
                     key=f"{key_prefix}_ep_{pid}",
                 )
-                parte_salvar = parte_sel
-                if parte_sel == "Outra":
-                    parte_salvar = st.text_input(
-                        "Nome da parte",
-                        value=parte_atual if parte_atual not in CULTO_PARTES else "",
-                        key=f"{key_prefix}_epo_{pid}",
-                    )
                 c1, c2 = st.columns(2)
                 with c1:
                     if st.button("💾 Salvar parte", key=f"{key_prefix}_savep_{pid}", use_container_width=True):
@@ -8188,7 +8189,8 @@ def show_sequencia_culto_page(
     for _, item in prog.iterrows():
         louvor = fix_louvor_display_title(sanitize_catalog_text(item.get("louvor_title", "")))
         artist = sanitize_catalog_text(item.get("artist", ""))
-        lbl = f"{item['ordem']}. {format_louvor_display(louvor, artist)} ({item.get('parte', '')})"
+        parte_lbl = _normalize_parte(str(item.get("parte", "")))
+        lbl = f"{item['ordem']}. {format_louvor_display(louvor, artist)} ({parte_lbl})"
         song_labels.append(lbl)
         prog_by_label[lbl] = item
 

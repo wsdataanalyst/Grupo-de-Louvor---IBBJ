@@ -56,19 +56,12 @@ FUNCAO_INTEGRANTE = "Integrante"
 FUNCAO_BANDA = "Banda"
 FUNCAO_TECNICO = "Técnico de som"
 
-CULTO_PARTES_5 = [
-    "Abertura / Entrada",
-    "Louvor 1",
-    "Louvor 2",
-    "Louvor 3",
-    "Oferta",
-]
-CULTO_PARTES_6 = [
-    "Abertura / Entrada",
-    "Louvor 1",
-    "Louvor 2",
-    "Louvor 3",
-    "Momento de adoração",
+CULTO_PARTES = [
+    "Louvor 01",
+    "Louvor 02",
+    "Louvor 03",
+    "Louvor 04",
+    "Louvor 05",
     "Oferta",
 ]
 
@@ -125,7 +118,7 @@ def louvores_count_for_culto(d: date) -> int:
 
 def partes_for_culto(d: date) -> list[str]:
     n = louvores_count_for_culto(d)
-    return (CULTO_PARTES_6 if n >= 6 else CULTO_PARTES_5)[:n]
+    return CULTO_PARTES[:n]
 
 
 def _parse_date(value) -> date | None:
@@ -619,7 +612,7 @@ def suggest_louvores_for_culto(
                 title=title,
                 artist=artist,
                 key=tom,
-                parte=partes[i] if i < len(partes) else f"Louvor {i+1}",
+                parte=partes[i] if i < len(partes) else CULTO_PARTES[-1],
                 ordem=i + 1,
             )
         )
