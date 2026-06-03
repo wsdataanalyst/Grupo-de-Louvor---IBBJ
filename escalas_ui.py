@@ -18,7 +18,9 @@ ESCALAS_TAB_LABELS = (
 
 
 def escalas_page_css() -> str:
-    return """
+    from culto_programa_css import culto_programa_css
+
+    return culto_programa_css() + """
         .ig-escalas-page { max-width: 960px; margin: 0 auto; }
         .ig-escalas-header-card {
             display: flex;

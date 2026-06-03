@@ -72,7 +72,9 @@ def _render_week_nav() -> None:
 
 
 def mobile_escalas_css() -> str:
-    return r"""
+    from culto_programa_css import culto_programa_css
+
+    return culto_programa_css() + r"""
     body:has(#ml-escalas-page) .ml-esc-header h1{
       font-size: 2rem !important;
       font-weight: 800 !important;

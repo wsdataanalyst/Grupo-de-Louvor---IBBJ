@@ -990,7 +990,13 @@ def profile_photo_to_data_uri(email: str, stored_name: str = "") -> str | None:
     return f"data:{mime};base64,{b64}"
 
 
-def member_photo_html(email: str, members_df: pd.DataFrame, size: int = 56) -> str:
+def member_photo_html(
+    email: str,
+    members_df: pd.DataFrame,
+    size: int = 56,
+    *,
+    name: str = "",
+) -> str:
     email_l = email.strip().lower()
     stored = ""
     if not members_df.empty and "email" in members_df.columns:
@@ -1001,14 +1007,16 @@ def member_photo_html(email: str, members_df: pd.DataFrame, size: int = 56) -> s
     if uri:
         return (
             f'<img class="member-avatar" src="{uri}" alt="" '
-            f'style="width:{size}px;height:{size}px;border-radius:50%;object-fit:cover;" />'
+            f'style="width:{size}px;height:{size}px;border-radius:16px;object-fit:cover;" />'
         )
+    initial = (str(name or "").strip()[:1] or email_l[:1] or "?").upper()
     return (
-        f'<motion-placeholder class="member-avatar-ph" '
-        f'style="width:{size}px;height:{size}px;border-radius:50%;'
+        f'<span class="member-avatar-ph" '
+        f'style="width:{size}px;height:{size}px;border-radius:16px;'
         f"display:inline-flex;align-items:center;justify-content:center;"
-        f'background:rgba(139,92,246,0.35);font-size:{size//2}px;">🎤</motion-placeholder>'
-    ).replace("motion-placeholder", "span")
+        f'background:rgba(124,58,246,0.22);font-size:{max(14, size // 2)}px;'
+        f'font-weight:900;color:#e9d5ff;">{html.escape(initial)}</span>'
+    )
 
 
 def split_member_roles(roles_str: str) -> tuple[list[str], list[str]]:
@@ -4928,17 +4936,15 @@ def render_team_grid_html(
     parts = []
     for p in team:
         email = str(p.get("email", "")).strip()
-        foto = member_photo_html(email, members_df, 64) if email else ""
+        nome = str(p.get("nome", ""))
+        foto = member_photo_html(email, members_df, 64, name=nome) if email else ""
         funcao = normalize_funcao_escala(str(p.get("funcao", "Integrante")))
         parts.append(
-            f'<motion class="team-member-card">{foto}'
-            f'<p class="tm-name">{p["nome"]}</p>'
-            f'<p class="tm-role">{funcao}</p></div>'
+            f'<div class="team-member-card">{foto}'
+            f'<p class="tm-name">{html.escape(nome)}</p>'
+            f'<p class="tm-role">{html.escape(funcao)}</p></div>'
         )
-    return '<div class="team-grid">' + "".join(
-        x.replace('<motion class="team-member-card">', '<div class="team-member-card">')
-        for x in parts
-    ) + "</div>"
+    return '<div class="team-grid">' + "".join(parts) + "</div>"
 
 
 def collect_escala_whatsapp_message(
@@ -5234,23 +5240,34 @@ def render_culto_programa(
         btns.append(
             f'<a class="prog-btn prog-btn-letra" href="{cifra}" target="_blank" rel="noopener">📜 Letra / Cifra</a>'
         )
-        btns_html = f'<div class="prog-actions">{"".join(btns)}</div>' if btns else ""
-        meta_parts = [
-            f"Tom: {tom}" if tom else "",
-            f"🎤 {leader}" if leader else "",
-            f"⏱ ~{dur_txt}",
-        ]
         ref_b = str(meta_l.get("ref_biblica", "")).strip()
+        btns_html = f'<div class="prog-actions">{"".join(btns)}</div>' if btns else ""
+        meta_chips = []
+        if tom:
+            meta_chips.append(
+                f'<span class="prog-chip prog-chip-tom">Tom: {html.escape(tom)}</span>'
+            )
+        if leader:
+            meta_chips.append(f'<span class="prog-chip">🎤 {html.escape(leader)}</span>')
+        meta_chips.append(f'<span class="prog-chip">⏱ ~{html.escape(dur_txt)}</span>')
         if ref_b:
-            meta_parts.append(f"📖 {html.escape(ref_b[:80])}")
-        meta = " · ".join(x for x in meta_parts if x)
+            meta_chips.append(
+                f'<span class="prog-chip prog-chip-ref">📖 {html.escape(ref_b[:120])}</span>'
+            )
+        meta_html = (
+            f'<div class="prog-meta-chips">{"".join(meta_chips)}</div>'
+            if meta_chips
+            else ""
+        )
         st.markdown(
             f"""
             <div class="prog-card">
-                <span class="seq-badge">{item['ordem']}</span>
-                <span class="prog-parte">{parte_show}</span>
-                <p class="prog-louvor">{titulo}</p>
-                <p class="prog-meta">{meta}</p>
+                <div class="prog-head">
+                    <span class="seq-badge">{item['ordem']}</span>
+                    <span class="prog-parte">{html.escape(parte_show)}</span>
+                </div>
+                <p class="prog-louvor">{html.escape(titulo)}</p>
+                {meta_html}
                 {btns_html}
             </div>
             """,
