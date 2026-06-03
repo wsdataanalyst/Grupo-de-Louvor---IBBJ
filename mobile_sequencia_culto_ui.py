@@ -359,7 +359,7 @@ def _load_song_bundle(
         load_programa_sequencia_df,
         programa_por_escala,
     )
-    from catalog_sanitize import format_louvor_display, sanitize_catalog_text
+    from catalog_sanitize import louvor_title_artist_from_row_or_label, sanitize_catalog_text
     from sequencia_culto import (
         get_sequencia_row,
         split_lyrics_paragraphs,
@@ -404,7 +404,7 @@ def _load_song_bundle(
 
     vocal_opts = integrantes_marcacao_opts(team)
     banda_opts = banda_escala(team) or integrantes_marcacao_opts(team)
-    title, artist = format_louvor_display(item)
+    title, artist = louvor_title_artist_from_row_or_label(item.to_dict())
 
     return {
         "item": item,
@@ -439,7 +439,7 @@ def _render_lista(
     escalas_df: pd.DataFrame,
 ) -> None:
     from app import enrich_programa_from_catalog, programa_por_escala
-    from catalog_sanitize import format_louvor_display
+    from catalog_sanitize import louvor_title_artist_from_row_or_label
     from louvor_meta import parse_duracao_min
 
     prog = programa_por_escala(programa_df, escala_id)
@@ -455,7 +455,7 @@ def _render_lista(
 
     total_min = 0.0
     for idx, (_, r) in enumerate(prog.iterrows()):
-        title, artist = format_louvor_display(r)
+        title, artist = louvor_title_artist_from_row_or_label(r.to_dict())
         parte = str(r.get("parte", "") or "Louvor").strip()
         tom = str(r.get("key", "") or r.get("tom_programa", "") or "").strip() or "—"
         pid = str(r.get("id", ""))
