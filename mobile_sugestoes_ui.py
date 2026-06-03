@@ -84,5 +84,5 @@ def render_mobile_sugestoes_page(
     from mobile_ui import mobile_stack_close, mobile_stack_open
 
     mobile_stack_open()
-    show_sugestao_louvor(sugestoes_df, louvores_df)
+    show_sugestao_louvor(sugestoes_df, louvores_df, show_nova_button=False)
     mobile_stack_close()

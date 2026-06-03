@@ -9555,7 +9555,12 @@ def _render_gestao_sugestoes_lideranca(
         inject_ui_html("</div>")
 
 
-def show_sugestao_louvor(sugestoes_df: pd.DataFrame, louvores_df: pd.DataFrame):
+def show_sugestao_louvor(
+    sugestoes_df: pd.DataFrame,
+    louvores_df: pd.DataFrame,
+    *,
+    show_nova_button: bool = True,
+):
     from sugestao_louvor_ui import (
         SUGESTAO_TAB_LABELS,
         compute_sugestao_stats,
@@ -9591,10 +9596,11 @@ def show_sugestao_louvor(sugestoes_df: pd.DataFrame, louvores_df: pd.DataFrame):
     col_hdr, col_btn = st.columns([4, 1])
     with col_hdr:
         render_sugestao_header()
-    with col_btn:
-        st.markdown('<div style="padding-top:0.5rem">', unsafe_allow_html=True)
-        render_sugestao_nova_button()
-        st.markdown("</div>", unsafe_allow_html=True)
+    if show_nova_button:
+        with col_btn:
+            st.markdown('<div style="padding-top:0.5rem">', unsafe_allow_html=True)
+            render_sugestao_nova_button()
+            st.markdown("</div>", unsafe_allow_html=True)
     mobile_hdr_close()
 
     render_sugestao_banner()
