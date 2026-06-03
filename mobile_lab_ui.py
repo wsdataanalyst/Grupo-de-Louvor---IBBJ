@@ -299,15 +299,20 @@ def mobile_lab_css() -> str:
     .ml-meta-block{ display:flex; flex-direction:column; gap:3px; }
     .ml-meta-label{ font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:0.06em; color:rgba(167,139,250,.9); }
     .ml-meta-line{ display:flex; align-items:center; gap:6px; }
-    .ml-hero-btns{ margin-top: -4px; margin-bottom: 8px; }
-    .ml-hero-btns [data-testid="stHorizontalBlock"]{ gap: 0.5rem !important; }
-    .ml-hero-btns .stButton > button{
+    body:has(#ml-dashboard-page) [class*="st-key-ml_dash_hero_btns"]{
+      margin-top: -4px;
+      margin-bottom: 8px;
+    }
+    body:has(#ml-dashboard-page) [class*="st-key-ml_dash_hero_btns"] [data-testid="stHorizontalBlock"]{
+      gap: 0.5rem !important;
+    }
+    body:has(#ml-dashboard-page) [class*="st-key-ml_dash_hero_btns"] .stButton > button{
       border-radius: 16px !important;
       min-height: 2.5rem !important;
       font-weight: 800 !important;
       font-size: 0.78rem !important;
     }
-    .ml-hero-btns [class*="st-key-ml_dash_escala_full"] .stButton > button{
+    body:has(#ml-dashboard-page) [class*="st-key-ml_dash_hero_btns"] [class*="st-key-ml_dash_escala_full"] .stButton > button{
       background: linear-gradient(90deg, rgba(124,58,237,1), rgba(139,92,246,1)) !important;
       color: #fff !important;
       border: none !important;
@@ -1073,37 +1078,30 @@ def render_mobile_lab_dashboard(
             else ""
         )
         hero_block = (
-            """
-          <div class="ml-glass ml-hero ml-glow-purple">
-            <img src="https://images.unsplash.com/photo-1504052434569-70ad5836ab65?q=80&w=1200&auto=format&fit=crop" />
-            <div class="ml-hero-inner">
-              <div class="ml-pill">📅 PRÓXIMO CULTO</div>
-              <h2>"""
+            '<div class="ml-glass ml-hero ml-glow-purple">'
+            '<img src="https://images.unsplash.com/photo-1504052434569-70ad5836ab65?q=80&w=1200&auto=format&fit=crop" />'
+            '<div class="ml-hero-inner">'
+            '<div class="ml-pill">📅 PRÓXIMO CULTO</div>'
+            "<h2>"
             + hero_title
-            + """</h2>
-              <div class="ml-meta">
-                <div class="ml-meta-block">
-                  <span class="ml-meta-label">Culto</span>
-                  <span class="ml-meta-line">📆 """
+            + "</h2>"
+            '<div class="ml-meta">'
+            '<div class="ml-meta-block">'
+            '<span class="ml-meta-label">Culto</span>'
+            '<span class="ml-meta-line">📆 '
             + culto_date
-            + """</span>
-                  <span class="ml-meta-line">🕘 """
+            + "</span>"
+            '<span class="ml-meta-line">🕘 '
             + culto_time
-            + """</span>
-                </div>
-                <div class="ml-meta-block">
-                  <span class="ml-meta-label">Ensaio</span>
-                  <span class="ml-meta-line">📅 """
+            + "</span>"
+            "</div>"
+            '<div class="ml-meta-block">'
+            '<span class="ml-meta-label">Ensaio</span>'
+            '<span class="ml-meta-line">📅 '
             + ensaio_date
-            + """</span>
-                  """
+            + "</span>"
             + ensaio_time_line
-            + """
-                </div>
-              </div>
-            </div>
-          </div>
-        """
+            + "</div></div></div></div>"
         )
     else:
         hero_block = """
@@ -1117,7 +1115,7 @@ def render_mobile_lab_dashboard(
         """
 
     st.markdown(
-        '<span id="ml-dashboard-page" aria-hidden="true"></span><div class="ml-page">',
+        '<span id="ml-dashboard-page" class="ml-page" aria-hidden="true"></span>',
         unsafe_allow_html=True,
     )
 
@@ -1145,29 +1143,28 @@ def render_mobile_lab_dashboard(
     st.markdown(hero_block, unsafe_allow_html=True)
 
     if next_culto:
-        st.markdown('<div class="ml-hero-btns">', unsafe_allow_html=True)
-        hb1, hb2 = st.columns(2, gap="small")
-        eid = str(next_culto.get("id", ""))
-        with hb1:
-            with st.container(key="ml_dash_escala_app"):
-                if st.button(
-                    "👥 Escala no app",
-                    key="ml_dash_escala_app_btn",
-                    use_container_width=True,
-                ):
-                    _open_escala_in_app(escala_id=eid, tab="equipe")
-                    st.rerun()
-        with hb2:
-            with st.container(key="ml_dash_escala_full"):
-                if st.button(
-                    "Ver escala completa",
-                    key="ml_dash_escala_full_btn",
-                    use_container_width=True,
-                    type="primary",
-                ):
-                    _open_escala_in_app(escala_id=eid, tab="sequencia")
-                    st.rerun()
-        st.markdown("</div>", unsafe_allow_html=True)
+        with st.container(key="ml_dash_hero_btns"):
+            hb1, hb2 = st.columns(2, gap="small")
+            eid = str(next_culto.get("id", ""))
+            with hb1:
+                with st.container(key="ml_dash_escala_app"):
+                    if st.button(
+                        "👥 Escala no app",
+                        key="ml_dash_escala_app_btn",
+                        use_container_width=True,
+                    ):
+                        _open_escala_in_app(escala_id=eid, tab="equipe")
+                        st.rerun()
+            with hb2:
+                with st.container(key="ml_dash_escala_full"):
+                    if st.button(
+                        "Ver escala completa",
+                        key="ml_dash_escala_full_btn",
+                        use_container_width=True,
+                        type="primary",
+                    ):
+                        _open_escala_in_app(escala_id=eid, tab="sequencia")
+                        st.rerun()
 
     st.markdown(
         """
@@ -1208,7 +1205,6 @@ def render_mobile_lab_dashboard(
             <h3>Acesso rápido</h3>
             <div class="ml-link">Ver tudo</div>
           </div>
-        </div>
         """,
         unsafe_allow_html=True,
     )
