@@ -235,6 +235,19 @@ def mobile_sequencia_css() -> str:
   """
 
 
+def _inject_sequencia_page_shell() -> None:
+    """Marca a página e injeta CSS (blocos separados — evita CSS visível como texto)."""
+    st.markdown(
+        '<span id="ml-sequencia-page" aria-hidden="true"></span>',
+        unsafe_allow_html=True,
+    )
+    css = mobile_sequencia_css()
+    try:
+        st.html(f"<style>{css}</style>", unsafe_allow_javascript=False)
+    except Exception:
+        st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
+
+
 def _render_page_header(title: str, subtitle: str = "") -> None:
     st.markdown(
         f"""
@@ -835,11 +848,7 @@ def render_mobile_sequencia_tab(
 ) -> None:
     """Aba Sequência (Escalas mobile) ou página completa (Gerenciar)."""
     inject_mobile_lab_theme()
-    st.markdown(
-        f'<span id="ml-sequencia-page" aria-hidden="true"></span>'
-        f"<style>{mobile_sequencia_css()}</style>",
-        unsafe_allow_html=True,
-    )
+    _inject_sequencia_page_shell()
 
     escalas_df = escalas_df if escalas_df is not None else pd.DataFrame()
     equipe_df = equipe_df if equipe_df is not None else pd.DataFrame()
