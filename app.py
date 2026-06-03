@@ -3069,40 +3069,69 @@ def inject_swap_alerts_badges(count: int) -> None:
 
 
 def inject_chat_scroll_to_bottom():
+    from chat_whatsapp import should_force_chat_scroll
+
+    force = should_force_chat_scroll()
+    force_js = "true" if force else "false"
     inject_page_html(
-        """
+        f"""
         <script>
-        (function () {
+        (function () {{
           var doc = window.parent.document;
-          function scrollChat() {
+          var forceScroll = {force_js};
+
+          function scrollContainer(el) {{
+            if (!el) return false;
+            if (el.scrollHeight > el.clientHeight + 8) {{
+              el.scrollTop = el.scrollHeight + 99999;
+              return true;
+            }}
+            return false;
+          }}
+
+          function scrollChat() {{
             var box = doc.getElementById("chat-scroll-box");
-            if (box) {
-              box.scrollTop = box.scrollHeight + 9999;
-            }
             var end = doc.getElementById("chat-scroll-end");
-            if (end) end.scrollIntoView({ block: "end", inline: "nearest" });
+            if (box && scrollContainer(box)) return;
+            var feed = doc.querySelector(".wa-chat-feed, .ig-chat-feed");
+            if (feed && scrollContainer(feed)) return;
+            var col = doc.querySelector(".ig-chat-col--main");
+            if (col && scrollContainer(col)) return;
+            if (end) end.scrollIntoView({{ block: "end", inline: "nearest", behavior: "auto" }});
             var anchor = doc.getElementById("chat-page-end");
-            if (anchor) anchor.scrollIntoView({ block: "end" });
-          }
-          function watchBox() {
-            var box = doc.getElementById("chat-scroll-box");
-            if (!box || box.dataset.waObs) return;
-            box.dataset.waObs = "1";
-            new MutationObserver(scrollChat).observe(box, {
-              childList: true,
-              subtree: true,
-              attributes: true,
-            });
-          }
+            if (anchor) anchor.scrollIntoView({{ block: "end" }});
+          }}
+
+          function bindFeedObserver() {{
+            var targets = [
+              doc.getElementById("chat-scroll-box"),
+              doc.querySelector(".wa-chat-feed"),
+              doc.querySelector(".ig-chat-col--main"),
+            ].filter(Boolean);
+            targets.forEach(function (box) {{
+              if (box._chatScrollObs) {{
+                try {{ box._chatScrollObs.disconnect(); }} catch (e) {{}}
+              }}
+              box._chatScrollObs = new MutationObserver(function () {{
+                scrollChat();
+              }});
+              box._chatScrollObs.observe(box, {{
+                childList: true,
+                subtree: true,
+                attributes: true,
+              }});
+            }});
+          }}
+
           scrollChat();
-          watchBox();
-          [80, 200, 450, 900, 1500, 2500].forEach(function (ms) {
-            setTimeout(function () {
+          bindFeedObserver();
+          [80, 200, 450, 900, 1500, 2500].forEach(function (ms) {{
+            setTimeout(function () {{
               scrollChat();
-              watchBox();
-            }, ms);
-          });
-        })();
+              bindFeedObserver();
+            }}, ms);
+          }});
+        }})();
         </script>
         """,
         height=0,

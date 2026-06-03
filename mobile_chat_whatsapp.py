@@ -808,6 +808,7 @@ def render_wa_feed_from_cache(members_df: pd.DataFrame) -> bool:
         f'<div id="chat-scroll-end" class="wa-feed-bottom-spacer" aria-hidden="true"></div></div>',
         unsafe_allow_html=True,
     )
+    inject_wa_scroll_and_lightbox()
     return True
 
 
@@ -840,45 +841,19 @@ def render_wa_list_header_html() -> str:
 
 
 def inject_wa_scroll_nudge_only() -> None:
-    """Só rola ao fim após enviar — sem reinjetar todo o script."""
-    if not st.session_state.pop("_chat_scroll_bottom", False):
-        return
-    inject_page_script(
-        """
-        (function () {
-          var doc = window.parent.document;
-          function syncComposeClearance() {
-            var box = doc.getElementById("chat-scroll-box");
-            var comp = doc.querySelector('[class*="st-key-ml_chat_composer"]');
-            if (!box) return;
-            var h = 92;
-            if (comp) h = Math.max(72, comp.getBoundingClientRect().height);
-            var clearance = Math.ceil(h + 14) + "px";
-            doc.documentElement.style.setProperty("--ml-compose-clearance", clearance);
-            box.style.paddingBottom = clearance;
-            var end = doc.getElementById("chat-scroll-end");
-            if (end) end.style.height = clearance;
-          }
-          syncComposeClearance();
-          var box = doc.getElementById("chat-scroll-box");
-          if (box) box.scrollTop = box.scrollHeight + 9999;
-          var end = doc.getElementById("chat-scroll-end");
-          if (end) end.scrollIntoView({ block: "end", behavior: "auto" });
-        })();
-        """
-    )
+    """Rola ao fim quando há mensagem nova ou envio recente."""
+    inject_wa_scroll_and_lightbox()
 
 
 def inject_wa_scroll_and_lightbox() -> None:
-    if st.session_state.get("_wa_chat_js_ready"):
-        inject_wa_scroll_nudge_only()
-        return
+    from chat_whatsapp import should_force_chat_scroll
 
-    st.session_state["_wa_chat_js_ready"] = True
-    force = st.session_state.pop("_chat_scroll_bottom", False)
+    force = should_force_chat_scroll()
     force_js = "true" if force else "false"
 
-    inject_ui_html(
+    if not st.session_state.get("_wa_lightbox_html"):
+        st.session_state["_wa_lightbox_html"] = True
+        inject_ui_html(
         """
         <button type="button" class="wa-jump-bottom" id="wa-jump-bottom" aria-label="Ir para última mensagem">
           ↓ Última mensagem
@@ -959,14 +934,15 @@ def inject_wa_scroll_and_lightbox() -> None:
           if (forceScroll || nearBottom()) scrollToEnd(false);
           else updateJump();
 
-          if (!box.dataset.waObs) {{
-            box.dataset.waObs = "1";
-            new MutationObserver(function () {{
-              syncComposeClearance();
-              if (nearBottom() || forceScroll) scrollToEnd(false);
-              else updateJump();
-            }}).observe(box, {{ childList: true, subtree: true }});
+          if (box._waScrollObs) {{
+            try {{ box._waScrollObs.disconnect(); }} catch (e) {{}}
           }}
+          box._waScrollObs = new MutationObserver(function () {{
+            syncComposeClearance();
+            if (nearBottom() || forceScroll) scrollToEnd(false);
+            else updateJump();
+          }});
+          box._waScrollObs.observe(box, {{ childList: true, subtree: true }});
 
           var comp = doc.querySelector('[class*="st-key-ml_chat_composer"]');
           if (comp && !comp.dataset.waPadObs) {{

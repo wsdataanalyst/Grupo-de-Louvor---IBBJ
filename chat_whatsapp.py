@@ -20,6 +20,18 @@ def mark_chat_scroll_bottom() -> None:
     st.session_state["_chat_scroll_bottom"] = True
 
 
+def should_force_chat_scroll() -> bool:
+    """True após envio ou quando o feed do chat mudou (nova mensagem)."""
+    if st.session_state.pop("_chat_scroll_bottom", False):
+        return True
+    cur = str(st.session_state.get("_chat_rev", ""))
+    prev = str(st.session_state.get("_chat_scrolled_rev", ""))
+    if cur and cur != prev:
+        st.session_state["_chat_scrolled_rev"] = cur
+        return True
+    return False
+
+
 def rerun_chat_surface(*, full: bool = False) -> None:
     """Recarrega só o fragment do chat (envio instantâneo); fallback para página inteira."""
     if full:
