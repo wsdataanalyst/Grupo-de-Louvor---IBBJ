@@ -112,6 +112,258 @@ def join_paragraphs(parts: list[str]) -> str:
     return "\n\n".join(p.strip() for p in parts if p.strip())
 
 
+def _integrantes_list(raw: object) -> list[str]:
+    if isinstance(raw, str):
+        s = raw.strip()
+        return [s] if s else []
+    return [str(x).strip() for x in (raw or []) if str(x).strip()]
+
+
+def _marcacao_curta(
+    tipo: str,
+    integrantes: list[str],
+    nota: str = "",
+    *,
+    tom_trecho: str = "",
+) -> str:
+    """Rótulo curto para a coluna da chave direita (sem emojis)."""
+    tipo = str(tipo or "").strip()
+    nota = str(nota or "").strip()
+    tom = str(tom_trecho or "").strip()
+    if tipo in ("—", ""):
+        return nota if nota else ""
+    names = ", ".join(integrantes)
+    short = {
+        "Harmonia de voz": "Harmonia",
+        "Todos juntos": "Todos",
+        "Entrada gradual": "Entrada",
+        "Ministrador fala": "Ministrador",
+        "Instrumental / sem vocal": "Instrumental",
+        "Solo instrumento": "Solo inst.",
+        "Entrada banda": "Entrada",
+        "Harmonia instrumental": "Harmonia inst.",
+        "Todos (banda)": "Todos (banda)",
+        "Dinâmica / volume": "Dinâmica",
+        "Silêncio": "Silêncio",
+    }.get(tipo, tipo)
+    if tipo in ("Solo", "Solo instrumento") and names:
+        body = f"Solo: {names}"
+    elif tipo == "Uníssono":
+        body = "Uníssono"
+    elif names:
+        body = f"{short}: {names}"
+    else:
+        body = short
+    if tom:
+        body += f" · Tom {tom}"
+    if nota and nota not in body:
+        body += f" — {nota}"
+    return body
+
+
+def _marcacoes_for_paragraph(
+    tv: dict,
+    tb: dict | None = None,
+    *,
+    vocal_only: bool = False,
+    banda_only: bool = False,
+) -> list[tuple[str, str]]:
+    """Lista (rótulo, cor) exibida ao lado da chave direita."""
+    out: list[tuple[str, str]] = []
+    tb = tb or {}
+    if not banda_only:
+        tipo_v = str(tv.get("tipo", "")).strip()
+        lv = _marcacao_curta(
+            tipo_v,
+            _integrantes_list(tv.get("integrantes")),
+            str(tv.get("nota", "")),
+        )
+        if lv:
+            out.append((lv, TIPO_CORE_COLORS.get(tipo_v, "#a78bfa")))
+    if not vocal_only:
+        tipo_b = str(tb.get("tipo", "")).strip()
+        lb = _marcacao_curta(
+            tipo_b,
+            _integrantes_list(tb.get("integrantes")),
+            str(tb.get("nota", "")),
+            tom_trecho=str(tb.get("tom_trecho", "")),
+        )
+        if lb:
+            out.append((lb, TIPO_BANDA_COLORS.get(tipo_b, "#60a5fa")))
+    return out
+
+
+def render_marcacao_brace_html(marcacoes: list[tuple[str, str]]) -> str:
+    if not marcacoes:
+        return (
+            '<div class="seq-marc-rail seq-marc-rail--empty">'
+            '<span class="seq-marc-empty">—</span></div>'
+        )
+    primary = marcacoes[0][1]
+    lines = "".join(
+        f'<div class="seq-marc-label" style="--seq-marc-color:{c}">{html.escape(lbl)}</div>'
+        for lbl, c in marcacoes
+    )
+    return (
+        f'<div class="seq-marc-rail" style="--seq-brace-color:{primary}">'
+        f'<span class="seq-brace-glyph" aria-hidden="true">}}</span>'
+        f'<div class="seq-marc-stack">{lines}</div></div>'
+    )
+
+
+def render_trecho_block_html(
+    para: str,
+    num: int,
+    border: str,
+    marcacoes: list[tuple[str, str]],
+    *,
+    block_class: str = "seq-lyric-block",
+) -> str:
+    safe_para = html.escape(para).replace("\n", "<br>")
+    brace = render_marcacao_brace_html(marcacoes)
+    return (
+        f'<div class="{block_class}" style="border-left:4px solid {border};'
+        f'--seq-trecho-color:{border}" id="trecho-{num}">'
+        f'<span class="seq-trecho-num" style="background:{border}">{num}</span>'
+        f'<div class="seq-trecho-row">'
+        f'<div class="seq-lyric-lines">{safe_para}</div>'
+        f"{brace}</div></div>"
+    )
+
+
+def sequencia_culto_css() -> str:
+    """Estilos da letra com chave direita — web e Mobile Lab."""
+    return r"""
+    .seq-lyrics-view {
+      display: flex;
+      flex-direction: column;
+      gap: 0.85rem;
+      margin: 0.35rem 0 0.5rem;
+    }
+    .seq-legend, .seq-legend-banda {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.45rem 0.65rem;
+      margin-bottom: 0.35rem;
+    }
+    .seq-legend-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 0.2rem 0.55rem;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,.12);
+      color: #cbd5e1;
+    }
+    .seq-legend-chip i {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+    .seq-lyric-block, .seq-inline-lyric {
+      position: relative;
+      padding: 0.75rem 0.85rem 0.75rem 2.35rem;
+      border-radius: 12px;
+      margin: 0.25rem 0;
+      background: rgba(15, 23, 42, 0.45);
+    }
+    .seq-trecho-num {
+      position: absolute;
+      left: 0.55rem;
+      top: 0.7rem;
+      width: 1.35rem;
+      height: 1.35rem;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.72rem;
+      font-weight: 800;
+      color: #0f172a;
+    }
+    .seq-trecho-row {
+      display: flex;
+      align-items: stretch;
+      gap: 0.65rem;
+    }
+    .seq-lyric-lines {
+      flex: 1;
+      min-width: 0;
+      line-height: 1.55;
+      font-size: 0.95rem;
+      white-space: normal;
+      word-break: break-word;
+    }
+    .seq-marc-rail {
+      display: flex;
+      align-items: stretch;
+      gap: 0.2rem;
+      flex-shrink: 0;
+      max-width: min(46%, 11.5rem);
+      padding-left: 0.15rem;
+    }
+    .seq-brace-glyph {
+      font-size: clamp(1.75rem, 5vw, 2.65rem);
+      font-weight: 200;
+      line-height: 1;
+      color: var(--seq-brace-color, #a78bfa);
+      align-self: center;
+      user-select: none;
+      margin-right: 0.1rem;
+    }
+    .seq-marc-stack {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 0.35rem;
+      min-width: 0;
+    }
+    .seq-marc-label {
+      font-size: 0.72rem;
+      font-weight: 700;
+      line-height: 1.35;
+      color: var(--seq-marc-color, #e2e8f0);
+      text-align: left;
+      word-break: break-word;
+    }
+    .seq-marc-rail--empty .seq-marc-empty {
+      font-size: 0.8rem;
+      color: #64748b;
+      align-self: center;
+    }
+    .seq-empty {
+      color: #94a3b8;
+      font-style: italic;
+    }
+    body:has(.seq-lyrics-view) [data-testid="stRadio"] > div,
+    body:has(#ml-sequencia-page) [data-testid="stRadio"] > div {
+      display: flex !important;
+      flex-wrap: wrap !important;
+      gap: 0.35rem 0.55rem !important;
+    }
+    body:has(.seq-lyrics-view) [data-testid="stRadio"] label,
+    body:has(#ml-sequencia-page) [data-testid="stRadio"] label {
+      margin-right: 0 !important;
+      padding: 0.2rem 0.45rem !important;
+    }
+    @media (max-width: 520px) {
+      .seq-trecho-row {
+        flex-direction: row;
+        align-items: flex-start;
+      }
+      .seq-marc-rail {
+        max-width: min(44%, 9.5rem);
+      }
+      .seq-marc-label {
+        font-size: 0.68rem;
+      }
+    }
+    """
+
+
 def _append_nota(label: str, nota: str) -> str:
     """Garante que observações opcionais apareçam na visualização final."""
     nota = str(nota or "").strip()
@@ -172,15 +424,6 @@ def _trecho_tem_marcacao(t: dict) -> bool:
     )
 
 
-def _badge_html(label: str, border: str, css_class: str = "seq-lyric-badge") -> str:
-    if not label:
-        return ""
-    return (
-        f'<span class="{css_class}" style="border-left-color:{border}">'
-        f"{html.escape(label)}</span>"
-    )
-
-
 def render_lyrics_annotated_html(
     paragraphs: list[str],
     trechos_v: list[dict],
@@ -200,41 +443,9 @@ def render_lyrics_annotated_html(
         tb = next((x for x in trechos_b if int(x.get("paragrafo", -1)) == i), {})
         tipo_v = str(tv.get("tipo", ""))
         tipo_b = str(tb.get("tipo", ""))
-        int_v = tv.get("integrantes") or []
-        int_b = tb.get("integrantes") or []
-        if isinstance(int_v, str):
-            int_v = [int_v] if int_v else []
-        if isinstance(int_b, str):
-            int_b = [int_b] if int_b else []
-        nota_v = str(tv.get("nota", ""))
-        nota_b = str(tb.get("nota", ""))
-        tom_b = str(tb.get("tom_trecho", ""))
-        label_v = _tipo_label(tipo_v, list(int_v), nota_v)
-        label_b = _tipo_label(tipo_b, list(int_b), nota_b, tom_trecho=tom_b)
         border = TIPO_CORE_COLORS.get(tipo_v) or TIPO_BANDA_COLORS.get(tipo_b, "#6b7280")
-        badges: list[str] = []
-        if label_v:
-            badges.append(_badge_html(f"Vocal: {label_v}", TIPO_CORE_COLORS.get(tipo_v, "#8b5cf6")))
-        if label_b:
-            badges.append(
-                _badge_html(
-                    f"Banda: {label_b}",
-                    TIPO_BANDA_COLORS.get(tipo_b, "#60a5fa"),
-                    "seq-lyric-badge seq-badge-banda",
-                )
-            )
-        if not badges:
-            badges.append(
-                '<span class="seq-lyric-badge seq-lyric-badge-empty">sem marcação</span>'
-            )
-        badges_html = f'<div class="seq-badges-col">{"".join(badges)}</div>'
-        safe_para = html.escape(para).replace("\n", "<br>")
-        num = i + 1
-        blocks.append(
-            f'<div class="seq-lyric-block" style="border-left:4px solid {border}" id="trecho-{num}">'
-            f'<span class="seq-trecho-num" style="background:{border}">{num}</span>'
-            f"{badges_html}<div class=\"seq-lyric-lines\">{safe_para}</div></div>"
-        )
+        marcacoes = _marcacoes_for_paragraph(tv, tb)
+        blocks.append(render_trecho_block_html(para, i + 1, border, marcacoes))
     blocks.append("</div>")
     return "".join(blocks)
 
@@ -255,25 +466,12 @@ def render_cifra_direcoes_html(
             continue
         tipo_v = str(tv.get("tipo", ""))
         tipo_b = str(tb.get("tipo", ""))
-        int_v = tv.get("integrantes") or []
-        int_b = tb.get("integrantes") or []
-        if isinstance(int_v, str):
-            int_v = [int_v] if int_v else []
-        if isinstance(int_b, str):
-            int_b = [int_b] if int_b else []
-        lv = _tipo_label(tipo_v, list(int_v), str(tv.get("nota", "")))
-        lb = _tipo_label(
-            tipo_b,
-            list(int_b),
-            str(tb.get("nota", "")),
-            tom_trecho=str(tb.get("tom_trecho", "")),
-        )
-        border = TIPO_CORE_COLORS.get(tipo_v) or TIPO_BANDA_COLORS.get(tipo_b, "#6b7280")
-        parts = [p for p in (lv, lb) if p]
-        if not parts:
+        marcacoes = _marcacoes_for_paragraph(tv, tb)
+        if not marcacoes:
             continue
+        border = TIPO_CORE_COLORS.get(tipo_v) or TIPO_BANDA_COLORS.get(tipo_b, "#6b7280")
         preview = html.escape(_trecho_preview_line(para, 56))
-        direcao = " · ".join(html.escape(p) for p in parts)
+        direcao = " · ".join(html.escape(lbl) for lbl, _ in marcacoes)
         rows.append(
             f'<div class="seq-cifra-dir" style="border-left:3px solid {border}">'
             f'<span class="seq-cifra-dir-num">{i + 1}</span>'
@@ -817,12 +1015,20 @@ def _apply_banda_preset(
     return state
 
 
-def _render_inline_lyric_text(para: str, border: str, num: int) -> None:
-    safe = html.escape(para).replace("\n", "<br>")
+def _render_inline_lyric_text(
+    para: str,
+    border: str,
+    num: int,
+    marcacoes: list[tuple[str, str]] | None = None,
+) -> None:
     st.markdown(
-        f'<div class="seq-inline-lyric" style="border-left:4px solid {border}">'
-        f'<span class="seq-trecho-num" style="background:{border}">{num}</span>'
-        f'<div class="seq-inline-lines">{safe}</div></div>',
+        render_trecho_block_html(
+            para,
+            num,
+            border,
+            marcacoes or [],
+            block_class="seq-inline-lyric seq-lyric-block",
+        ),
         unsafe_allow_html=True,
     )
 
@@ -880,7 +1086,12 @@ def build_trechos_vocal_ui(
         border = TIPO_CORE_COLORS.get(tipo_prev, "#4b5563")
 
         with st.container(border=True):
-            _render_inline_lyric_text(para, border, i + 1)
+            _render_inline_lyric_text(
+                para,
+                border,
+                i + 1,
+                _marcacoes_for_paragraph(prev, vocal_only=True),
+            )
             if tipo_prev not in ("—", "") and tipo_prev not in radio_opts:
                 st.caption(f"Atual: **{tipo_prev}**")
 
@@ -1001,7 +1212,12 @@ def build_trechos_banda_ui(
         border = TIPO_BANDA_COLORS.get(tipo_prev, "#4b5563")
 
         with st.container(border=True):
-            _render_inline_lyric_text(para, border, i + 1)
+            _render_inline_lyric_text(
+                para,
+                border,
+                i + 1,
+                _marcacoes_for_paragraph({}, prev, banda_only=True),
+            )
             if tipo_prev not in ("—", "") and tipo_prev not in radio_opts:
                 st.caption(f"Atual: **{tipo_prev}**")
 

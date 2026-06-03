@@ -122,6 +122,7 @@ from sequencia_culto import (
     render_cifra_direcoes_html,
     render_cifra_html,
     render_lyrics_annotated_html,
+    sequencia_culto_css,
     split_lyrics_paragraphs,
     trechos_banda_from_markup,
     trechos_from_markup,
@@ -8319,6 +8320,7 @@ def show_sequencia_culto_page(
     st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown("#### 📝 Letra com marcações (vocal e banda)")
+    st.markdown(f"<style>{sequencia_culto_css()}</style>", unsafe_allow_html=True)
     lyrics_edit = lyrics_default
     cifra_edit = cifra_default
     tom_new = tom_prog if tom_prog in TOM_OPCOES else (tom_base if tom_base in TOM_OPCOES else "C")
