@@ -133,15 +133,6 @@ def mobile_ensaio_chat_css() -> str:
       padding: 0.15rem 0.25rem 0.1rem !important;
       margin: 0 !important;
     }
-    body:has(#ml-ensaio-chat-active) [class*="st-key-ml_ensaio_back"] .stButton > button,
-    body:has(#ml-ensaio-chat-active) [class*="st-key-ml_ensaio_info_btn"] .stButton > button {
-      background: transparent !important;
-      border: none !important;
-      color: var(--wa-accent) !important;
-      font-size: 1.35rem !important;
-      min-height: 2.5rem !important;
-      padding: 0 0.35rem !important;
-    }
     body:has(#ml-ensaio-chat-active) #ml-ensaio-chat-scroll.wa-chat-feed {
       position: fixed !important;
       top: calc(
@@ -169,18 +160,6 @@ def mobile_ensaio_chat_css() -> str:
       margin: 0 !important;
       padding: 0 !important;
       overflow: visible !important;
-    }
-    body:has(#ml-ensaio-chat-active) [class*="st-key-ml_ensaio_composer"] {
-      position: fixed !important;
-      left: 0 !important;
-      right: 0 !important;
-      bottom: calc(
-        var(--ml-nav-height) + var(--ml-verse-height) + var(--ml-nav-offset)
-      ) !important;
-      z-index: 130 !important;
-      background: var(--wa-compose) !important;
-      border-top: 1px solid rgba(255,255,255,.08) !important;
-      padding-bottom: env(safe-area-inset-bottom, 0px) !important;
     }
     body:has(#ml-ensaio-chat-active) [class*="st-key-ml_ensaio_pick"] {
       position: fixed !important;
