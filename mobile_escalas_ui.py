@@ -88,24 +88,42 @@ def mobile_escalas_css() -> str:
     }
     body:has(#ml-escalas-page) [class*="st-key-ml_esc_tabs"] [data-testid="stHorizontalBlock"]{
       display: flex !important;
+      flex-direction: row !important;
       flex-wrap: nowrap !important;
       overflow-x: auto !important;
-      gap: 0.5rem !important;
-      padding-bottom: 0.25rem !important;
+      gap: 6px !important;
+      width: 100% !important;
+      margin: 0 !important;
+      padding: 0 0 4px !important;
       -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
     }
+    body:has(#ml-escalas-page) [class*="st-key-ml_esc_tabs"] [data-testid="stHorizontalBlock"]::-webkit-scrollbar{
+      display: none;
+    }
+    body:has(#ml-escalas-page) [class*="st-key-ml_esc_tabs"] [data-testid="stColumn"],
     body:has(#ml-escalas-page) [class*="st-key-ml_esc_tabs"] [data-testid="column"]{
       flex: 0 0 auto !important;
       width: auto !important;
-      min-width: max-content !important;
+      min-width: 0 !important;
       max-width: none !important;
+      padding: 0 !important;
+    }
+    body:has(#ml-escalas-page) [class*="st-key-ml_esc_tabs"] [data-testid="stVerticalBlock"]{
+      gap: 0 !important;
+    }
+    body:has(#ml-escalas-page) [class*="st-key-ml_esc_tabs"] [data-testid="element-container"],
+    body:has(#ml-escalas-page) [class*="st-key-ml_esc_tabs"] [data-testid="stButton"]{
+      margin: 0 !important;
+      padding: 0 !important;
     }
     body:has(#ml-escalas-page) [class*="st-key-ml_esc_tab_"] .stButton > button{
-      border-radius: 16px !important;
-      padding: 0.55rem 1rem !important;
-      min-height: 2.5rem !important;
+      border-radius: 14px !important;
+      padding: 0.38rem 0.72rem !important;
+      min-height: 2.15rem !important;
+      height: auto !important;
       font-weight: 700 !important;
-      font-size: 0.82rem !important;
+      font-size: 0.78rem !important;
       white-space: nowrap !important;
       background: rgba(15,23,42,.72) !important;
       border: 1px solid rgba(255,255,255,.08) !important;
@@ -119,29 +137,50 @@ def mobile_escalas_css() -> str:
       box-shadow: 0 0 22px rgba(139,92,246,.22) !important;
     }
     body:has(#ml-escalas-page) [class*="st-key-ml_esc_quick_"] .stButton > button{
-      min-height: 4.2rem !important;
-      border-radius: 22px !important;
+      min-height: 2.85rem !important;
+      padding: 0.35rem 0.45rem 0.4rem !important;
+      border-radius: 18px !important;
       background: rgba(15,23,42,.72) !important;
       border: 1px solid rgba(255,255,255,.08) !important;
       color: rgba(226,232,240,.96) !important;
-      font-size: 1.35rem !important;
-      line-height: 1.2 !important;
+      font-size: 1.15rem !important;
+      line-height: 1.1 !important;
       white-space: pre-line !important;
-      box-shadow: 0 0 24px rgba(139,92,246,.08) !important;
+      box-shadow: 0 0 16px rgba(139,92,246,.06) !important;
     }
     body:has(#ml-escalas-page) [class*="st-key-ml_esc_quick_"] .stButton > button p{
-      font-size: 0.88rem !important;
+      font-size: 0.78rem !important;
       font-weight: 800 !important;
-      margin-top: 0.35rem !important;
+      margin-top: 0.2rem !important;
+    }
+    body:has(#ml-escalas-page) [class*="st-key-ml_esc_quick_"]{
+      margin-bottom: 0.2rem !important;
+    }
+    body:has(#ml-escalas-page) [class*="st-key-ml_esc_quick_"] [data-testid="element-container"]{
+      margin: 0 0 0.25rem !important;
+      padding: 0 !important;
+    }
+    body:has(#ml-escalas-page) [class*="st-key-ml_esc_quick_row"] [data-testid="stHorizontalBlock"]{
+      flex-wrap: nowrap !important;
+      gap: 8px !important;
+      margin: 0 0 0.25rem !important;
+    }
+    body:has(#ml-escalas-page) [class*="st-key-ml_esc_quick_row"] [data-testid="stColumn"],
+    body:has(#ml-escalas-page) [class*="st-key-ml_esc_quick_row"] [data-testid="column"]{
+      flex: 1 1 0 !important;
+      width: 50% !important;
+      max-width: 50% !important;
+      min-width: 0 !important;
+      padding: 0 !important;
     }
     body:has(#ml-escalas-page) [class*="st-key-ml_esc_quick_gerenciar"] .stButton > button{
-      min-height: 4rem !important;
+      min-height: 3rem !important;
       background: linear-gradient(135deg, rgba(250,204,21,.22), rgba(124,58,237,.15)) !important;
       border: 1px solid rgba(250,204,21,.35) !important;
       color: #fde68a !important;
       font-weight: 900 !important;
-      box-shadow: 0 0 24px rgba(250,204,21,.15) !important;
-      margin-bottom: 0.5rem !important;
+      box-shadow: 0 0 18px rgba(250,204,21,.12) !important;
+      margin-bottom: 0.35rem !important;
     }
     body:has(#ml-escalas-page) [class*="st-key-ml_esc_action_"] .stButton > button[kind="primary"]{
       width: 100% !important;
@@ -173,8 +212,8 @@ def mobile_escalas_css() -> str:
     }
     .ml-esc-hero{
       border-radius: 22px;
-      padding: 0.75rem;
-      margin-bottom: 0.5rem;
+      padding: 0.65rem;
+      margin-bottom: 0.35rem;
       position: relative;
       overflow: hidden;
     }
@@ -240,7 +279,7 @@ def _render_header() -> None:
     st.markdown(
         """
         <div id="ml-escalas-page" class="ml-page">
-          <div class="ml-esc-header" style="margin-bottom:0.5rem;">
+          <div class="ml-esc-header" style="margin-bottom:0.35rem;">
             <h1>Escalas</h1>
             <p>Gerencie ensaios e cultos</p>
           </div>
@@ -289,7 +328,7 @@ def _render_quick_access() -> None:
     from mobile_lab_nav import user_can_gerenciar_escalas
 
     st.markdown(
-        '<div style="font-size:1.05rem;font-weight:900;margin:0.35rem 0 0.45rem;">Acesso rápido</div>',
+        '<div style="font-size:1.05rem;font-weight:900;margin:0.2rem 0 0.35rem;">Acesso rápido</div>',
         unsafe_allow_html=True,
     )
     if user_can_gerenciar_escalas() or bool(st.session_state.get("ml_can_gerenciar")):
@@ -304,28 +343,30 @@ def _render_quick_access() -> None:
 
                 navigate_ml_page("Gerenciar Escalas", pin=True)
                 st.rerun()
-    c1, c2 = st.columns(2, gap="small")
-    with c1:
-        with st.container(key="ml_esc_quick_seq"):
-            if st.button("🎵\nSequência", use_container_width=True):
-                _set_tab("sequencia")
-                st.rerun()
-    with c2:
-        with st.container(key="ml_esc_quick_trocas"):
-            if st.button("🔄\nTrocas", use_container_width=True):
-                _set_tab("trocas")
-                st.rerun()
-    c3, c4 = st.columns(2, gap="small")
-    with c3:
-        with st.container(key="ml_esc_quick_sol"):
-            if st.button("📬\nSolicitações", use_container_width=True):
-                _set_tab("solicitacoes")
-                st.rerun()
-    with c4:
-        with st.container(key="ml_esc_quick_chat"):
-            if st.button("💬\nChat ensaio", use_container_width=True):
-                _set_tab("ensaio")
-                st.rerun()
+    with st.container(key="ml_esc_quick_row"):
+        c1, c2 = st.columns(2, gap="small")
+        with c1:
+            with st.container(key="ml_esc_quick_seq"):
+                if st.button("🎵\nSequência", use_container_width=True):
+                    _set_tab("sequencia")
+                    st.rerun()
+        with c2:
+            with st.container(key="ml_esc_quick_trocas"):
+                if st.button("🔄\nTrocas", use_container_width=True):
+                    _set_tab("trocas")
+                    st.rerun()
+    with st.container(key="ml_esc_quick_row"):
+        c3, c4 = st.columns(2, gap="small")
+        with c3:
+            with st.container(key="ml_esc_quick_sol"):
+                if st.button("📬\nSolicitações", use_container_width=True):
+                    _set_tab("solicitacoes")
+                    st.rerun()
+        with c4:
+            with st.container(key="ml_esc_quick_chat"):
+                if st.button("💬\nChat ensaio", use_container_width=True):
+                    _set_tab("ensaio")
+                    st.rerun()
 
 
 def _render_not_scheduled_warning() -> None:
