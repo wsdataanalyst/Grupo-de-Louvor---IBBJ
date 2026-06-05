@@ -59,14 +59,14 @@ def _lab_nav_items(
             ("Gerenciar Escalas", "🎯", 0),
             ("Escalas", "📅", 0),
             ("Repertório", "🎵", 0),
-            ("Perfil", "👤", 0),
+            ("Notificações", "📰", 0),
         ]
     return [
         ("Início", "🏠", 0),
         ("Escalas", "📅", 0),
         ("Repertório", "🎵", 0),
         ("Chat", "💬", max(0, int(chat_unread))),
-        ("Perfil", "👤", 0),
+        ("Notificações", "📰", 0),
     ]
 
 
@@ -276,6 +276,7 @@ def render_mobile_lab_nav(
                     "Escalas": "Escalas",
                     "Repertório": "Música",
                     "Chat": "Chat",
+                    "Notificações": "Feed",
                     "Perfil": "Perfil",
                 }.get(page, page)
                 btn_type = "primary" if current == page else "secondary"
