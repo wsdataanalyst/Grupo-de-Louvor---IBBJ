@@ -358,6 +358,7 @@ def _render_quick_access() -> None:
             _set_tab("trocas")
             st.rerun()
     if st.button("💬\nChat ensaio", key="ml_esc_quick_chat_btn", use_container_width=True):
+        st.session_state.ml_ensaio_thread_open = True
         _set_tab("ensaio")
         st.rerun()
 
@@ -739,6 +740,7 @@ def _render_tab_ensaio(
     *,
     minhas: list[dict],
     escalas_df: pd.DataFrame,
+    equipe_df: pd.DataFrame,
     chat_ensaio_df: pd.DataFrame,
     members_df: pd.DataFrame,
 ) -> None:
@@ -748,6 +750,7 @@ def _render_tab_ensaio(
         render_ensaio_chat,
         rehearsal_date_is_set,
     )
+    from chat_whatsapp import mark_chat_scroll_bottom
 
     if not minhas:
         _render_not_scheduled_warning()
@@ -765,17 +768,36 @@ def _render_tab_ensaio(
             list(labels.keys()),
             key="ml_esc_ensaio_pick",
         )
-    escala_row = escalas_df[escalas_df["id"].astype(str) == str(labels[escolha])].iloc[0]
+    escala_id = str(labels[escolha])
+    escala_row = escalas_df[escalas_df["id"].astype(str) == escala_id].iloc[0]
     if rehearsal_date_is_set(escala_row):
         ensaio_sub = f"Ensaio: {format_rehearsal_date_pt(escala_row)}"
     else:
         ensaio_sub = "Ensaio: a confirmar"
+
+    thread_open = bool(st.session_state.get("ml_ensaio_thread_open"))
+    if not thread_open:
+        st.caption("Converse com a equipe escalada para este culto.")
+        if st.button(
+            "💬 Abrir chat do ensaio",
+            key="ml_ensaio_open_btn",
+            type="primary",
+            use_container_width=True,
+        ):
+            st.session_state.ml_ensaio_thread_open = True
+            st.session_state.ml_ensaio_view = "thread"
+            mark_chat_scroll_bottom()
+            st.rerun()
+        return
+
     render_ensaio_chat(
-        labels[escolha],
+        escala_id,
         chat_ensaio_df,
         members_df,
         title=escolha,
         subtitle=ensaio_sub,
+        equipe_df=equipe_df,
+        escala_row=escala_row,
     )
 
 
@@ -853,6 +875,7 @@ def render_mobile_escalas_page(
         _render_tab_ensaio(
             minhas=minhas,
             escalas_df=escalas_df,
+            equipe_df=equipe_df,
             chat_ensaio_df=chat_ensaio_df,
             members_df=members_df,
         )

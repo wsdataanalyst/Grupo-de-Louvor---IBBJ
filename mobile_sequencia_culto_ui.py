@@ -105,6 +105,24 @@ def mobile_sequencia_css() -> str:
       margin-bottom: 0.65rem;
       border: 1px solid rgba(255,255,255,.04);
     }
+    body:has(#ml-sequencia-page) .ml-seq-num-inline{
+      width: 2rem;
+      height: 2rem;
+      border-radius: 10px;
+      background: #7c3aed;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 0.82rem;
+      margin-top: 0.35rem;
+    }
+    body:has(#ml-sequencia-page) [class*="st-key-ml_seq_song_"]{
+      margin-bottom: 0.28rem !important;
+    }
+    body:has(#ml-sequencia-page) [class*="st-key-ml_seq_song_"] [data-testid="column"]{
+      padding: 0 0.15rem !important;
+    }
     body:has(#ml-sequencia-page) .ml-seq-music h3{
       margin: 0 0 0.25rem;
       font-size: 1rem;
@@ -175,19 +193,23 @@ def mobile_sequencia_css() -> str:
       width: 100% !important;
       text-align: left !important;
       justify-content: flex-start !important;
-      min-height: 4.2rem !important;
-      padding: 0.65rem 0.85rem !important;
-      border-radius: 18px !important;
-      background: rgba(15,23,42,.55) !important;
+      min-height: 2.65rem !important;
+      padding: 0.45rem 0.7rem !important;
+      border-radius: 14px !important;
+      background: rgba(15,23,42,.88) !important;
       border: 1px solid rgba(255,255,255,.06) !important;
-      margin-bottom: 0.35rem !important;
+      margin: 0 !important;
     }
     body:has(#ml-sequencia-page) [class*="st-key-ml_seq_song_"] .stButton > button p{
       margin: 0 !important;
       text-align: left !important;
-      white-space: normal !important;
-      font-size: 0.82rem !important;
-      line-height: 1.3 !important;
+      white-space: nowrap !important;
+      overflow: hidden !important;
+      text-overflow: ellipsis !important;
+      font-size: 0.8rem !important;
+      line-height: 1.25 !important;
+      font-weight: 700 !important;
+      color: #e2e8f0 !important;
     }
     body:has(#ml-sequencia-page) [class*="st-key-ml_seq_back"] .stButton > button{
       border-radius: 16px !important;
@@ -574,21 +596,29 @@ def _render_lista(
         parte = str(r.get("parte", "") or "Louvor").strip()
         tom = str(r.get("key", "") or r.get("tom_programa", "") or "").strip() or "—"
         pid = str(r.get("id", ""))
-        st.markdown(
-            _render_music_card_html(num=idx + 1, title=title, parte=parte, tom=tom),
-            unsafe_allow_html=True,
-        )
+        line_parts = [parte, title]
+        if artist:
+            line_parts.append(artist)
+        if tom and tom != "—":
+            line_parts.append(f"Tom {tom}")
+        line = " · ".join(line_parts)
         with st.container(key=f"ml_seq_song_{pid}"):
-            sub = f"{parte} · {_esc(artist)}" if artist else parte
-            if st.button(
-                f"Abrir · {title}\n{sub}",
-                key=f"ml_seq_open_{pid}",
-                use_container_width=True,
-            ):
-                st.session_state.ml_seq_programa_id = pid
-                _set_view("musica")
-                _set_sub("vocal")
-                st.rerun()
+            c_num, c_btn = st.columns([0.13, 0.87], gap="small")
+            with c_num:
+                st.markdown(
+                    f'<div class="ml-seq-num-inline">{idx + 1}</div>',
+                    unsafe_allow_html=True,
+                )
+            with c_btn:
+                if st.button(
+                    line,
+                    key=f"ml_seq_open_{pid}",
+                    use_container_width=True,
+                ):
+                    st.session_state.ml_seq_programa_id = pid
+                    _set_view("musica")
+                    _set_sub("vocal")
+                    st.rerun()
         try:
             total_min += float(parse_duracao_min(str(r.get("duration", "") or "")) or 0)
         except Exception:

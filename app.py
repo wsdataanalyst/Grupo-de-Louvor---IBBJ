@@ -7839,6 +7839,8 @@ def render_ensaio_chat(
     *,
     title: str = "",
     subtitle: str = "",
+    equipe_df: pd.DataFrame | None = None,
+    escala_row: dict | pd.Series | None = None,
 ):
     from mobile_lab import is_mobile_lab_enabled
 
@@ -7850,6 +7852,8 @@ def render_ensaio_chat(
             members_df,
             title=title or "Chat do ensaio",
             subtitle=subtitle or "Equipe deste culto",
+            equipe_df=equipe_df,
+            escala_row=escala_row,
         )
         return
 
