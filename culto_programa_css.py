@@ -189,11 +189,15 @@ def culto_programa_css() -> str:
       color: #c4b5fd !important;
       border-color: rgba(139, 92, 246, 0.25) !important;
     }
+    .prog-btn-cifra {
+      background: rgba(180, 83, 9, 0.14) !important;
+      color: #fdba74 !important;
+      border-color: rgba(251, 146, 60, 0.25) !important;
+    }
     .prog-btn-letra {
       background: rgba(14, 116, 144, 0.14) !important;
       color: #67e8f9 !important;
       border-color: rgba(34, 211, 238, 0.25) !important;
-      grid-column: 1 / -1 !important;
     }
 
     body:has(#ml-escalas-page) .prog-card,

@@ -564,3 +564,72 @@ def fetch_louvor_lyrics_and_cifra(
     if result.cifra_text:
         result.cifra_text = normalize_cifra_text(result.cifra_text)
     return result
+
+
+def _letras_mus_url(artist_slug: str, song_slug: str) -> str:
+    if not artist_slug or not song_slug:
+        return ""
+    return f"https://www.letras.mus.br/{artist_slug}/{song_slug}/"
+
+
+def _letra_search_fallback(title: str, artist: str) -> str:
+    parts = [p.strip() for p in (title, artist, "letra") if str(p).strip()]
+    q = urllib.parse.quote_plus(" ".join(parts))
+    return f"https://www.letras.mus.br/?q={q}"
+
+
+def _resolve_letra_slugs(
+    title: str,
+    artist: str,
+    *,
+    cifra_club_url: str = "",
+) -> tuple[str, list[str]]:
+    """Retorna (song_slug, artist_slugs) para montar URLs de letra."""
+    from catalog_sanitize import sanitize_catalog_text
+
+    title = sanitize_catalog_text(title)
+    artist = sanitize_catalog_text(artist)
+    song_slug = text_to_slug(title)
+    if not song_slug:
+        return "", []
+
+    artist_slugs: list[str] = []
+    cc_artist, cc_song = slugs_from_cifraclub_url(cifra_club_url)
+    if cc_artist and cc_song:
+        artist_slugs.append(cc_artist)
+        if cc_song != song_slug:
+            song_slug = cc_song
+    if artist:
+        artist_slugs.extend(_artist_slug_variants(artist))
+    artist_slugs = list(dict.fromkeys(a for a in artist_slugs if a))
+    return song_slug, artist_slugs
+
+
+def resolve_letra_url(
+    title: str,
+    artist: str = "",
+    *,
+    cifra_club_url: str = "",
+) -> str:
+    """
+    URL externa para letra — Vagalume (preferido) ou Letras.mus.br como fallback.
+    """
+    song_slug, artist_slugs = _resolve_letra_slugs(
+        title, artist, cifra_club_url=cifra_club_url
+    )
+    if not title.strip():
+        return ""
+    if song_slug and artist_slugs:
+        for artist_slug in artist_slugs[:4]:
+            letra_vg, _ = _vagalume_urls(artist_slug, song_slug)
+            if letra_vg:
+                return letra_vg
+        lm = _letras_mus_url(artist_slugs[0], song_slug)
+        if lm:
+            return lm
+    from catalog_sanitize import sanitize_catalog_text
+
+    return _letra_search_fallback(
+        sanitize_catalog_text(title),
+        sanitize_catalog_text(artist),
+    )

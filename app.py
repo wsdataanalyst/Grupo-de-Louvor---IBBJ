@@ -5271,6 +5271,7 @@ def render_culto_programa(
 
     st.markdown("**🎶 Sequência do culto**")
     from catalog_sanitize import format_louvor_display, sanitize_catalog_text
+    from cifra_fetch import resolve_letra_url
     from voice_kit_links import vocal_nipe_from_roles, voice_kit_search_query, voice_kit_youtube_url
 
     idx_me, row_me = get_current_member_row(members_df)
@@ -5303,26 +5304,30 @@ def render_culto_programa(
         dur_txt = format_duracao_total(dur_item)
         parte_show = _normalize_parte(str(item.get("parte", "")))
         yt = sanitize_catalog_text(item.get("youtube_url", ""))
-        cifra = sanitize_catalog_text(item.get("cifra_url", ""))
-        if cifra and not cifra.startswith("http"):
-            cifra = ""
+        cifra_stored = sanitize_catalog_text(item.get("cifra_url", ""))
+        cifra = cifra_stored if cifra_stored.startswith("http") else ""
         if not cifra:
             cifra = cifra_search_url(louvor, artist)
+        letra = resolve_letra_url(louvor, artist, cifra_club_url=cifra_stored)
         btns = []
         if yt:
             btns.append(
-                f'<a class="prog-btn prog-btn-yt" href="{yt}" target="_blank" rel="noopener">▶ YouTube</a>'
+                f'<a class="prog-btn prog-btn-yt" href="{html.escape(yt, quote=True)}" target="_blank" rel="noopener">▶ YouTube</a>'
             )
         for kit_label, _kit_key, kit_prefix in kits_me:
             ku = kit_youtube_url(kit_prefix, louvor)
             short = kit_label.replace("Kit ", "")
             btns.append(
-                f'<a class="prog-btn prog-btn-kit" href="{ku}" target="_blank" rel="noopener" '
+                f'<a class="prog-btn prog-btn-kit" href="{html.escape(ku, quote=True)}" target="_blank" rel="noopener" '
                 f'title="{html.escape(kit_label)}">🎵 {html.escape(short)}</a>'
             )
         btns.append(
-            f'<a class="prog-btn prog-btn-letra" href="{cifra}" target="_blank" rel="noopener">📜 Letra / Cifra</a>'
+            f'<a class="prog-btn prog-btn-cifra" href="{html.escape(cifra, quote=True)}" target="_blank" rel="noopener">🎸 Cifra</a>'
         )
+        if letra:
+            btns.append(
+                f'<a class="prog-btn prog-btn-letra" href="{html.escape(letra, quote=True)}" target="_blank" rel="noopener">📜 Letra</a>'
+            )
         ref_b = str(meta_l.get("ref_biblica", "")).strip()
         btns_html = f'<div class="prog-actions">{"".join(btns)}</div>' if btns else ""
         meta_chips = []
