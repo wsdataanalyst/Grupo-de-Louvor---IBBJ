@@ -99,71 +99,111 @@ def mobile_feed_css() -> str:
     body:has(#ml-feed-page) .ig-feed-header-card,
     body:has(#ml-feed-page) .ig-feed-verse { display: none !important; }
     body:has(#ml-feed-page) .ig-feed-page { max-width: 100% !important; margin: 0 !important; }
-    body:has(#ml-feed-page) [class*="st-key-ml_feed_topbar"]{
-      position: fixed !important;
-      top: max(8px, env(safe-area-inset-top, 0px)) !important;
-      right: max(10px, env(safe-area-inset-right, 0px)) !important;
-      z-index: 2147483600 !important;
-      width: auto !important;
+    body:has(#ml-feed-page) [class*="st-key-ml_feed_header_bar"]{
+      position: sticky !important;
+      top: max(0px, env(safe-area-inset-top, 0px)) !important;
+      z-index: 2147483590 !important;
+      width: 100% !important;
+      margin: 0 0 0.45rem !important;
+      padding: 0.15rem 0 0.35rem !important;
+      background: linear-gradient(180deg, rgba(3,7,18,.96) 70%, rgba(3,7,18,0) 100%) !important;
     }
-    body:has(#ml-feed-page) [class*="st-key-ml_feed_topbar"] [data-testid="stHorizontalBlock"]{
+    body:has(#ml-feed-page) [class*="st-key-ml_feed_header_bar"] [data-testid="stHorizontalBlock"]{
+      display: flex !important;
       flex-wrap: nowrap !important;
-      gap: 8px !important;
-      width: auto !important;
+      align-items: center !important;
+      gap: 10px !important;
+      width: 100% !important;
     }
-    body:has(#ml-feed-page) [class*="st-key-ml_feed_topbar"] [data-testid="stColumn"],
-    body:has(#ml-feed-page) [class*="st-key-ml_feed_topbar"] [data-testid="column"]{
-      flex: 0 0 auto !important;
+    body:has(#ml-feed-page) [class*="st-key-ml_feed_header_bar"] [data-testid="stColumn"]:nth-child(1),
+    body:has(#ml-feed-page) [class*="st-key-ml_feed_header_bar"] [data-testid="stColumn"]:nth-child(3),
+    body:has(#ml-feed-page) [class*="st-key-ml_feed_header_bar"] [data-testid="column"]:nth-child(1),
+    body:has(#ml-feed-page) [class*="st-key-ml_feed_header_bar"] [data-testid="column"]:nth-child(3){
+      flex: 0 0 44px !important;
+      width: 44px !important;
+      max-width: 44px !important;
+      min-width: 44px !important;
+    }
+    body:has(#ml-feed-page) [class*="st-key-ml_feed_header_bar"] [data-testid="stColumn"]:nth-child(2),
+    body:has(#ml-feed-page) [class*="st-key-ml_feed_header_bar"] [data-testid="column"]:nth-child(2){
+      flex: 1 1 auto !important;
       width: auto !important;
       min-width: 0 !important;
+      max-width: none !important;
     }
-    body:has(#ml-feed-page) [class*="st-key-ml_feed_topbar"] .stButton > button{
+    body:has(#ml-feed-page) [class*="st-key-ml_feed_header_bar"] [class*="ml_feed_menu"] .stButton > button{
       width: 44px !important;
       min-width: 44px !important;
       height: 44px !important;
       min-height: 44px !important;
       padding: 0 !important;
-      border-radius: 16px !important;
-      background: rgba(15,23,42,.82) !important;
+      border-radius: 14px !important;
+      background: rgba(15,23,42,.88) !important;
       border: 1px solid rgba(255,255,255,.08) !important;
-      box-shadow: 0 0 18px rgba(124,58,237,.12) !important;
+      color: #f8fafc !important;
+      font-size: 1.15rem !important;
+      box-shadow: 0 0 16px rgba(0,0,0,.18) !important;
     }
-    body:has(#ml-feed-page) [class*="st-key-ml_feed_topbar"] [data-testid="stTextInput"] input{
-      width: 140px !important;
+    body:has(#ml-feed-page) [class*="st-key-ml_feed_header_bar"] [class*="ml_feed_new"] .stButton > button{
+      width: 44px !important;
+      min-width: 44px !important;
+      height: 44px !important;
       min-height: 44px !important;
-      border-radius: 16px !important;
-      background: rgba(15,23,42,.82) !important;
+      padding: 0 !important;
+      border-radius: 50% !important;
+      background: linear-gradient(135deg,#7c3aed,#6d28d9) !important;
+      border: none !important;
+      color: #fff !important;
+      font-size: 1.35rem !important;
+      font-weight: 700 !important;
+      box-shadow: 0 0 22px rgba(124,58,237,.4) !important;
+    }
+    body:has(#ml-feed-page) [class*="st-key-ml_feed_header_bar"] [data-testid="element-container"],
+    body:has(#ml-feed-page) [class*="st-key-ml_feed_header_bar"] [data-testid="stButton"]{
+      margin: 0 !important;
+      padding: 0 !important;
+    }
+    body:has(#ml-feed-page) .ml-feed-header-inline{
+      min-width: 0;
+      padding: 0 0.15rem;
+    }
+    body:has(#ml-feed-page) .ml-feed-header-inline h1{
+      margin: 0;
+      font-size: 1.12rem;
+      font-weight: 900;
+      color: #f8fafc;
+      letter-spacing: -0.03em;
+      line-height: 1.15;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    body:has(#ml-feed-page) .ml-feed-header-inline p{
+      margin: 0.12rem 0 0;
+      font-size: 0.68rem;
+      color: rgba(148,163,184,.95);
+      line-height: 1.25;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    body:has(#ml-feed-page) [class*="st-key-ml_feed_search_row"]{
+      margin: 0 0 0.5rem !important;
+    }
+    body:has(#ml-feed-page) [class*="st-key-ml_feed_search_row"] [data-testid="stTextInput"] input{
+      min-height: 42px !important;
+      border-radius: 14px !important;
+      background: rgba(15,23,42,.72) !important;
       border: 1px solid rgba(255,255,255,.08) !important;
       color: #e2e8f0 !important;
       font-size: 0.82rem !important;
     }
-    body:has(#ml-feed-page) [class*="st-key-ml_feed_topbar"] [data-testid="stTextInput"] input::placeholder{
+    body:has(#ml-feed-page) [class*="st-key-ml_feed_search_row"] [data-testid="stTextInput"] input::placeholder{
       color: rgba(148,163,184,.85) !important;
     }
-    body:has(#ml-feed-page) [class*="st-key-ml_feed_topbar"] [class*="ml_feed_new"] .stButton > button{
-      background: linear-gradient(135deg,#7c3aed,#6d28d9) !important;
-      border: none !important;
-      box-shadow: 0 0 22px rgba(124,58,237,.35) !important;
-    }
     body:has(#ml-feed-page) [class*="st-key-ml_drawer_toggle"]{ display: none !important; }
-    body:has(#ml-feed-page) .ml-feed-shell{ margin-top: 0.15rem; }
-    body:has(#ml-feed-page) .ml-feed-header{
-      padding: 0.35rem 0 0.85rem;
-      margin-bottom: 0.35rem;
-    }
-    body:has(#ml-feed-page) .ml-feed-header h1{
-      margin: 0;
-      font-size: 1.35rem;
-      font-weight: 900;
-      color: #f8fafc;
-      letter-spacing: -0.03em;
-    }
-    body:has(#ml-feed-page) .ml-feed-header p{
-      margin: 0.2rem 0 0;
-      font-size: 0.78rem;
-      color: rgba(148,163,184,.95);
-      line-height: 1.35;
-    }
+    body:has(#ml-feed-page) .ml-feed-shell{ margin-top: 0.05rem; }
     body:has(#ml-feed-page) .ml-feed-hscroll{
       display: flex;
       gap: 10px;
@@ -334,33 +374,35 @@ def mobile_feed_css() -> str:
 
 def render_feed_header(*, is_mgr: bool) -> str:
     mgr = " · você pode publicar" if is_mgr else ""
-    st.markdown(
-        f"""
-        <div class="ml-feed-header">
-          <h1>Feed do Ministério</h1>
-          <p>Acompanhe tudo o que acontece no ministério{mgr}</p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-    with st.container(key="ml_feed_topbar"):
-        c_menu, c_search, c_new = st.columns([1, 2.2, 1], gap="small")
+    with st.container(key="ml_feed_header_bar"):
+        c_menu, c_title, c_plus = st.columns([0.52, 4.2, 0.52], gap="small")
         with c_menu:
-            if st.button("☰", key="ml_feed_menu_btn"):
-                st.session_state.ml_drawer_open = True
-                st.rerun()
-        with c_search:
-            st.text_input(
-                "Buscar no feed",
-                placeholder="🔍 Buscar",
-                key="ml_feed_search",
-                label_visibility="collapsed",
+            with st.container(key="ml_feed_menu"):
+                if st.button("☰", key="ml_feed_menu_btn"):
+                    st.session_state.ml_drawer_open = True
+                    st.rerun()
+        with c_title:
+            st.markdown(
+                f"""
+                <div class="ml-feed-header-inline">
+                  <h1>Feed do Ministério</h1>
+                  <p>Acompanhe tudo o que acontece no ministério{mgr}</p>
+                </div>
+                """,
+                unsafe_allow_html=True,
             )
-        with c_new:
+        with c_plus:
             with st.container(key="ml_feed_new"):
                 if st.button("➕", key="ml_feed_new_btn"):
                     st.session_state.ml_feed_new_open = True
                     st.rerun()
+    with st.container(key="ml_feed_search_row"):
+        st.text_input(
+            "Buscar no feed",
+            placeholder="🔍 Buscar publicações",
+            key="ml_feed_search",
+            label_visibility="collapsed",
+        )
     return str(st.session_state.get("ml_feed_search", "")).strip()
 
 
