@@ -15,8 +15,7 @@ ESCALAS_TABS: tuple[tuple[str, str, str], ...] = (
     ("equipe", "👥", "Minha equipe"),
     ("todas", "📅", "Todas"),
     ("sequencia", "🎵", "Sequência"),
-    ("trocas", "🔄", "Trocas"),
-    ("solicitacoes", "📬", "Solicitações"),
+    ("trocas", "🔄", "Trocas e subs"),
     ("ensaio", "💬", "Ensaio"),
 )
 
@@ -27,6 +26,9 @@ def _esc(s: object) -> str:
 
 def _active_tab() -> str:
     t = str(st.session_state.get("ml_escalas_tab", "equipe")).strip()
+    if t == "solicitacoes":
+        t = "trocas"
+        st.session_state.ml_escalas_tab = "trocas"
     keys = {k for k, _, _ in ESCALAS_TABS}
     return t if t in keys else "equipe"
 
@@ -352,18 +354,12 @@ def _render_quick_access() -> None:
             _set_tab("sequencia")
             st.rerun()
     with c2:
-        if st.button("🔄\nTrocas", key="ml_esc_quick_trocas_btn", use_container_width=True):
+        if st.button("🔄\nTrocas e subs", key="ml_esc_quick_trocas_btn", use_container_width=True):
             _set_tab("trocas")
             st.rerun()
-    c3, c4 = st.columns(2, gap="small")
-    with c3:
-        if st.button("📬\nSolicitações", key="ml_esc_quick_sol_btn", use_container_width=True):
-            _set_tab("solicitacoes")
-            st.rerun()
-    with c4:
-        if st.button("💬\nChat ensaio", key="ml_esc_quick_chat_btn", use_container_width=True):
-            _set_tab("ensaio")
-            st.rerun()
+    if st.button("💬\nChat ensaio", key="ml_esc_quick_chat_btn", use_container_width=True):
+        _set_tab("ensaio")
+        st.rerun()
 
 
 def _render_not_scheduled_warning() -> None:
@@ -541,12 +537,22 @@ def _render_tab_trocas(
         """
         <div class="ml-glass" style="border-radius:22px;padding:14px;margin-bottom:12px;">
           <div style="font-size:1.4rem;margin-bottom:6px;">🔄</div>
-          <div style="font-weight:900;">Trocar escala</div>
+          <div style="font-weight:900;">Trocas e subs</div>
           <p style="color:rgba(148,163,184,.92);font-size:0.88rem;margin:8px 0 0;line-height:1.35;">
-            Divulgue para o grupo ou peça a um integrante. A escala atualiza após aceite.
+            Acompanhe pedidos, substituições e envie novas solicitações de troca.
           </p>
         </div>
         """,
+        unsafe_allow_html=True,
+    )
+    _render_swap_tracking_section(
+        my_email=my_email,
+        escalas_df=escalas_df,
+        equipe_df=equipe_df,
+        trocas_df=trocas_df,
+    )
+    st.markdown(
+        '<div style="font-size:0.95rem;font-weight:900;margin:0.85rem 0 0.45rem;">Nova solicitação</div>',
         unsafe_allow_html=True,
     )
     minhas = user_escalas(escalas_df, my_email, equipe_df)
@@ -614,11 +620,11 @@ def _render_tab_trocas(
                 pd.concat([trocas_df, pd.DataFrame([nova])], ignore_index=True),
                 TROCAS_FILE,
             )
-            st.success("Solicitação enviada! Veja em **Solicitações** ou no Início.")
+            st.success("Solicitação enviada! Acompanhe o status acima.")
             st.rerun()
 
 
-def _render_tab_solicitacoes(
+def _render_swap_tracking_section(
     *,
     my_email: str,
     escalas_df: pd.DataFrame,
@@ -637,6 +643,19 @@ def _render_tab_solicitacoes(
     name = st.session_state.user_full_name or st.session_state.user_name
     abertas, rec, env = swap_alerts_for_user(
         trocas_df, my_email, escalas_df=escalas_df, equipe_df=equipe_df
+    )
+    if abertas.empty and rec.empty and env.empty:
+        st.info("Nenhuma solicitação de troca no momento.")
+        return
+
+    st.markdown(
+        """
+        <div class="swap-priority-panel">
+            <p class="swap-priority-title">🔄 Solicitações de troca de escala</p>
+            <p class="swap-priority-sub">Prioridade do ministério — responda ou assuma abaixo.</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
 
     st.markdown("#### 📢 Abertas (qualquer integrante)")
@@ -786,16 +805,6 @@ def render_mobile_escalas_page(
     _render_header()
     _render_tabs(active)
 
-    from app import get_escalas_bundle, render_swap_alerts_panel
-
-    escalas_alert, _, equipe_alert, trocas_alert = get_escalas_bundle()
-    render_swap_alerts_panel(
-        trocas_alert,
-        escalas_alert,
-        equipe_alert,
-        key_prefix="ml_esc",
-    )
-
     focus_id = str(st.session_state.get("ml_escalas_focus_id", "")).strip()
     if focus_id and not escalas_df.empty:
         m = escalas_df[escalas_df["id"].astype(str) == focus_id]
@@ -839,13 +848,6 @@ def render_mobile_escalas_page(
             equipe_df=equipe_df,
             trocas_df=trocas_df,
             members_df=members_df,
-        )
-    elif active == "solicitacoes":
-        _render_tab_solicitacoes(
-            my_email=my_email,
-            escalas_df=escalas_df,
-            equipe_df=equipe_df,
-            trocas_df=trocas_df,
         )
     elif active == "ensaio":
         _render_tab_ensaio(
