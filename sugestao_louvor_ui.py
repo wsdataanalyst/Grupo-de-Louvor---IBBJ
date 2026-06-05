@@ -50,7 +50,7 @@ def sugestao_gestao_tab_filter(tab_key: str) -> str:
     }.get(tab_key, "todas")
 
 
-def render_sugestao_gestao_tab_bar(active: str) -> None:
+def render_sugestao_gestao_tab_bar(active: str, *, use_fragment: bool = False) -> None:
     cols = st.columns(len(SUGESTAO_GESTAO_TAB_KEYS))
     for col, (key, label) in zip(cols, SUGESTAO_GESTAO_TAB_KEYS):
         with col:
@@ -61,7 +61,12 @@ def render_sugestao_gestao_tab_bar(active: str) -> None:
                 type="primary" if active == key else "secondary",
             ):
                 set_sugestao_gestao_tab(key)
-                st.rerun()
+                if use_fragment:
+                    from ui_rerun import rerun_scope_fragment
+
+                    rerun_scope_fragment()
+                else:
+                    st.rerun()
 
 STATUS_CSS = {
     "pendente": "ig-sug--pend",

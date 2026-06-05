@@ -846,6 +846,7 @@ def save_data(
     *,
     force: bool = False,
     quiet: bool = False,
+    sync_remote: bool = False,
 ) -> bool:
     """Grava CSV local + nuvem (Supabase). Retorna False se proteção bloquear members."""
     file_path.parent.mkdir(parents=True, exist_ok=True)
@@ -865,16 +866,21 @@ def save_data(
 
     if should_sync_file(file_path) and is_remote_enabled():
         try:
-            if not push_file_from_disk(file_path):
-                if is_current_developer():
-                    show_technical_error(
-                        "Salvo no servidor, mas não foi possível sincronizar com a nuvem. "
-                        "Verifique CONFIGURAR_SUPABASE.md."
-                    )
+            if sync_remote:
+                if not push_file_from_disk(file_path):
+                    if is_current_developer() and not quiet:
+                        show_technical_error(
+                            "Salvo no servidor, mas não foi possível sincronizar com a nuvem. "
+                            "Verifique CONFIGURAR_SUPABASE.md."
+                        )
+            else:
+                from remote_sync_queue import enqueue_remote_push
+
+                enqueue_remote_push(file_path)
         except Exception:
-            if is_current_developer():
+            if is_current_developer() and not quiet:
                 show_technical_error(
-                    "Salvo localmente; falha ao enviar para Supabase. Veja secrets [persistence]."
+                    "Salvo localmente; falha ao enfileirar envio para Supabase. Veja secrets [persistence]."
                 )
 
     clear_load_data_cache(file_path)
@@ -4334,7 +4340,6 @@ def render_login_diagnostics(members_df: pd.DataFrame) -> None:
 def show_login_page(members_df: pd.DataFrame):
     from app_theme import inject_login_v2_theme
 
-    apply_music_theme()
     inject_login_v2_theme()
     _sync_login_view_from_url()
     st.markdown('<div class="login-page">', unsafe_allow_html=True)
@@ -6165,48 +6170,59 @@ def show_dashboard(
         ]
         render_quick_access_v3(quick)
 
-        week_label = f"Semana {start.strftime('%d/%m')} — {end.strftime('%d/%m/%Y')}"
-        st.markdown(
-            f'<h3 class="ig-section-title">Cultos da semana</h3>'
-            f'<p class="ig-week-sub">{html.escape(week_label)}</p>',
-            unsafe_allow_html=True,
-        )
-        from mobile_ui import mobile_row2_close, mobile_row2_open
+        @st.fragment
+        def _dashboard_week_fragment() -> None:
+            from ui_rerun import rerun_scope_fragment
 
-        mobile_row2_open()
-        w1, w2, w3 = st.columns([1, 1, 1])
-        with w1:
-            if st.button("◀ Semana anterior", key="ig_wk_prev", use_container_width=True):
-                st.session_state.week_offset -= 1
-                st.rerun()
-        with w2:
-            if st.button("Próxima semana ▶", key="ig_wk_next", use_container_width=True):
-                st.session_state.week_offset += 1
-                st.rerun()
-        with w3:
-            if st.session_state.week_offset != 0 and st.button(
-                "Semana atual", key="ig_wk_now", use_container_width=True
-            ):
-                st.session_state.week_offset = 0
-                st.rerun()
-        mobile_row2_close()
+            wk_start, wk_end = week_bounds(st.session_state.week_offset)
+            week_label = (
+                f"Semana {wk_start.strftime('%d/%m')} — {wk_end.strftime('%d/%m/%Y')}"
+            )
+            st.markdown(
+                f'<h3 class="ig-section-title">Cultos da semana</h3>'
+                f'<p class="ig-week-sub">{html.escape(week_label)}</p>',
+                unsafe_allow_html=True,
+            )
+            from mobile_ui import mobile_row2_close, mobile_row2_open
 
-        semana = escalas_na_semana(escalas_df, start, end)
-        minhas_ids = {
-            str(item["escala"]["id"])
-            for item in user_on_escala_semana(escalas_df, equipe_df, my_email, start, end)
-        }
-        render_week_culto_cards(
-            semana,
-            programa_df=programa_df,
-            equipe_df=equipe_df,
-            members_df=members_df,
-            louvores_df=louvores_df,
-            my_email=my_email,
-            escalas_df=escalas_df,
-            equipe_full=equipe_df,
-            minhas_ids=minhas_ids,
-        )
+            mobile_row2_open()
+            w1, w2, w3 = st.columns([1, 1, 1])
+            with w1:
+                if st.button("◀ Semana anterior", key="ig_wk_prev", use_container_width=True):
+                    st.session_state.week_offset -= 1
+                    rerun_scope_fragment()
+            with w2:
+                if st.button("Próxima semana ▶", key="ig_wk_next", use_container_width=True):
+                    st.session_state.week_offset += 1
+                    rerun_scope_fragment()
+            with w3:
+                if st.session_state.week_offset != 0 and st.button(
+                    "Semana atual", key="ig_wk_now", use_container_width=True
+                ):
+                    st.session_state.week_offset = 0
+                    rerun_scope_fragment()
+            mobile_row2_close()
+
+            semana = escalas_na_semana(escalas_df, wk_start, wk_end)
+            minhas_ids = {
+                str(item["escala"]["id"])
+                for item in user_on_escala_semana(
+                    escalas_df, equipe_df, my_email, wk_start, wk_end
+                )
+            }
+            render_week_culto_cards(
+                semana,
+                programa_df=programa_df,
+                equipe_df=equipe_df,
+                members_df=members_df,
+                louvores_df=louvores_df,
+                my_email=my_email,
+                escalas_df=escalas_df,
+                equipe_full=equipe_df,
+                minhas_ids=minhas_ids,
+            )
+
+        _dashboard_week_fragment()
 
         render_ministry_tip()
 
@@ -9396,28 +9412,28 @@ def show_louvores_catalog(
         ):
             st.session_state["page_repertorio"] = 1
 
-        page_size = st.selectbox(
-            "Itens por página",
-            [25, 50, 100],
-            index=0,
-            key="rep_page_size",
-            label_visibility="collapsed",
-        )
-        total_pages = max(
-            1, (len(filtered) + page_size - 1) // page_size
-        ) if len(filtered) else 1
-        page = min(
-            st.session_state.get("page_repertorio", 1),
-            total_pages,
-        )
-        st.session_state["page_repertorio"] = page
-        start = (page - 1) * page_size
-        end = start + page_size
-        render_repertorio_toolbar(len(filtered), len(louvores_df), page, total_pages)
+        @st.fragment
+        def _repertorio_page_fragment() -> None:
+            page_size = st.selectbox(
+                "Itens por página",
+                [25, 50, 100],
+                index=0,
+                key="rep_page_size",
+                label_visibility="collapsed",
+            )
+            _page, _start, _end = render_repertorio_pagination(
+                len(filtered), page_size, "repertorio", use_fragment=True
+            )
+            total_pages = max(
+                1, (len(filtered) + page_size - 1) // page_size
+            ) if len(filtered) else 1
+            render_repertorio_toolbar(
+                len(filtered), len(louvores_df), _page, total_pages
+            )
+            page_df = filtered.iloc[_start:_end]
+            st.markdown(build_repertorio_table_html(page_df), unsafe_allow_html=True)
 
-        page_df = filtered.iloc[start:end]
-        st.markdown(build_repertorio_table_html(page_df), unsafe_allow_html=True)
-        render_repertorio_pagination(len(filtered), page_size, "repertorio")
+        _repertorio_page_fragment()
 
         if mgr:
             with st.expander("🛠️ Ferramentas do repertório (líderes)", expanded=False):
@@ -9976,16 +9992,21 @@ def show_sugestao_louvor(
             )
 
             render_gestao_card_open()
-            sug_tab = get_sugestao_gestao_tab()
-            render_sugestao_gestao_tab_bar(sug_tab)
-            tf = sugestao_gestao_tab_filter(sug_tab)
-            _render_gestao_sugestoes_lideranca(
-                sugestoes_df,
-                louvores_df,
-                premium=True,
-                tab_filter=tf,
-                key_prefix=f"gest_tab_{tf}",
-            )
+
+            @st.fragment
+            def _sugestao_gestao_fragment() -> None:
+                sug_tab = get_sugestao_gestao_tab()
+                render_sugestao_gestao_tab_bar(sug_tab, use_fragment=True)
+                tf = sugestao_gestao_tab_filter(sug_tab)
+                _render_gestao_sugestoes_lideranca(
+                    sugestoes_df,
+                    louvores_df,
+                    premium=True,
+                    tab_filter=tf,
+                    key_prefix=f"gest_tab_{tf}",
+                )
+
+            _sugestao_gestao_fragment()
             render_gestao_card_close()
 
         render_footer_banner()
@@ -10008,7 +10029,6 @@ def _run_app() -> None:
         layout="wide",
         initial_sidebar_state="expanded",
     )
-    apply_music_theme()
     ensure_session_state()
 
     try:
@@ -10052,11 +10072,21 @@ def _run_app() -> None:
         st.rerun()
 
     if not st.session_state.authenticated:
+        apply_music_theme()
         show_login_page(members_df)
         return
 
     from mobile_lab import is_mobile_lab_enabled
     from app_data_loader import bootstrap_authenticated_data
+
+    try:
+        from remote_sync_queue import flush_remote_push_queue
+
+        flush_remote_push_queue(max_items=4)
+    except Exception:
+        pass
+
+    apply_music_theme()
 
     _data = bootstrap_authenticated_data(mobile=is_mobile_lab_enabled())
     chat_df = _data.chat_df

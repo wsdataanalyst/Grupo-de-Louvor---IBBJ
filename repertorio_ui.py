@@ -658,6 +658,8 @@ def render_repertorio_pagination(
     total_rows: int,
     page_size: int,
     key: str = "repertorio",
+    *,
+    use_fragment: bool = False,
 ) -> tuple[int, int, int]:
     """Retorna (page, start_idx, end_idx) e renderiza controles premium."""
     total_pages = max(1, math.ceil(total_rows / page_size)) if total_rows else 1
@@ -667,15 +669,23 @@ def render_repertorio_pagination(
     page = min(max(1, st.session_state[state_key]), total_pages)
     st.session_state[state_key] = page
 
+    def _rerun_pagination() -> None:
+        if use_fragment:
+            from ui_rerun import rerun_scope_fragment
+
+            rerun_scope_fragment()
+        else:
+            st.rerun()
+
     c_prev, c_nums, c_next = st.columns([1, 4, 1])
     with c_prev:
         if st.button("‹", key=f"rep_prev_{key}", disabled=page <= 1, use_container_width=True):
             st.session_state[state_key] = page - 1
-            st.rerun()
+            _rerun_pagination()
     with c_next:
         if st.button("›", key=f"rep_next_{key}", disabled=page >= total_pages, use_container_width=True):
             st.session_state[state_key] = page + 1
-            st.rerun()
+            _rerun_pagination()
     with c_nums:
         slots = st.columns(min(7, total_pages))
         window_start = max(1, page - 3)
@@ -688,7 +698,7 @@ def render_repertorio_pagination(
                 label = f"·{p}·" if p == page else str(p)
                 if st.button(label, key=f"rep_pg_{key}_{p}", use_container_width=True):
                     st.session_state[state_key] = p
-                    st.rerun()
+                    _rerun_pagination()
 
     start = (page - 1) * page_size
     end = start + page_size
