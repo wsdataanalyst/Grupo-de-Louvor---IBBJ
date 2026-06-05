@@ -393,6 +393,7 @@ def mobile_lab_css() -> str:
       max-width: 420px !important;
       z-index: 2147483000 !important;
       margin: 0 !important;
+      overflow: visible !important;
       padding: 6px max(10px, env(safe-area-inset-right, 0px)) 6px 8px !important;
       box-sizing: border-box !important;
       background: rgba(15,23,42,.88) !important;
@@ -418,12 +419,14 @@ def mobile_lab_css() -> str:
       border: none !important;
       box-shadow: none !important;
     }
+    body:has(#ml-bottom-nav-start) [class*="st-key-ml_bottom_nav"] [data-testid="stHorizontalBlock"] > [data-testid="stColumn"],
     body:has(#ml-bottom-nav-start) [class*="st-key-ml_bottom_nav"] [data-testid="stHorizontalBlock"] > [data-testid="column"]{
       flex: 1 1 0 !important;
       width: 20% !important;
       max-width: 20% !important;
       min-width: 0 !important;
       padding: 0 1px !important;
+      display: block !important;
     }
     body:has(#ml-bottom-nav-start) [class*="st-key-ml_bottom_nav"] [data-testid="stVerticalBlock"]{
       gap: 0 !important;
@@ -651,6 +654,7 @@ def mobile_lab_css() -> str:
       gap: 8px !important;
       width: auto !important;
     }
+    body:has(#ml-dashboard-page) [class*="st-key-ml_dash_topbar"] [data-testid="stColumn"],
     body:has(#ml-dashboard-page) [class*="st-key-ml_dash_topbar"] [data-testid="column"]{
       flex: 0 0 auto !important;
       width: auto !important;
@@ -894,7 +898,7 @@ def inject_mobile_lab_app_shell() -> None:
 
 def inject_mobile_lab_theme() -> None:
     """CSS inline (baseline layout) — cache 1×/sessão; não usar static parcial."""
-    css_key = "_mobile_lab_css_blob"
+    css_key = "_mobile_lab_css_blob_v2"
     if css_key not in st.session_state:
         st.session_state[css_key] = mobile_lab_css()
     st.markdown(

@@ -128,10 +128,10 @@
                 width: 100% !important;
                 max-width: 100% !important;
             }
-            [data-testid="stAppViewContainer"]:not(:has(.login-page)) [data-testid="stHorizontalBlock"] {
+            [data-testid="stAppViewContainer"]:not(:has(.login-page)) [data-testid="stMain"] [data-testid="stHorizontalBlock"] {
                 flex-wrap: wrap !important;
             }
-            [data-testid="stAppViewContainer"]:not(:has(.login-page)) [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {
+            [data-testid="stAppViewContainer"]:not(:has(.login-page)) [data-testid="stMain"] [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {
                 flex: 1 1 100% !important;
                 min-width: 0 !important;
             }
