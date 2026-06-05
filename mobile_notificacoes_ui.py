@@ -49,9 +49,24 @@ def _esc(s: object) -> str:
 
 
 def feed_category_matches(row: pd.Series, category: str) -> bool:
-    from app import _feed_row_matches_category
-
-    return _feed_row_matches_category(row, category)
+    cat = str(category or "").strip().lower()
+    if not cat or cat == "todas":
+        return True
+    pt = str(row.get("post_type", "")).strip().lower()
+    blob = f"{row.get('title', '')} {row.get('body', '')}".lower()
+    rules: dict[str, tuple[str, ...]] = {
+        "avisos": ("comunicado",),
+        "escalas": ("evento", "escala", "culto"),
+        "ensaios": ("ensaio", "rehearsal"),
+        "devocionais": ("devocional", "versículo", "versiculo", "palavra"),
+        "repertorio": ("repertório", "repertorio", "louvor", "música", "musica"),
+        "pedidos": ("oração", "oracao", "pedido"),
+        "sugestoes": ("sugestão", "sugestao"),
+    }
+    if cat in rules:
+        keys = rules[cat]
+        return pt in keys or any(k in blob for k in keys)
+    return True
 
 
 def _time_ago(value: object) -> str:
@@ -478,6 +493,119 @@ def render_post_card(
     )
 
 
+def _filter_posts_df(
+    posts_df: pd.DataFrame,
+    *,
+    category_filter: str,
+    search: str,
+) -> pd.DataFrame:
+    df = posts_df.copy()
+    if df.empty:
+        return df
+    q = str(search or "").strip().lower()
+    if q:
+        df = df[
+            df.get("title", "").astype(str).str.lower().str.contains(q, na=False)
+            | df.get("body", "").astype(str).str.lower().str.contains(q, na=False)
+        ]
+    cat = str(category_filter or "todas").strip().lower()
+    if cat and cat != "todas":
+        df = df[df.apply(lambda row: feed_category_matches(row, cat), axis=1)]
+    df["_sort"] = pd.to_datetime(df.get("created_at"), errors="coerce")
+    return df.sort_values("_sort", ascending=False)
+
+
+def _render_mobile_feed_body(
+    posts_df: pd.DataFrame,
+    likes_df: pd.DataFrame,
+    comments_df: pd.DataFrame,
+    *,
+    category_filter: str,
+    search: str,
+) -> None:
+    """Conteúdo interativo do feed mobile — não depende de show_feed_page(shell=...)."""
+    from app import (
+        DATA_DIR,
+        FEED_IMAGES_DIR,
+        append_feed_post,
+        is_scale_manager,
+        load_feed_bundle,
+        paginate_dataframe,
+        purge_all_feed_data,
+        render_feed_post_card,
+        save_feed_image_file,
+        show_form_error,
+    )
+
+    if is_scale_manager(st.session_state.user_roles):
+        with st.expander("Manutenção do feed (líderes)", expanded=False, key="ig_feed_maint"):
+            st.caption(
+                "Apaga **todos** os posts, curtidas e comentários. Use se o feed estiver "
+                "duplicado ou deixando o app lento."
+            )
+            if st.button("🗑️ Apagar todo o feed agora", key="feed_purge_all_btn"):
+                n = purge_all_feed_data()
+                st.success(f"Feed limpo ({n} publicação(ões) removida(s)).")
+                st.rerun()
+
+    new_expanded = bool(st.session_state.pop("ml_feed_new_open", False))
+    with st.expander("Nova publicação", expanded=new_expanded, key="ig_feed_new"):
+        with st.form(key="feed_post_form"):
+            titulo = st.text_input("Título")
+            corpo = st.text_area("Mensagem")
+            tipo_opts = ["comunicado", "evento"]
+            tipo = st.selectbox(
+                "Tipo",
+                tipo_opts,
+                format_func=lambda x: "📢 Comunicado" if x == "comunicado" else "📅 Evento",
+            )
+            yt = st.text_input("Link YouTube (opcional)")
+            img_url = st.text_input("URL da imagem (opcional)")
+            img_file = st.file_uploader(
+                "Ou envie uma imagem",
+                type=["jpg", "jpeg", "png", "webp"],
+                key="feed_post_img_up",
+            )
+            pub = st.form_submit_button("Publicar no feed", type="primary")
+            if pub:
+                if not titulo.strip() or not corpo.strip():
+                    show_form_error("Informe título e mensagem.")
+                else:
+                    image_ref = img_url.strip()
+                    if img_file is not None:
+                        image_ref = save_feed_image_file(img_file, DATA_DIR, FEED_IMAGES_DIR)
+                    append_feed_post(
+                        post_type=tipo,
+                        title=titulo.strip(),
+                        body=corpo.strip(),
+                        youtube_url=yt.strip(),
+                        author_email=st.session_state.user_email,
+                        author_name=st.session_state.user_full_name
+                        or st.session_state.user_name,
+                        image_url=image_ref,
+                    )
+                    st.success("Publicado no feed!")
+                    st.rerun()
+
+    live_posts, live_likes, live_comments = load_feed_bundle()
+    df = _filter_posts_df(
+        live_posts if live_posts is not None else posts_df,
+        category_filter=category_filter,
+        search=search,
+    )
+    if df.empty:
+        return
+
+    page_df = paginate_dataframe(df, 8, "feed_posts")
+    for _, post in page_df.iterrows():
+        render_feed_post_card(
+            post,
+            live_likes if live_likes is not None else likes_df,
+            live_comments if live_comments is not None else comments_df,
+            key_prefix=f"feed_{post['id']}",
+        )
+
+
 def render_feed(
     posts_df: pd.DataFrame,
     likes_df: pd.DataFrame,
@@ -511,13 +639,10 @@ def render_feed(
         if st.button("🔄 Atualizar feed", use_container_width=True):
             st.rerun()
 
-    from app import show_feed_page
-
-    show_feed_page(
+    _render_mobile_feed_body(
         posts_df,
         likes_df,
         comments_df,
-        shell="mobile",
         category_filter=cat,
         search=search,
     )
