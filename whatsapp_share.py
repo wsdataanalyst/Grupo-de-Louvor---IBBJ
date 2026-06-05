@@ -3,8 +3,32 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import json
 from urllib.parse import quote_plus
+
+
+def _pdf_b64_signature(pdf_bytes: bytes) -> str:
+    return hashlib.md5(pdf_bytes).hexdigest()
+
+
+def pdf_bytes_to_b64_cached(pdf_bytes: bytes, cache_key: str) -> str:
+    """Evita re-encodar o mesmo PDF a cada rerun (Fase 4)."""
+    import streamlit as st
+
+    sig = _pdf_b64_signature(pdf_bytes)
+    bucket = st.session_state.get(cache_key)
+    if isinstance(bucket, dict) and bucket.get("sig") == sig and bucket.get("b64"):
+        return str(bucket["b64"])
+    b64 = base64.b64encode(pdf_bytes).decode("ascii")
+    st.session_state[cache_key] = {"sig": sig, "b64": b64}
+    return b64
+
+
+def clear_pdf_b64_cache(cache_key: str) -> None:
+    import streamlit as st
+
+    st.session_state.pop(cache_key, None)
 
 
 def _secret_whatsapp(key: str, default: str = "") -> str:
@@ -144,7 +168,7 @@ def inject_share_pdf_whatsapp(
     Tenta compartilhar PDF via Web Share API (celular: costuma abrir WhatsApp com anexo).
     No desktop pode só baixar — o usuário envia manualmente.
     """
-    b64 = base64.b64encode(pdf_bytes).decode("ascii")
+    b64 = pdf_bytes_to_b64_cached(pdf_bytes, f"wa_pdf_b64_{element_id}")
     safe_name = json.dumps(filename)
     safe_text = json.dumps(share_text[:500])
     _inject_html(

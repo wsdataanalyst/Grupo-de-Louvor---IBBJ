@@ -888,7 +888,13 @@ def inject_mobile_lab_app_shell() -> None:
 
 
 def inject_mobile_lab_theme() -> None:
-    st.markdown(f"<style>{mobile_lab_css()}</style>", unsafe_allow_html=True)
+    css_key = "_mobile_lab_css_blob"
+    if css_key not in st.session_state:
+        st.session_state[css_key] = mobile_lab_css()
+    st.markdown(
+        f"<style>{st.session_state[css_key]}</style>",
+        unsafe_allow_html=True,
+    )
 
 
 def _pt_weekday(d: date) -> str:

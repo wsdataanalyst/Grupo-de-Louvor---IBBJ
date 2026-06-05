@@ -3301,12 +3301,39 @@ def handle_app_resume_query_params() -> bool:
         st.query_params.from_dict(qp)
     except Exception:
         pass
-    clear_load_data_cache()
-    st.session_state.pop("_escalas_bundle", None)
-    st.session_state.pop("_feed_rev", None)
-    st.session_state.pop("_chat_df_cache", None)
+    try:
+        from app_data_loader import invalidate_resume_data_caches
+
+        invalidate_resume_data_caches()
+    except Exception:
+        clear_load_data_cache()
+        st.session_state.pop("_escalas_bundle", None)
+        st.session_state.pop("_feed_rev", None)
+        st.session_state.pop("_chat_df_cache", None)
+    try:
+        from remote_store import is_remote_enabled, pull_file_to_disk
+
+        if is_remote_enabled():
+            for path in (
+                CHAT_FILE,
+                ESCALAS_FILE,
+                PROGRAMA_FILE,
+                EQUIPE_FILE,
+                TROCAS_FILE,
+                FEED_POSTS_FILE,
+                FEED_LIKES_FILE,
+                FEED_COMMENTS_FILE,
+                SUGESTOES_FILE,
+            ):
+                try:
+                    pull_file_to_disk(path)
+                except Exception:
+                    pass
+    except Exception:
+        pass
     try:
         refresh_escalas_bundle()
+        refresh_chat_live()
     except Exception:
         pass
     session_touch(st.session_state)
@@ -3379,31 +3406,12 @@ def inject_page_html(html_fragment: str, height: int = 0):
 
 def inject_mobile_app_shell():
     """PWA (instalar pelo link) + service worker + OneSignal (se configurado)."""
-    st.markdown(
-        """
-        <link rel="manifest" href="/manifest.webmanifest">
-        <meta name="theme-color" content="#121212">
-        <meta name="mobile-web-app-capable" content="yes">
-        <meta name="apple-mobile-web-app-capable" content="yes">
-        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-        <meta name="apple-mobile-web-app-title" content="Louvor IBBJ">
-        <link rel="apple-touch-icon" href="/icon-192.png">
-        """,
-        unsafe_allow_html=True,
-    )
-    inject_hidden_sidebar_script(
-        """
-        <script>
-        if ("serviceWorker" in navigator) {
-          navigator.serviceWorker.register("/sw.js").catch(function () {});
-        }
-        </script>
-        """
-    )
-    app_id = onesignal_app_id()
-    if push_is_enabled() and app_id:
-        inject_hidden_sidebar_script(
-            f"""
+    shell_key = "_mobile_app_shell_blob"
+    if shell_key not in st.session_state:
+        app_id = onesignal_app_id()
+        onesignal_html = ""
+        if push_is_enabled() and app_id:
+            onesignal_html = f"""
             <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
             <script>
             window.OneSignalDeferred = window.OneSignalDeferred || [];
@@ -3417,7 +3425,34 @@ def inject_mobile_app_shell():
             }});
             </script>
             """
+        st.session_state[shell_key] = {
+            "head": """
+        <link rel="manifest" href="/manifest.webmanifest">
+        <meta name="theme-color" content="#121212">
+        <meta name="mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+        <meta name="apple-mobile-web-app-title" content="Louvor IBBJ">
+        <link rel="apple-touch-icon" href="/icon-192.png">
+        """,
+            "onesignal": onesignal_html,
+        }
+    shell = st.session_state[shell_key]
+    st.markdown(shell["head"], unsafe_allow_html=True)
+    if not st.session_state.get("_sw_registered"):
+        inject_hidden_sidebar_script(
+            """
+            <script>
+            if ("serviceWorker" in navigator) {
+              navigator.serviceWorker.register("/sw.js").catch(function () {});
+            }
+            </script>
+            """
         )
+        st.session_state._sw_registered = True
+    if shell.get("onesignal") and not st.session_state.get("_onesignal_injected"):
+        inject_hidden_sidebar_script(shell["onesignal"])
+        st.session_state._onesignal_injected = True
 
 
 def render_mobile_and_push_panel(
@@ -7833,6 +7868,82 @@ def _render_ensaio_chat_web(
     st.markdown("</div>", unsafe_allow_html=True)
 
 
+def _rerun_scope_fragment() -> None:
+    try:
+        st.rerun(scope="fragment")
+    except (TypeError, ValueError):
+        st.rerun()
+
+
+@st.fragment
+def _escala_pdf_ready_panel(
+    selected_df: pd.DataFrame,
+    programa_df: pd.DataFrame,
+    equipe_df: pd.DataFrame,
+    members_df: pd.DataFrame,
+    period_label: str,
+    n_selected: int,
+) -> None:
+    """Painel PDF isolado — fechar/baixar sem rerun da página inteira (Fase 4)."""
+    from whatsapp_share import clear_pdf_b64_cache, pdf_bytes_to_b64_cached
+
+    pdf_bytes = st.session_state.get("escala_pdf_bytes")
+    if not pdf_bytes:
+        return
+
+    fname = st.session_state.get(
+        "escala_pdf_filename",
+        suggested_filename(period_label, n_selected),
+    )
+    b64 = pdf_bytes_to_b64_cached(pdf_bytes, "escala_pdf_b64")
+    st.markdown(
+        f'<a href="data:application/pdf;base64,{b64}" target="_blank" rel="noopener" '
+        f'style="display:inline-block;margin:0.5rem 0;padding:0.6rem 1rem;'
+        f'background:#7c3aed;color:#fff;border-radius:10px;text-decoration:none;font-weight:600;">'
+        f"📄 Abrir PDF em nova aba (não sai do app)</a>",
+        unsafe_allow_html=True,
+    )
+    with st.expander("👁️ Pré-visualizar PDF aqui", expanded=False):
+        st.markdown(
+            f'<iframe src="data:application/pdf;base64,{b64}" '
+            f'width="100%" height="480" style="border:1px solid #4c3a6a;border-radius:8px;"></iframe>',
+            unsafe_allow_html=True,
+        )
+    c_dl, c_cls = st.columns(2)
+    with c_dl:
+        st.download_button(
+            "⬇️ Baixar PDF",
+            data=pdf_bytes,
+            file_name=fname,
+            mime="application/pdf",
+            use_container_width=True,
+            key="pdf_escala_download",
+        )
+    with c_cls:
+        if st.button(
+            "← Voltar ao painel (fechar PDF)",
+            use_container_width=True,
+            key="pdf_close",
+        ):
+            st.session_state.pop("escala_pdf_bytes", None)
+            st.session_state.pop("escala_pdf_filename", None)
+            clear_pdf_b64_cache("escala_pdf_b64")
+            _rerun_scope_fragment()
+    wa_parts = []
+    for _, er in selected_df.iterrows():
+        wa_parts.append(
+            collect_escala_whatsapp_message(er, programa_df, equipe_df, members_df)
+        )
+        wa_parts.append("—" * 12)
+    wa_txt = "\n".join(wa_parts)
+    render_escala_whatsapp_actions(
+        wa_txt,
+        pdf_bytes=pdf_bytes,
+        pdf_filename=fname,
+        key_prefix="wa_pdf_export",
+    )
+
+
 def render_escalas_pdf_export(
     escalas_df: pd.DataFrame,
     programa_df: pd.DataFrame,
@@ -7971,6 +8082,9 @@ def render_escalas_pdf_export(
                 rehearsal_date_is_set=rehearsal_date_is_set,
                 format_rehearsal_date_pt=format_rehearsal_date_pt,
             )
+            from whatsapp_share import clear_pdf_b64_cache
+
+            clear_pdf_b64_cache("escala_pdf_b64")
             st.session_state["escala_pdf_bytes"] = pdf_bytes
             st.session_state["escala_pdf_filename"] = suggested_filename(
                 period_label, len(selected_df)
@@ -7981,56 +8095,14 @@ def render_escalas_pdf_export(
         except Exception as exc:
             show_technical_error(f"Nao foi possivel gerar o PDF: {exc}")
 
-    pdf_bytes = st.session_state.get("escala_pdf_bytes")
-    if pdf_bytes:
-        fname = st.session_state.get(
-            "escala_pdf_filename",
-            suggested_filename(period_label, len(selected_df)),
-        )
-        b64 = base64.b64encode(pdf_bytes).decode()
-        st.markdown(
-            f'<a href="data:application/pdf;base64,{b64}" target="_blank" rel="noopener" '
-            f'style="display:inline-block;margin:0.5rem 0;padding:0.6rem 1rem;'
-            f'background:#7c3aed;color:#fff;border-radius:10px;text-decoration:none;font-weight:600;">'
-            f"📄 Abrir PDF em nova aba (não sai do app)</a>",
-            unsafe_allow_html=True,
-        )
-        with st.expander("👁️ Pré-visualizar PDF aqui", expanded=False):
-            st.markdown(
-                f'<iframe src="data:application/pdf;base64,{b64}" '
-                f'width="100%" height="480" style="border:1px solid #4c3a6a;border-radius:8px;"></iframe>',
-                unsafe_allow_html=True,
-            )
-        c_dl, c_cls = st.columns(2)
-        with c_dl:
-            st.download_button(
-                "⬇️ Baixar PDF",
-                data=pdf_bytes,
-                file_name=fname,
-                mime="application/pdf",
-                use_container_width=True,
-                key="pdf_escala_download",
-            )
-        with c_cls:
-            if st.button("← Voltar ao painel (fechar PDF)", use_container_width=True, key="pdf_close"):
-                st.session_state.pop("escala_pdf_bytes", None)
-                st.session_state.pop("escala_pdf_filename", None)
-                st.rerun()
-        wa_parts = []
-        for _, er in selected_df.iterrows():
-            wa_parts.append(
-                collect_escala_whatsapp_message(
-                    er, programa_df, equipe_df, members_df
-                )
-            )
-            wa_parts.append("—" * 12)
-        wa_txt = "\n".join(wa_parts)
-        render_escala_whatsapp_actions(
-            wa_txt,
-            pdf_bytes=pdf_bytes,
-            pdf_filename=fname,
-            key_prefix="wa_pdf_export",
-        )
+    _escala_pdf_ready_panel(
+        selected_df,
+        programa_df,
+        equipe_df,
+        members_df if members_df is not None else pd.DataFrame(),
+        period_label,
+        len(selected_df),
+    )
 
 
 def show_gerenciar_escalas(

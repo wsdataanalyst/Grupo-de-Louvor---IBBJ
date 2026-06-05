@@ -160,6 +160,37 @@ def invalidate_all_session_df_caches() -> None:
             st.session_state.pop(key, None)
 
 
+# CSVs que devem refletir dados ao voltar do background (PWA / aba em segundo plano).
+RESUME_DATA_FILE_NAMES: tuple[str, ...] = (
+    "chat.csv",
+    "escalas.csv",
+    "programa_culto.csv",
+    "escala_equipe.csv",
+    "trocas_escalas.csv",
+    "programa_sequencia.csv",
+    "feed_posts.csv",
+    "feed_likes.csv",
+    "feed_comments.csv",
+    "sugestoes_louvor.csv",
+    "chat_ensaio.csv",
+)
+
+
+def invalidate_resume_data_caches() -> None:
+    """Invalidação granular ao retomar o app (Fase 4 — sem limpar louvores/members)."""
+    for name in RESUME_DATA_FILE_NAMES:
+        invalidate_session_df_cache(name)
+    for key in (
+        "_escalas_bundle",
+        "_chat_df_cache",
+        "_chat_rev",
+        "_escalas_rev",
+        "_feed_rev",
+        "_sugestoes_df_cache",
+    ):
+        st.session_state.pop(key, None)
+
+
 def load_data_session_cached(
     file_path: Path,
     columns: tuple,

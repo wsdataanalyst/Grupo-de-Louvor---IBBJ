@@ -1405,15 +1405,8 @@ def ibbj_login_v2_css() -> str:
     """
 
 
-def inject_login_v2_theme() -> None:
-    import streamlit as st
-
-    st.markdown(f"<style>{ibbj_login_v2_css()}</style>", unsafe_allow_html=True)
-
-
-def inject_ibbj_theme() -> None:
-    import streamlit as st
-
+def compile_ibbj_theme_css() -> str:
+    """Monta o CSS completo uma vez por sessão (Fase 4 — evita reimportar módulos)."""
     from app_theme_v3 import ibbj_v3_css
     from escalas_ui import escalas_page_css
     from feed_ui import feed_page_css
@@ -1426,10 +1419,6 @@ def inject_ibbj_theme() -> None:
     from sequencia_culto_css import sequencia_culto_css
     from sidebar_icons import sidebar_nav_icons_css, sidebar_tool_icons_css
 
-    st.markdown(
-        '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">',
-        unsafe_allow_html=True,
-    )
     extra = (
         sidebar_nav_icons_css()
         + sidebar_tool_icons_css()
@@ -1444,7 +1433,36 @@ def inject_ibbj_theme() -> None:
         + mobile_first_css()
         + sequencia_culto_css()
     )
-    st.markdown(f"<style>{ibbj_theme_css()}{extra}</style>", unsafe_allow_html=True)
+    return ibbj_theme_css() + extra
+
+
+def inject_login_v2_theme() -> None:
+    import streamlit as st
+
+    css_key = "_ibbj_login_v2_css_blob"
+    if css_key not in st.session_state:
+        st.session_state[css_key] = ibbj_login_v2_css()
+    st.markdown(
+        f"<style>{st.session_state[css_key]}</style>",
+        unsafe_allow_html=True,
+    )
+
+
+def inject_ibbj_theme() -> None:
+    import streamlit as st
+
+    css_key = "_ibbj_theme_css_blob"
+    if css_key not in st.session_state:
+        st.session_state[css_key] = compile_ibbj_theme_css()
+
+    st.markdown(
+        '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">',
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        f"<style>{st.session_state[css_key]}</style>",
+        unsafe_allow_html=True,
+    )
 
 
 def inject_worship_theme() -> None:
