@@ -160,20 +160,23 @@ def mobile_escalas_css() -> str:
       margin: 0 0 0.25rem !important;
       padding: 0 !important;
     }
-    body:has(#ml-escalas-page) [class*="st-key-ml_esc_quick_grid"] [data-testid="stHorizontalBlock"]{
+    body:has(#ml-esc-quick-start) [data-testid="stHorizontalBlock"]:has([class*="st-key-ml_esc_quick_seq_btn"]),
+    body:has(#ml-esc-quick-start) [data-testid="stHorizontalBlock"]:has([class*="st-key-ml_esc_quick_sol_btn"]){
       flex-wrap: nowrap !important;
       gap: 8px !important;
       margin: 0 0 0.25rem !important;
     }
-    body:has(#ml-escalas-page) [class*="st-key-ml_esc_quick_grid"] [data-testid="stColumn"],
-    body:has(#ml-escalas-page) [class*="st-key-ml_esc_quick_grid"] [data-testid="column"]{
+    body:has(#ml-esc-quick-start) [data-testid="stHorizontalBlock"]:has([class*="st-key-ml_esc_quick_seq_btn"]) > [data-testid="stColumn"],
+    body:has(#ml-esc-quick-start) [data-testid="stHorizontalBlock"]:has([class*="st-key-ml_esc_quick_seq_btn"]) > [data-testid="column"],
+    body:has(#ml-esc-quick-start) [data-testid="stHorizontalBlock"]:has([class*="st-key-ml_esc_quick_sol_btn"]) > [data-testid="stColumn"],
+    body:has(#ml-esc-quick-start) [data-testid="stHorizontalBlock"]:has([class*="st-key-ml_esc_quick_sol_btn"]) > [data-testid="column"]{
       flex: 1 1 0 !important;
       width: 50% !important;
       max-width: 50% !important;
       min-width: 0 !important;
       padding: 0 !important;
     }
-    body:has(#ml-escalas-page) [class*="st-key-ml_esc_quick_gerenciar"] .stButton > button{
+    body:has(#ml-escalas-page) [class*="st-key-ml_esc_quick_gerenciar_btn"] .stButton > button{
       min-height: 3rem !important;
       background: linear-gradient(135deg, rgba(250,204,21,.22), rgba(124,58,237,.15)) !important;
       border: 1px solid rgba(250,204,21,.35) !important;
@@ -328,44 +331,39 @@ def _render_quick_access() -> None:
     from mobile_lab_nav import user_can_gerenciar_escalas
 
     st.markdown(
+        '<span id="ml-esc-quick-start" aria-hidden="true"></span>'
         '<div style="font-size:1.05rem;font-weight:900;margin:0.2rem 0 0.35rem;">Acesso rápido</div>',
         unsafe_allow_html=True,
     )
-    with st.container(key="ml_esc_quick_grid"):
-        if user_can_gerenciar_escalas() or bool(st.session_state.get("ml_can_gerenciar")):
-            with st.container(key="ml_esc_quick_gerenciar"):
-                if st.button(
-                    "🎯  Gerenciar Escalas\nMenu principal · montar cultos",
-                    key="ml_esc_open_gerenciar",
-                    use_container_width=True,
-                    type="primary",
-                ):
-                    from mobile_lab_nav import navigate_ml_page
+    if user_can_gerenciar_escalas() or bool(st.session_state.get("ml_can_gerenciar")):
+        if st.button(
+            "🎯  Gerenciar Escalas\nMenu principal · montar cultos",
+            key="ml_esc_quick_gerenciar_btn",
+            use_container_width=True,
+            type="primary",
+        ):
+            from mobile_lab_nav import navigate_ml_page
 
-                    navigate_ml_page("Gerenciar Escalas", pin=True)
-                    st.rerun()
-        c1, c2 = st.columns(2, gap="small")
-        with c1:
-            with st.container(key="ml_esc_quick_seq"):
-                if st.button("🎵\nSequência", key="ml_esc_quick_seq_btn", use_container_width=True):
-                    _set_tab("sequencia")
-                    st.rerun()
-        with c2:
-            with st.container(key="ml_esc_quick_trocas"):
-                if st.button("🔄\nTrocas", key="ml_esc_quick_trocas_btn", use_container_width=True):
-                    _set_tab("trocas")
-                    st.rerun()
-        c3, c4 = st.columns(2, gap="small")
-        with c3:
-            with st.container(key="ml_esc_quick_sol"):
-                if st.button("📬\nSolicitações", key="ml_esc_quick_sol_btn", use_container_width=True):
-                    _set_tab("solicitacoes")
-                    st.rerun()
-        with c4:
-            with st.container(key="ml_esc_quick_chat"):
-                if st.button("💬\nChat ensaio", key="ml_esc_quick_chat_btn", use_container_width=True):
-                    _set_tab("ensaio")
-                    st.rerun()
+            navigate_ml_page("Gerenciar Escalas", pin=True)
+            st.rerun()
+    c1, c2 = st.columns(2, gap="small")
+    with c1:
+        if st.button("🎵\nSequência", key="ml_esc_quick_seq_btn", use_container_width=True):
+            _set_tab("sequencia")
+            st.rerun()
+    with c2:
+        if st.button("🔄\nTrocas", key="ml_esc_quick_trocas_btn", use_container_width=True):
+            _set_tab("trocas")
+            st.rerun()
+    c3, c4 = st.columns(2, gap="small")
+    with c3:
+        if st.button("📬\nSolicitações", key="ml_esc_quick_sol_btn", use_container_width=True):
+            _set_tab("solicitacoes")
+            st.rerun()
+    with c4:
+        if st.button("💬\nChat ensaio", key="ml_esc_quick_chat_btn", use_container_width=True):
+            _set_tab("ensaio")
+            st.rerun()
 
 
 def _render_not_scheduled_warning() -> None:
