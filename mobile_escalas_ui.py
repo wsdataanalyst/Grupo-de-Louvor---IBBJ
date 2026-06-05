@@ -747,10 +747,10 @@ def _render_tab_ensaio(
     from app import (
         escala_label,
         format_rehearsal_date_pt,
-        render_ensaio_chat,
         rehearsal_date_is_set,
     )
     from chat_whatsapp import mark_chat_scroll_bottom
+    from mobile_ensaio_chat_ui import render_mobile_ensaio_chat
 
     if not minhas:
         _render_not_scheduled_warning()
@@ -790,9 +790,8 @@ def _render_tab_ensaio(
             st.rerun()
         return
 
-    render_ensaio_chat(
+    render_mobile_ensaio_chat(
         escala_id,
-        chat_ensaio_df,
         members_df,
         title=escolha,
         subtitle=ensaio_sub,
