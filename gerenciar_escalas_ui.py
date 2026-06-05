@@ -56,7 +56,7 @@ def apply_pending_ger_tab(*, mobile: bool = False) -> None:
         set_gerenciar_tab(pending_desk, mobile=mobile)
 
 
-def render_gerenciar_tab_bar(*, mobile: bool = False) -> str:
+def render_gerenciar_tab_bar(*, mobile: bool = False, use_fragment: bool = False) -> str:
     """Barra de abas lazy — desktop e mobile."""
     active = get_gerenciar_tab(mobile=mobile)
     short = (
@@ -82,7 +82,12 @@ def render_gerenciar_tab_bar(*, mobile: bool = False) -> str:
                         from mobile_lab_nav import pin_ml_page
 
                         pin_ml_page("Gerenciar Escalas")
-                    st.rerun()
+                    if use_fragment:
+                        from ui_rerun import rerun_scope_fragment
+
+                        rerun_scope_fragment()
+                    else:
+                        st.rerun()
     return active
 
 

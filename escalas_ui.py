@@ -41,7 +41,7 @@ def apply_pending_escalas_tab() -> None:
         set_escalas_tab(pending)
 
 
-def render_escalas_tab_bar(active: str) -> None:
+def render_escalas_tab_bar(active: str, *, use_fragment: bool = False) -> None:
     """Abas lazy — só a aba ativa renderiza o corpo (Fase 1 performance)."""
     cols = st.columns(len(ESCALAS_TAB_KEYS))
     for col, (key, label) in zip(cols, ESCALAS_TAB_KEYS):
@@ -53,7 +53,12 @@ def render_escalas_tab_bar(active: str) -> None:
                 type="primary" if active == key else "secondary",
             ):
                 set_escalas_tab(key)
-                st.rerun()
+                if use_fragment:
+                    from ui_rerun import rerun_scope_fragment
+
+                    rerun_scope_fragment()
+                else:
+                    st.rerun()
 
 
 def escalas_page_css() -> str:

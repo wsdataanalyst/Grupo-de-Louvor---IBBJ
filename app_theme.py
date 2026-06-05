@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
+STATIC_IBBJ_THEME_HREF = "/static/ibbj_theme.css"
+_STATIC_IBBJ_CSS_PATH = Path("static") / "ibbj_theme.css"
+
 
 def ibbj_theme_css() -> str:
     return """
@@ -1451,14 +1456,20 @@ def inject_login_v2_theme() -> None:
 def inject_ibbj_theme() -> None:
     import streamlit as st
 
-    css_key = "_ibbj_theme_css_blob"
-    if css_key not in st.session_state:
-        st.session_state[css_key] = compile_ibbj_theme_css()
-
     st.markdown(
         '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">',
         unsafe_allow_html=True,
     )
+    if _STATIC_IBBJ_CSS_PATH.is_file():
+        st.markdown(
+            f'<link rel="stylesheet" href="{STATIC_IBBJ_THEME_HREF}">',
+            unsafe_allow_html=True,
+        )
+        return
+
+    css_key = "_ibbj_theme_css_blob"
+    if css_key not in st.session_state:
+        st.session_state[css_key] = compile_ibbj_theme_css()
     st.markdown(
         f"<style>{st.session_state[css_key]}</style>",
         unsafe_allow_html=True,

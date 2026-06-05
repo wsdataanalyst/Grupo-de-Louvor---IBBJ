@@ -7869,10 +7869,9 @@ def _render_ensaio_chat_web(
 
 
 def _rerun_scope_fragment() -> None:
-    try:
-        st.rerun(scope="fragment")
-    except (TypeError, ValueError):
-        st.rerun()
+    from ui_rerun import rerun_scope_fragment
+
+    rerun_scope_fragment()
 
 
 @st.fragment
@@ -8160,18 +8159,6 @@ def show_gerenciar_escalas(
     from mobile_lab_nav import pin_ml_page
 
     mobile_ger = mobile_shell or is_mobile_lab_enabled()
-    if mobile_ger:
-        pin_ml_page("Gerenciar Escalas")
-        if not mobile_shell:
-            from mobile_gerenciar_escalas_ui import render_mobile_gerenciar_tab_bar
-
-            apply_pending_ger_tab(mobile=True)
-            render_mobile_gerenciar_tab_bar()
-        gtab = get_gerenciar_tab(mobile=True)
-    else:
-        apply_pending_ger_tab(mobile=False)
-        render_gerenciar_tab_bar(mobile=False)
-        gtab = get_gerenciar_tab(mobile=False)
 
     def _body_montar() -> None:
         if not mobile_ger:
@@ -8266,7 +8253,22 @@ def show_gerenciar_escalas(
         "pdf": _body_pdf,
         "whatsapp": _body_whatsapp,
     }
-    bodies.get(gtab, _body_montar)()
+
+    @st.fragment
+    def _gerenciar_tabs_fragment() -> None:
+        if mobile_ger:
+            pin_ml_page("Gerenciar Escalas")
+            if not mobile_shell:
+                apply_pending_ger_tab(mobile=True)
+                render_gerenciar_tab_bar(mobile=True, use_fragment=True)
+            gtab_local = get_gerenciar_tab(mobile=True)
+        else:
+            apply_pending_ger_tab(mobile=False)
+            render_gerenciar_tab_bar(mobile=False, use_fragment=True)
+            gtab_local = get_gerenciar_tab(mobile=False)
+        bodies.get(gtab_local, _body_montar)()
+
+    _gerenciar_tabs_fragment()
 
     render_gerenciar_page_close()
 
@@ -8339,14 +8341,28 @@ def show_sequencia_culto_page(
         )
         return
 
-    with st.spinner("Preparando letras e cifras do culto…"):
-        n_sync, n_web = hydrate_escala_sequencia_content(
-            escala_id, programa_df, louvores_df
-        )
+    n_sync, _ = hydrate_escala_sequencia_content(
+        escala_id, programa_df, louvores_df, use_web=False
+    )
     seq_df = load_programa_sequencia_df()
-    if n_web:
+    if n_sync:
+        st.caption(f"{n_sync} música(s) sincronizada(s) do repertório local.")
+    web_key = f"seq_web_fetch_{escala_id}"
+    if st.button(
+        "🌐 Buscar letras/cifras na internet",
+        key=f"seq_web_btn_{escala_id}",
+        use_container_width=True,
+    ):
+        with st.spinner("Buscando letras e cifras na web…"):
+            _, n_web = hydrate_escala_sequencia_content(
+                escala_id, programa_df, louvores_df, use_web=True
+            )
+        st.session_state[web_key] = n_web
+        st.rerun()
+    n_web_done = int(st.session_state.get(web_key, 0) or 0)
+    if n_web_done:
         st.success(
-            f"{n_web} música(s) com letra/cifra importadas da internet e salvas no culto."
+            f"{n_web_done} música(s) com letra/cifra importadas da internet e salvas no culto."
         )
         louvores_df = prepare_louvores_with_meta(
             load_data(
@@ -8365,8 +8381,6 @@ def show_sequencia_culto_page(
                 ),
             )
         )
-    elif n_sync and not n_web:
-        st.caption(f"{n_sync} música(s) carregada(s) do repertório.")
 
     team = integrantes_escalados(row_esc, equipe_df, members_df)
     vocal_opts = integrantes_marcacao_opts(team)
@@ -8714,10 +8728,6 @@ def show_escalas_page(
         render_escalas_gerenciar_button()
     render_escalas_tabs_spacer()
 
-    apply_pending_escalas_tab()
-    active_tab = get_escalas_tab()
-    render_escalas_tab_bar(active_tab)
-
     member_map = members_options_escala(members_df)
     my_email = st.session_state.user_email.strip().lower()
     start, end = week_bounds(st.session_state.get("week_offset", 0))
@@ -8963,7 +8973,15 @@ def show_escalas_page(
         "pedidos": _body_pedidos,
         "ensaio": _body_ensaio,
     }
-    tab_bodies.get(active_tab, _body_equipe)()
+
+    @st.fragment
+    def _escalas_tabs_fragment() -> None:
+        apply_pending_escalas_tab()
+        active = get_escalas_tab()
+        render_escalas_tab_bar(active, use_fragment=True)
+        tab_bodies.get(active, _body_equipe)()
+
+    _escalas_tabs_fragment()
 
     render_escalas_page_close()
 

@@ -116,8 +116,20 @@ def _needs_playlist(route: str, *, mobile: bool) -> bool:
 
 def _needs_sugestoes(route: str, *, mobile: bool) -> bool:
     if mobile:
-        return route in ("Início", "Sugestões")
-    return route in ("Dashboard", "Sugestão de louvor", "Gerenciar Escalas")
+        return route in ("Início", "Sugestões", "Gerenciar Escalas")
+    return route in (
+        "Dashboard",
+        "Sugestão de louvor",
+        "Gerenciar Escalas",
+        "Escalas",
+        "Repertório",
+    )
+
+
+def _needs_chat(route: str, *, mobile: bool) -> bool:
+    if mobile:
+        return route == "Chat"
+    return route == "Chat"
 
 
 def _needs_escalas_core(route: str, *, mobile: bool) -> bool:
@@ -312,17 +324,31 @@ def bootstrap_authenticated_data(*, mobile: bool) -> AppDataBundle:
     members_df = load_members_cached(load_members_df, members_file=MEMBERS_FILE)
     members_df = prepare_members(members_df)
 
-    chat_df = load_chat_df_live()
+    if _needs_chat(route, mobile=mobile):
+        chat_df = load_chat_df_live()
+    else:
+        cached_chat = st.session_state.get("_chat_df_cache")
+        if isinstance(cached_chat, pd.DataFrame):
+            chat_df = cached_chat
+        else:
+            chat_df = prepare_chat(_EMPTY_DF.copy())
 
-    sugestoes_df = load_data_session_cached(
-        SUGESTOES_FILE,
-        SUGESTAO_COLUMNS,
-        loader=load_data,
-        preparer=prepare_sugestoes,
-    )
-    st.session_state["_sugestoes_df_cache"] = sugestoes_df
+    cached_sug = st.session_state.get("_sugestoes_df_cache")
+    if _needs_sugestoes(route, mobile=mobile) or not isinstance(cached_sug, pd.DataFrame):
+        sugestoes_df = load_data_session_cached(
+            SUGESTOES_FILE,
+            SUGESTAO_COLUMNS,
+            loader=load_data,
+            preparer=prepare_sugestoes,
+        )
+        st.session_state["_sugestoes_df_cache"] = sugestoes_df
+    else:
+        sugestoes_df = cached_sug
 
-    escalas_df, programa_df, equipe_df, trocas_df = get_escalas_bundle()
+    if _needs_escalas_core(route, mobile=mobile):
+        escalas_df, programa_df, equipe_df, trocas_df = get_escalas_bundle()
+    else:
+        escalas_df = programa_df = equipe_df = trocas_df = _EMPTY_DF.copy()
 
     louvores_df = _EMPTY_DF.copy()
     if _needs_louvores_catalog(route, mobile=mobile):
@@ -400,7 +426,13 @@ def bootstrap_authenticated_data(*, mobile: bool) -> AppDataBundle:
 def should_run_chat_poll(*, mobile: bool) -> bool:
     route = current_app_route(mobile=mobile)
     if mobile:
-        return True
+        return route in (
+            "Início",
+            "Chat",
+            "Escalas",
+            "Gerenciar Escalas",
+            "Notificações",
+        )
     return route in (
         "Dashboard",
         "Chat",

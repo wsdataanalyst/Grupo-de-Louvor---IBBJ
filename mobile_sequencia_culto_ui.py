@@ -411,7 +411,7 @@ def _load_song_bundle(
         return None
     item = row_match.iloc[0]
 
-    hydrate_escala_sequencia_content(escala_id, programa_df, louvores_df)
+    hydrate_escala_sequencia_content(escala_id, programa_df, louvores_df, use_web=False)
     seq_df = load_programa_sequencia_df()
 
     louvor_t = sanitize_catalog_text(item.get("louvor_title", ""))
