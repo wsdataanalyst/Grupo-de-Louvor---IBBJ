@@ -343,7 +343,7 @@ def _render_quick_access() -> None:
 
                 navigate_ml_page("Gerenciar Escalas", pin=True)
                 st.rerun()
-    with st.container(key="ml_esc_quick_row"):
+    with st.container(key="ml_esc_quick_row_1"):
         c1, c2 = st.columns(2, gap="small")
         with c1:
             with st.container(key="ml_esc_quick_seq"):
@@ -355,7 +355,7 @@ def _render_quick_access() -> None:
                 if st.button("🔄\nTrocas", use_container_width=True):
                     _set_tab("trocas")
                     st.rerun()
-    with st.container(key="ml_esc_quick_row"):
+    with st.container(key="ml_esc_quick_row_2"):
         c3, c4 = st.columns(2, gap="small")
         with c3:
             with st.container(key="ml_esc_quick_sol"):
