@@ -5573,6 +5573,10 @@ def show_feed_page(
     posts_df: pd.DataFrame,
     likes_df: pd.DataFrame,
     comments_df: pd.DataFrame,
+    *,
+    shell: str = "web",
+    category_filter: str = "todas",
+    search: str = "",
 ):
     from feed_ui import (
         render_feed_empty_state,
@@ -5582,9 +5586,11 @@ def show_feed_page(
         render_feed_verse_card,
     )
 
-    render_feed_page_open()
-    render_feed_header()
-    render_feed_verse_card()
+    mobile = shell == "mobile"
+    if not mobile:
+        render_feed_page_open()
+        render_feed_header()
+        render_feed_verse_card()
 
     if is_scale_manager(st.session_state.user_roles):
         with st.expander("Manutenção do feed (líderes)", expanded=False, key="ig_feed_maint"):
@@ -5597,7 +5603,8 @@ def show_feed_page(
                 st.success(f"Feed limpo ({n} publicação(ões) removida(s)).")
                 st.rerun()
 
-    with st.expander("Nova publicação", expanded=False, key="ig_feed_new"):
+    new_expanded = bool(st.session_state.pop("ml_feed_new_open", False)) if mobile else False
+    with st.expander("Nova publicação", expanded=new_expanded, key="ig_feed_new"):
         with st.form(key="feed_post_form"):
             titulo = st.text_input("Título")
             corpo = st.text_area("Mensagem")
@@ -5638,25 +5645,65 @@ def show_feed_page(
                     st.rerun()
 
     if posts_df.empty:
-        render_feed_empty_state()
-        render_feed_page_close()
+        if not mobile:
+            render_feed_empty_state()
+            render_feed_page_close()
         return
 
-    st.markdown('<div class="ig-feed-refresh-wrap">', unsafe_allow_html=True)
-    if st.button("Atualizar feed", key="ig_feed_refresh", use_container_width=False):
-        st.rerun()
-    st.markdown("</div>", unsafe_allow_html=True)
-    _render_feed_posts_live()
-    render_feed_page_close()
+    if not mobile:
+        st.markdown('<div class="ig-feed-refresh-wrap">', unsafe_allow_html=True)
+        if st.button("Atualizar feed", key="ig_feed_refresh", use_container_width=False):
+            st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
+    _render_feed_posts_live(category_filter=category_filter, search=search)
+    if not mobile:
+        render_feed_page_close()
 
 
-def _render_feed_posts_live():
+def _feed_row_matches_category(row: pd.Series, category: str) -> bool:
+    """Filtro de categoria do feed mobile (espelha mobile_notificacoes_ui)."""
+    cat = str(category or "").strip().lower()
+    if not cat or cat == "todas":
+        return True
+    pt = str(row.get("post_type", "")).strip().lower()
+    blob = f"{row.get('title', '')} {row.get('body', '')}".lower()
+    rules: dict[str, tuple[str, ...]] = {
+        "avisos": ("comunicado",),
+        "escalas": ("evento", "escala", "culto"),
+        "ensaios": ("ensaio", "rehearsal"),
+        "devocionais": ("devocional", "versículo", "versiculo", "palavra"),
+        "repertorio": ("repertório", "repertorio", "louvor", "música", "musica"),
+        "pedidos": ("oração", "oracao", "pedido"),
+        "sugestoes": ("sugestão", "sugestao",),
+    }
+    if cat in rules:
+        keys = rules[cat]
+        if cat == "avisos":
+            return pt in keys or any(k in blob for k in keys)
+        return pt in keys or any(k in blob for k in keys)
+    return True
+
+
+def _render_feed_posts_live(
+    *,
+    category_filter: str = "todas",
+    search: str = "",
+):
     posts_df, likes_df, comments_df = load_feed_bundle()
     if posts_df.empty:
         return
     df = posts_df.copy()
     df["_sort"] = pd.to_datetime(df["created_at"], errors="coerce")
     df = df.sort_values("_sort", ascending=False)
+    q = str(search or "").strip().lower()
+    if q:
+        df = df[
+            df.get("title", "").astype(str).str.lower().str.contains(q, na=False)
+            | df.get("body", "").astype(str).str.lower().str.contains(q, na=False)
+        ]
+    cat = str(category_filter or "todas").strip().lower()
+    if cat and cat != "todas":
+        df = df[df.apply(lambda row: _feed_row_matches_category(row, cat), axis=1)]
     page_df = paginate_dataframe(df, 8, "feed_posts")
     for _, post in page_df.iterrows():
         render_feed_post_card(post, likes_df, comments_df, key_prefix=f"feed_{post['id']}")
