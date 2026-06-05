@@ -496,10 +496,12 @@ def _render_lista_export_block(
     louvores_df: pd.DataFrame,
 ) -> None:
     """PDF e WhatsApp na própria tela (sem redirecionar para Gerenciar Escalas)."""
-    from app import collect_escala_whatsapp_message, generate_single_escala_pdf
+    from app import collect_escala_whatsapp_message, generate_sequencia_culto_pdf
     from mobile_lab_nav import user_can_gerenciar_escalas
     from whatsapp_share import (
+        clear_pdf_b64_cache,
         inject_share_pdf_whatsapp,
+        pdf_bytes_to_b64_cached,
         whatsapp_group_phone,
         whatsapp_share_url,
     )
@@ -512,28 +514,57 @@ def _render_lista_export_block(
         escala_row, programa_df, equipe_df, members_df, louvores_df
     )
     pdf_key = f"ml_seq_pdf_{escala_id}"
+    panel_key = f"ml_seq_pdf_panel_{escala_id}"
+    b64_key = f"ml_seq_pdf_b64_{escala_id}"
     phone = whatsapp_group_phone()
+    panel_open = bool(st.session_state.get(panel_key))
 
     with st.container(key="ml_seq_actions_footer"):
-        with st.container(key="ml_seq_btn_green"):
-            if st.button(
-                "📄 Exportar sequência (PDF)",
-                use_container_width=True,
-                key=f"ml_seq_gen_pdf_{escala_id}",
-            ):
-                try:
-                    pdf_b, pdf_n = generate_single_escala_pdf(
-                        escala_row, programa_df, equipe_df, members_df
-                    )
-                    st.session_state[pdf_key] = {"bytes": pdf_b, "name": pdf_n}
-                    st.success("PDF pronto! Toque em **Baixar PDF** abaixo.")
-                except Exception as exc:
-                    st.error(f"Não foi possível gerar o PDF: {exc}")
+        if not panel_open:
+            with st.container(key="ml_seq_btn_green"):
+                if st.button(
+                    "📄 Exportar sequência (PDF)",
+                    use_container_width=True,
+                    key=f"ml_seq_gen_pdf_{escala_id}",
+                ):
+                    try:
+                        pdf_b, pdf_n = generate_sequencia_culto_pdf(
+                            escala_row,
+                            programa_df,
+                            equipe_df,
+                            members_df,
+                            louvores_df,
+                        )
+                        st.session_state[pdf_key] = {"bytes": pdf_b, "name": pdf_n}
+                        st.session_state[panel_key] = True
+                        st.rerun()
+                    except Exception as exc:
+                        st.error(f"Não foi possível gerar o PDF: {exc}")
+            st.caption(
+                "Documento oficial com letras, marcações coloridas e reflexão bíblica por música."
+            )
+            return
 
         cached = st.session_state.get(pdf_key)
-        if cached:
-            pdf_b = cached["bytes"]
-            pdf_n = str(cached.get("name") or "escala.pdf")
+        if not cached:
+            st.session_state[panel_key] = False
+            return
+
+        pdf_b = cached["bytes"]
+        pdf_n = str(cached.get("name") or "sequencia.pdf")
+        b64 = pdf_bytes_to_b64_cached(pdf_b, b64_key)
+
+        st.success("PDF pronto! Baixe ou compartilhe — use **Voltar** para continuar na sequência.")
+        st.markdown(
+            f'<a href="data:application/pdf;base64,{b64}" target="_blank" rel="noopener" '
+            f'style="display:inline-block;width:100%;text-align:center;margin:0.35rem 0;padding:0.65rem 1rem;'
+            f'background:#7c3aed;color:#fff;border-radius:12px;text-decoration:none;font-weight:700;">'
+            f"📄 Abrir PDF em nova aba</a>",
+            unsafe_allow_html=True,
+        )
+
+        c_dl, c_back = st.columns(2, gap="small")
+        with c_dl:
             st.download_button(
                 "⬇️ Baixar PDF",
                 data=pdf_b,
@@ -542,17 +573,29 @@ def _render_lista_export_block(
                 use_container_width=True,
                 key=f"ml_seq_dl_{escala_id}",
             )
-            if len(pdf_b) <= 2_500_000:
-                inject_share_pdf_whatsapp(
-                    pdf_b,
-                    pdf_n,
-                    wa_msg[:300],
-                    element_id=f"ml_seq_wa_pdf_{escala_id}",
-                )
+        with c_back:
+            with st.container(key="ml_seq_pdf_back"):
+                if st.button(
+                    "← Voltar à sequência",
+                    use_container_width=True,
+                    key=f"ml_seq_pdf_close_{escala_id}",
+                ):
+                    st.session_state.pop(pdf_key, None)
+                    st.session_state[panel_key] = False
+                    clear_pdf_b64_cache(b64_key)
+                    st.rerun()
+
+        if len(pdf_b) <= 2_500_000:
+            inject_share_pdf_whatsapp(
+                pdf_b,
+                pdf_n,
+                wa_msg[:300],
+                element_id=f"ml_seq_wa_pdf_{escala_id}",
+            )
 
         with st.container(key="ml_seq_btn_wa"):
             st.link_button(
-                "💬 Enviar para WhatsApp",
+                "💬 Enviar texto no WhatsApp",
                 whatsapp_share_url(wa_msg, phone=phone),
                 use_container_width=True,
                 key=f"ml_seq_wa_link_{escala_id}",
@@ -563,7 +606,7 @@ def _render_lista_export_block(
                 "Vários cultos no mesmo PDF: **Gerenciar Escalas → PDF**."
             )
         else:
-            st.caption("Baixe o PDF ou abra o WhatsApp com a escala completa.")
+            st.caption("Após baixar no celular, use **Voltar à sequência** para retornar ao app.")
 
 
 def _render_lista(

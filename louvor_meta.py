@@ -381,6 +381,54 @@ Agradeça músicos e técnico de som. Ore entregando o culto ao Senhor.
 """
 
 
+def build_song_biblical_reflection(
+    *,
+    title: str,
+    artist: str = "",
+    evento: str = "",
+    culto_notes: str = "",
+    themes: list[str] | None = None,
+    refs: str = "",
+    lyrics: str = "",
+    parte: str = "",
+) -> str:
+    """Reflexão bíblica curta por louvor — baseada na letra e no tema do culto."""
+    themes = themes or []
+    tema_louvor = themes[0] if themes else "Adoração a Deus"
+    refs_use = str(refs or "").strip() or suggest_biblical_refs(themes, title)
+
+    tema_culto = str(evento or "").strip() or "este culto"
+    notes = str(culto_notes or "").strip()
+    if notes:
+        tema_culto = f"{tema_culto} ({notes[:140]})"
+
+    snippet = ""
+    for line in str(lyrics or "").splitlines():
+        ln = line.strip()
+        if len(ln) >= 10 and not ln.startswith("["):
+            snippet = ln[:120]
+            break
+
+    parte_txt = str(parte or "").strip() or "louvor"
+    intro = (
+        f"Em {tema_culto}, este {parte_txt} — *{title}*"
+        + (f" ({artist})" if artist else "")
+        + f" — reforça o tema de **{tema_louvor}**."
+    )
+    ref_line = f"**Palavra de apoio:** {refs_use}." if refs_use else ""
+    lyric_line = (
+        f'A letra nos conduz: "{snippet}…" — medite nesse sentido antes de conduzir a igreja.'
+        if snippet
+        else "Leia a letra completa abaixo e conecte cada verso ao tema do culto."
+    )
+    close = (
+        "Convide o povo a cantar com entendimento, ligando o texto do louvor "
+        "ao contexto bíblico do encontro — não apenas à melodia."
+    )
+    parts = [intro, ref_line, lyric_line, close]
+    return "\n\n".join(p for p in parts if p)
+
+
 def ensure_louvor_row_metadata(title: str, artist: str, temas_csv: str, ref_csv: str, dur_csv: str) -> dict:
     themes = themes_from_csv(temas_csv)
     if not themes:

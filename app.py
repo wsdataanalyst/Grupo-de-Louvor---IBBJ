@@ -5116,6 +5116,27 @@ def generate_single_escala_pdf(
     return pdf_bytes, fname or f"escala_{label}.pdf"
 
 
+def generate_sequencia_culto_pdf(
+    escala_row,
+    programa_df: pd.DataFrame,
+    equipe_df: pd.DataFrame,
+    members_df: pd.DataFrame,
+    louvores_df: pd.DataFrame | None = None,
+) -> tuple[bytes, str]:
+    """PDF oficial da sequência — letras marcadas e reflexões bíblicas."""
+    from sequencia_pdf import build_sequencia_culto_pdf, suggested_sequencia_filename
+
+    pdf_bytes = build_sequencia_culto_pdf(
+        escala_row,
+        programa_df,
+        equipe_df,
+        members_df,
+        louvores_df,
+    )
+    fname = suggested_sequencia_filename(escala_row)
+    return pdf_bytes, fname
+
+
 def render_escala_whatsapp_actions(
     message: str,
     *,
