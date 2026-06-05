@@ -158,13 +158,14 @@ def build_sequencia_culto_pdf(
     event = str(row.get("event", "Culto"))
     culto_notes = str(row.get("notes", "")).strip()
 
+    louvores_safe = louvores_df if louvores_df is not None else pd.DataFrame()
     hydrate_escala_sequencia_content(
-        escala_id, programa_df, louvores_df or pd.DataFrame(), use_web=False
+        escala_id, programa_df, louvores_safe, use_web=False
     )
     seq_df = load_programa_sequencia_df()
     prog = programa_por_escala(programa_df, escala_id)
-    if louvores_df is not None and not louvores_df.empty:
-        prog = enrich_programa_from_catalog(prog, louvores_df)
+    if louvores_safe is not None and not louvores_safe.empty:
+        prog = enrich_programa_from_catalog(prog, louvores_safe)
     if prog.empty:
         raise ValueError("Programacao vazia — monte a sequencia antes de gerar o PDF.")
 
@@ -242,12 +243,16 @@ def build_sequencia_culto_pdf(
 
         seq_row = get_sequencia_row(seq_df, pid)
         lyrics = str(seq_row.get("lyrics_text", "")).strip() or default_lyrics_from_louvor(
-            louvores_df, louvor, artist
+            louvores_safe, louvor, artist
         )
         tom_prog = str(seq_row.get("tom_programa", "") or tom).strip()
         capo = int(pd.to_numeric(seq_row.get("capo", 0), errors="coerce") or 0)
 
-        meta = lookup_louvor_meta(louvores_df, louvor, artist) if louvores_df is not None else {}
+        meta = (
+            lookup_louvor_meta(louvores_safe, louvor, artist)
+            if louvores_safe is not None and not louvores_safe.empty
+            else {}
+        )
         themes = themes_from_csv(str(meta.get("temas", "")))
         refs = str(meta.get("ref_biblica", "")).strip()
 
