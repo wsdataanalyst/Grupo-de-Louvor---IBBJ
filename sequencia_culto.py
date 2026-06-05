@@ -615,11 +615,14 @@ def autosave_sequencia_trabalho(
     trechos_b: list[dict],
     tom_programa: str,
     capo: int,
+    force: bool = False,
 ) -> tuple[pd.DataFrame, bool]:
     """
     Salva rascunho da sequência (letra, cifra, marcações) sem exigir botão manual.
     Evita perder marcações ao sair do app ou atualizar a página.
     """
+    import time
+
     import streamlit as st
 
     pid = str(programa_id)
@@ -627,11 +630,21 @@ def autosave_sequencia_trabalho(
         lyrics_text, cifra_text, trechos_v, trechos_b, tom_programa, capo
     )
     sig_key = f"seq_autosave_sig_{pid}"
+    debounce_key = f"seq_autosave_debounce_{pid}"
     try:
         if st.session_state.get(sig_key) == sig:
             return seq_df, False
     except Exception:
         pass
+
+    if not force:
+        try:
+            last_flush = float(st.session_state.get(debounce_key, 0) or 0)
+            if time.time() - last_flush < 1.4:
+                st.session_state[f"seq_autosave_pending_{pid}"] = sig
+                return seq_df, False
+        except Exception:
+            pass
 
     seq_df = upsert_sequencia_row(
         seq_df,
@@ -645,6 +658,8 @@ def autosave_sequencia_trabalho(
     )
     try:
         st.session_state[sig_key] = sig
+        st.session_state[debounce_key] = time.time()
+        st.session_state.pop(f"seq_autosave_pending_{pid}", None)
         st.session_state[f"seq_autosave_at_{pid}"] = datetime.now().strftime(
             "%Y-%m-%d %H:%M:%S"
         )

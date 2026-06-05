@@ -806,11 +806,38 @@ def _load_data_cached(file_path: Path, columns: tuple):
 def load_data(file_path: Path, columns: tuple):
     if file_path == MEMBERS_FILE:
         return load_members_df()
-    return _load_data_cached(file_path, columns)
+    try:
+        from app_data_loader import load_data_session_cached
+
+        return load_data_session_cached(
+            file_path,
+            columns,
+            loader=lambda p, c: _load_data_cached(p, c),
+        )
+    except Exception:
+        return _load_data_cached(file_path, columns)
 
 
-def clear_load_data_cache() -> None:
-    _load_data_cached.clear()
+def clear_load_data_cache(file_path: Path | None = None) -> None:
+    """Invalida cache global ou só de um CSV (Fase 3 — granular)."""
+    if file_path is None:
+        _load_data_cached.clear()
+        try:
+            from app_data_loader import invalidate_all_session_df_caches
+
+            invalidate_all_session_df_caches()
+        except Exception:
+            pass
+        return
+    try:
+        from app_data_loader import invalidate_session_df_cache
+
+        invalidate_session_df_cache(file_path.name)
+    except Exception:
+        pass
+    if file_path == MEMBERS_FILE:
+        st.session_state.pop("_members_df_cache", None)
+        st.session_state.pop("_members_rev", None)
 
 
 def save_data(
@@ -850,7 +877,7 @@ def save_data(
                     "Salvo localmente; falha ao enviar para Supabase. Veja secrets [persistence]."
                 )
 
-    clear_load_data_cache()
+    clear_load_data_cache(file_path)
     if file_path.name in ESCALA_LIVE_FILE_NAMES:
         try:
             refresh_escalas_bundle()
@@ -1333,6 +1360,7 @@ def chat_data_revision() -> str:
 
 def refresh_chat_live() -> pd.DataFrame:
     """Recarrega chat do disco/nuvem e atualiza cache da sessão."""
+    from chat_runtime import load_chat_df_live
     from remote_store import is_remote_enabled, pull_file_to_disk
 
     if is_remote_enabled():
@@ -1340,7 +1368,7 @@ def refresh_chat_live() -> pd.DataFrame:
             pull_file_to_disk(CHAT_FILE)
         except Exception:
             pass
-    chat_df = load_chat_df()
+    chat_df = load_chat_df_live(force=True)
     st.session_state["_chat_df_cache"] = chat_df
     st.session_state._chat_rev = chat_data_revision()
     update_chat_latest_ts(chat_df)
@@ -4296,9 +4324,10 @@ def show_login_page(members_df: pd.DataFrame):
 
 
 def load_chat_df() -> pd.DataFrame:
-    """Recarrega o chat do disco (evita DataFrame desatualizado na sessão)."""
-    clear_load_data_cache()
-    return prepare_chat(load_data(CHAT_FILE, CHAT_COLUMNS))
+    """Recarrega o chat sem invalidar cache global (Fase 3)."""
+    from chat_runtime import load_chat_df_live
+
+    return load_chat_df_live()
 
 
 ESCALA_LIVE_FILE_NAMES = frozenset(
@@ -4395,6 +4424,14 @@ def _escalas_global_sync():
     """Sincronização em tempo real: detecta mudanças na nuvem e atualiza a tela aberta."""
     if not st.session_state.get("authenticated"):
         return
+    try:
+        from app_data_loader import should_run_escalas_poll
+        from mobile_lab import is_mobile_lab_enabled
+
+        if not should_run_escalas_poll(mobile=is_mobile_lab_enabled()):
+            return
+    except Exception:
+        pass
 
     poll = int(st.session_state.get("_escalas_poll_count", 0)) + 1
     st.session_state._escalas_poll_count = poll
@@ -4440,6 +4477,14 @@ def _chat_global_sync():
     """Atualiza contagem de não lidas e badge do menu Chat em tempo quase real."""
     if not st.session_state.get("authenticated"):
         return
+    try:
+        from app_data_loader import should_run_chat_poll
+        from mobile_lab import is_mobile_lab_enabled
+
+        if not should_run_chat_poll(mobile=is_mobile_lab_enabled()):
+            return
+    except Exception:
+        pass
 
     poll = int(st.session_state.get("_chat_poll_count", 0)) + 1
     st.session_state._chat_poll_count = poll
@@ -7648,15 +7693,21 @@ def show_escala_completa_editor(
         escalas_df.loc[idx, "rehearsal_date"] = nova_data_ensaio.strftime("%Y-%m-%d")
         save_data(escalas_df, ESCALAS_FILE)
         st.success("Dados do culto atualizados.")
-        if st.session_state.get(ESCALA_MES_AVISO_KEY):
-            st.rerun()
         st.rerun()
 
     st.markdown("---")
     render_equipe_editor(escala_id, equipe_df, members_df, escalas_df, f"ed_{escala_id}")
 
     st.markdown("---")
-    if chat_ensaio_df is not None:
+    if not st.session_state.get(f"ed_ensaio_open_{escala_id}"):
+        if st.button(
+            "💬 Abrir chat do ensaio",
+            key=f"ed_ensaio_btn_{escala_id}",
+            use_container_width=True,
+        ):
+            st.session_state[f"ed_ensaio_open_{escala_id}"] = True
+            st.rerun()
+    elif chat_ensaio_df is not None:
         render_ensaio_chat(escala_id, chat_ensaio_df, members_df)
 
     st.markdown("---")
@@ -9891,10 +9942,17 @@ def _run_app() -> None:
         st.session_state.data_guard_initialized = True
 
     try:
-        members_df = load_members_df()
+        try:
+            from app_data_loader import load_members_cached
+
+            members_df = load_members_cached(load_members_df, members_file=MEMBERS_FILE)
+        except Exception:
+            members_df = load_members_df()
         members_df = ensure_developer_access(members_df)
         members_df = prepare_members(members_df)
-        ensure_local_profile_photos(members_df)
+        if not st.session_state.get("_photos_synced"):
+            ensure_local_profile_photos(members_df)
+            st.session_state._photos_synced = True
         members_df = sync_recognized_member_roles(members_df)
     except Exception as exc:
         st.session_state["_boot_error"] = str(exc)
@@ -9907,35 +9965,24 @@ def _run_app() -> None:
         show_login_page(members_df)
         return
 
-    chat_df = prepare_chat(load_data(CHAT_FILE, CHAT_COLUMNS))
-    escalas_df = prepare_escalas(load_data(ESCALAS_FILE, ESCALA_COLUMNS))
-    trocas_df = prepare_trocas(load_data(TROCAS_FILE, TROCA_COLUMNS))
-    programa_df = prepare_programa(load_data(PROGRAMA_FILE, PROGRAMA_COLUMNS))
-    equipe_df = prepare_equipe(load_data(EQUIPE_FILE, EQUIPE_COLUMNS))
-    playlist_df = prepare_playlist(load_data(PLAYLIST_FILE, PLAYLIST_COLUMNS))
-    feed_posts_df, feed_likes_df, feed_comments_df = load_feed_bundle()
-    louvores_df = prepare_louvores_with_meta(
-        load_data(
-            LOUVORES_FILE,
-            (
-                "title",
-                "artist",
-                "key",
-                "youtube_url",
-                "cifra_url",
-                "ritmo",
-                "letter",
-                "source",
-                *LOUVOR_EXTRA_COLUMNS,
-                *LOUVOR_SEQUENCIA_COLUMNS,
-            ),
-        )
-    )
-    louvores_df["title"] = louvores_df["title"].astype(str).apply(fix_louvor_display_title)
-    eventos_df = prepare_eventos(load_data(EVENTOS_FILE, EVENTO_COLUMNS))
-    sugestoes_df = prepare_sugestoes(load_data(SUGESTOES_FILE, SUGESTAO_COLUMNS))
-    st.session_state["_sugestoes_df_cache"] = sugestoes_df
-    chat_ensaio_df = prepare_chat_ensaio(load_data(CHAT_ENSAIO_FILE, CHAT_ENSAIO_COLUMNS))
+    from mobile_lab import is_mobile_lab_enabled
+    from app_data_loader import bootstrap_authenticated_data
+
+    _data = bootstrap_authenticated_data(mobile=is_mobile_lab_enabled())
+    chat_df = _data.chat_df
+    escalas_df = _data.escalas_df
+    trocas_df = _data.trocas_df
+    programa_df = _data.programa_df
+    equipe_df = _data.equipe_df
+    playlist_df = _data.playlist_df
+    feed_posts_df = _data.feed_posts_df
+    feed_likes_df = _data.feed_likes_df
+    feed_comments_df = _data.feed_comments_df
+    louvores_df = _data.louvores_df
+    eventos_df = _data.eventos_df
+    sugestoes_df = _data.sugestoes_df
+    chat_ensaio_df = _data.chat_ensaio_df
+    members_df = _data.members_df
 
     inject_mobile_app_shell()
     ensure_media_dirs()
@@ -9965,8 +10012,6 @@ def _run_app() -> None:
         st.session_state._device_auth_injected = True
 
     # Mobile Lab: modo app-style com navegação própria (somente quando ativado).
-    from mobile_lab import is_mobile_lab_enabled
-
     if is_mobile_lab_enabled():
         from mobile_lab_app import (
             mobile_lab_current_page,
@@ -9979,7 +10024,6 @@ def _run_app() -> None:
         inject_mobile_lab_app_shell()
         init_ml_navigation()
         sync_ml_can_gerenciar()
-        _chat_global_sync()
 
         email_hdr = str(st.session_state.get("user_email", "")).strip().lower()
         photo_hdr = profile_photo_to_data_uri(
@@ -10111,11 +10155,6 @@ def _run_app() -> None:
     from mobile_lab import render_mobile_lab_sidebar_toggle
 
     render_mobile_lab_sidebar_toggle()
-    if "_escalas_bundle" not in st.session_state:
-        try:
-            refresh_escalas_bundle()
-        except Exception:
-            pass
     menu = render_sidebar_navigation()
     chat_unread = int(st.session_state.get("chat_unread_count", 0))
     user_email = str(st.session_state.get("user_email", ""))
