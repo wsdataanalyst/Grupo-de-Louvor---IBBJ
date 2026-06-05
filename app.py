@@ -5426,9 +5426,16 @@ def render_culto_programa(
 
 def _feed_post_badge(post_type: str) -> str:
     badges = {
-        "louvor_aprovado": "🎵 Nova no repertório",
-        "evento": "📅 Evento",
-        "comunicado": "📢 Comunicado",
+        "avisos": "📢 Avisos",
+        "escalas": "📅 Escalas",
+        "ensaios": "🎤 Ensaios",
+        "devocionais": "📖 Devocionais",
+        "louvores": "🎵 Louvores",
+        "pedidos": "🙏 Pedidos",
+        "sugestoes": "💡 Sugestões",
+        "louvor_aprovado": "🎵 Louvores",
+        "evento": "📅 Escalas",
+        "comunicado": "📢 Avisos",
     }
     return badges.get(str(post_type).strip(), "📰 Novidade")
 
@@ -5666,20 +5673,22 @@ def _feed_row_matches_category(row: pd.Series, category: str) -> bool:
     if not cat or cat == "todas":
         return True
     pt = str(row.get("post_type", "")).strip().lower()
+    if pt == cat:
+        return True
+    if cat == "repertorio" and pt in ("louvores", "louvor_aprovado", "repertorio"):
+        return True
     blob = f"{row.get('title', '')} {row.get('body', '')}".lower()
     rules: dict[str, tuple[str, ...]] = {
-        "avisos": ("comunicado",),
-        "escalas": ("evento", "escala", "culto"),
-        "ensaios": ("ensaio", "rehearsal"),
-        "devocionais": ("devocional", "versículo", "versiculo", "palavra"),
-        "repertorio": ("repertório", "repertorio", "louvor", "música", "musica"),
-        "pedidos": ("oração", "oracao", "pedido"),
-        "sugestoes": ("sugestão", "sugestao",),
+        "avisos": ("comunicado", "aviso", "avisos"),
+        "escalas": ("evento", "escala", "escalas", "culto"),
+        "ensaios": ("ensaio", "rehearsal", "ensaios"),
+        "devocionais": ("devocional", "versículo", "versiculo", "palavra", "devocionais"),
+        "repertorio": ("repertório", "repertorio", "louvor", "música", "musica", "louvores"),
+        "pedidos": ("oração", "oracao", "pedido", "pedidos"),
+        "sugestoes": ("sugestão", "sugestao", "sugestoes"),
     }
     if cat in rules:
         keys = rules[cat]
-        if cat == "avisos":
-            return pt in keys or any(k in blob for k in keys)
         return pt in keys or any(k in blob for k in keys)
     return True
 

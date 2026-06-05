@@ -21,6 +21,16 @@ FEED_FILTERS: tuple[tuple[str, str, str], ...] = (
     ("sugestoes", "Sugestões", "💡"),
 )
 
+FEED_PUBLISH_CATEGORIES: tuple[tuple[str, str], ...] = (
+    ("avisos", "📢 Avisos"),
+    ("escalas", "📅 Escalas"),
+    ("ensaios", "🎤 Ensaios"),
+    ("devocionais", "📖 Devocionais"),
+    ("louvores", "🎵 Louvores"),
+    ("pedidos", "🙏 Pedidos"),
+    ("sugestoes", "💡 Sugestões"),
+)
+
 STORY_ITEMS: tuple[tuple[str, str, str], ...] = (
     ("criar", "Criar\npublicação", "➕"),
     ("avisos", "Avisos", "📢"),
@@ -53,15 +63,19 @@ def feed_category_matches(row: pd.Series, category: str) -> bool:
     if not cat or cat == "todas":
         return True
     pt = str(row.get("post_type", "")).strip().lower()
+    if pt == cat:
+        return True
+    if cat == "repertorio" and pt in ("louvores", "louvor_aprovado", "repertorio"):
+        return True
     blob = f"{row.get('title', '')} {row.get('body', '')}".lower()
     rules: dict[str, tuple[str, ...]] = {
-        "avisos": ("comunicado",),
-        "escalas": ("evento", "escala", "culto"),
-        "ensaios": ("ensaio", "rehearsal"),
-        "devocionais": ("devocional", "versículo", "versiculo", "palavra"),
-        "repertorio": ("repertório", "repertorio", "louvor", "música", "musica"),
-        "pedidos": ("oração", "oracao", "pedido"),
-        "sugestoes": ("sugestão", "sugestao"),
+        "avisos": ("comunicado", "aviso", "avisos"),
+        "escalas": ("evento", "escala", "escalas", "culto"),
+        "ensaios": ("ensaio", "rehearsal", "ensaios"),
+        "devocionais": ("devocional", "versículo", "versiculo", "palavra", "devocionais"),
+        "repertorio": ("repertório", "repertorio", "louvor", "música", "musica", "louvores"),
+        "pedidos": ("oração", "oracao", "pedido", "pedidos"),
+        "sugestoes": ("sugestão", "sugestao", "sugestoes"),
     }
     if cat in rules:
         keys = rules[cat]
@@ -357,17 +371,48 @@ def mobile_feed_css() -> str:
       font-size: 0.98rem !important;
       font-weight: 800 !important;
     }
-    body:has(#ml-feed-page) [class*="st-key-ig_feed_maint"] [data-testid="stExpander"],
+    body:has(#ml-feed-page) [class*="st-key-ml_feed_new_panel"]{
+      margin: 0 0 0.65rem !important;
+      padding: 0.85rem 0.9rem !important;
+      border-radius: 22px !important;
+      background: rgba(12,18,40,.88) !important;
+      border: 1px solid rgba(124,58,237,.22) !important;
+      box-shadow: 0 0 28px rgba(124,58,237,.12) !important;
+    }
+    body:has(#ml-feed-page) [class*="st-key-ml_feed_new_panel"] [data-testid="stForm"]{
+      border: none !important;
+      padding: 0 !important;
+    }
+    body:has(#ml-feed-page) [class*="st-key-ml_feed_new_panel"] .stSelectbox > div > div,
+    body:has(#ml-feed-page) [class*="st-key-ml_feed_new_panel"] .stTextInput > div > div > input,
+    body:has(#ml-feed-page) [class*="st-key-ml_feed_new_panel"] .stTextArea textarea{
+      border-radius: 14px !important;
+      background: rgba(15,23,42,.82) !important;
+      border: 1px solid rgba(255,255,255,.08) !important;
+      color: #e2e8f0 !important;
+    }
+    body:has(#ml-feed-page) [class*="st-key-ml_feed_new_panel"] [class*="ml_feed_new_submit"] .stButton > button[kind="primary"]{
+      border-radius: 16px !important;
+      font-weight: 800 !important;
+      background: linear-gradient(135deg,#7c3aed,#6d28d9) !important;
+      border: none !important;
+    }
+    body:has(#ml-feed-page) [class*="st-key-ml_feed_new_panel"] [class*="ml_feed_new_close"] .stButton > button{
+      width: 36px !important;
+      min-height: 36px !important;
+      padding: 0 !important;
+      border-radius: 12px !important;
+    }
     body:has(#ml-feed-page) [class*="st-key-ig_feed_new"] [data-testid="stExpander"]{
+      display: none !important;
+    }
+    body:has(#ml-feed-page) [class*="st-key-ml_feed_refresh"]{
+      display: none !important;
+    }
+    body:has(#ml-feed-page) [class*="st-key-ig_feed_maint"] [data-testid="stExpander"]{
       background: rgba(12,18,40,.78) !important;
       border: 1px solid rgba(255,255,255,.08) !important;
       border-radius: 20px !important;
-    }
-    body:has(#ml-feed-page) [class*="st-key-ml_feed_refresh"] .stButton > button{
-      border-radius: 18px !important;
-      font-weight: 700 !important;
-      background: rgba(124,58,237,.12) !important;
-      border: 1px solid rgba(124,58,237,.28) !important;
     }
     """
 
@@ -404,6 +449,72 @@ def render_feed_header(*, is_mgr: bool) -> str:
             label_visibility="collapsed",
         )
     return str(st.session_state.get("ml_feed_search", "")).strip()
+
+
+def _render_new_post_panel() -> None:
+    if not st.session_state.get("ml_feed_new_open"):
+        return
+    from app import (
+        DATA_DIR,
+        FEED_IMAGES_DIR,
+        append_feed_post,
+        save_feed_image_file,
+        show_form_error,
+    )
+
+    cat_keys = [k for k, _ in FEED_PUBLISH_CATEGORIES]
+    cat_labels = dict(FEED_PUBLISH_CATEGORIES)
+
+    with st.container(key="ml_feed_new_panel"):
+        top_l, top_r = st.columns([5, 1], gap="small")
+        with top_l:
+            st.markdown(
+                '<div style="font-size:1rem;font-weight:900;color:#f8fafc;">Nova publicação</div>',
+                unsafe_allow_html=True,
+            )
+        with top_r:
+            with st.container(key="ml_feed_new_close"):
+                if st.button("✕", key="ml_feed_new_close_btn"):
+                    st.session_state.ml_feed_new_open = False
+                    st.rerun()
+
+        with st.form(key="ml_feed_post_form"):
+            categoria = st.selectbox(
+                "Categoria",
+                cat_keys,
+                format_func=lambda x: cat_labels.get(x, x),
+            )
+            titulo = st.text_input("Título")
+            corpo = st.text_area("Mensagem")
+            yt = st.text_input("Link YouTube (opcional)")
+            img_url = st.text_input("URL da imagem (opcional)")
+            img_file = st.file_uploader(
+                "Ou envie uma imagem",
+                type=["jpg", "jpeg", "png", "webp"],
+                key="ml_feed_post_img_up",
+            )
+            with st.container(key="ml_feed_new_submit"):
+                pub = st.form_submit_button("Publicar no feed", type="primary")
+            if pub:
+                if not titulo.strip() or not corpo.strip():
+                    show_form_error("Informe título e mensagem.")
+                else:
+                    image_ref = img_url.strip()
+                    if img_file is not None:
+                        image_ref = save_feed_image_file(img_file, DATA_DIR, FEED_IMAGES_DIR)
+                    append_feed_post(
+                        post_type=categoria,
+                        title=titulo.strip(),
+                        body=corpo.strip(),
+                        youtube_url=yt.strip(),
+                        author_email=st.session_state.user_email,
+                        author_name=st.session_state.user_full_name
+                        or st.session_state.user_name,
+                        image_url=image_ref,
+                    )
+                    st.session_state.ml_feed_new_open = False
+                    st.success("Publicado no feed!")
+                    st.rerun()
 
 
 def render_filters() -> None:
@@ -567,16 +678,11 @@ def _render_mobile_feed_body(
 ) -> None:
     """Conteúdo interativo do feed mobile — não depende de show_feed_page(shell=...)."""
     from app import (
-        DATA_DIR,
-        FEED_IMAGES_DIR,
-        append_feed_post,
         is_scale_manager,
         load_feed_bundle,
         paginate_dataframe,
         purge_all_feed_data,
         render_feed_post_card,
-        save_feed_image_file,
-        show_form_error,
     )
 
     if is_scale_manager(st.session_state.user_roles):
@@ -589,45 +695,6 @@ def _render_mobile_feed_body(
                 n = purge_all_feed_data()
                 st.success(f"Feed limpo ({n} publicação(ões) removida(s)).")
                 st.rerun()
-
-    new_expanded = bool(st.session_state.pop("ml_feed_new_open", False))
-    with st.expander("Nova publicação", expanded=new_expanded, key="ig_feed_new"):
-        with st.form(key="feed_post_form"):
-            titulo = st.text_input("Título")
-            corpo = st.text_area("Mensagem")
-            tipo_opts = ["comunicado", "evento"]
-            tipo = st.selectbox(
-                "Tipo",
-                tipo_opts,
-                format_func=lambda x: "📢 Comunicado" if x == "comunicado" else "📅 Evento",
-            )
-            yt = st.text_input("Link YouTube (opcional)")
-            img_url = st.text_input("URL da imagem (opcional)")
-            img_file = st.file_uploader(
-                "Ou envie uma imagem",
-                type=["jpg", "jpeg", "png", "webp"],
-                key="feed_post_img_up",
-            )
-            pub = st.form_submit_button("Publicar no feed", type="primary")
-            if pub:
-                if not titulo.strip() or not corpo.strip():
-                    show_form_error("Informe título e mensagem.")
-                else:
-                    image_ref = img_url.strip()
-                    if img_file is not None:
-                        image_ref = save_feed_image_file(img_file, DATA_DIR, FEED_IMAGES_DIR)
-                    append_feed_post(
-                        post_type=tipo,
-                        title=titulo.strip(),
-                        body=corpo.strip(),
-                        youtube_url=yt.strip(),
-                        author_email=st.session_state.user_email,
-                        author_name=st.session_state.user_full_name
-                        or st.session_state.user_name,
-                        image_url=image_ref,
-                    )
-                    st.success("Publicado no feed!")
-                    st.rerun()
 
     live_posts, live_likes, live_comments = load_feed_bundle()
     df = _filter_posts_df(
@@ -656,6 +723,7 @@ def render_feed(
     is_mgr: bool,
 ) -> None:
     search = render_feed_header(is_mgr=is_mgr)
+    _render_new_post_panel()
     render_filters()
     render_story_bar()
     render_highlights(posts_df)
@@ -676,10 +744,6 @@ def render_feed(
             filtered = filtered[filtered.apply(lambda r: feed_category_matches(r, cat), axis=1)]
         if filtered.empty:
             render_empty_feed()
-
-    with st.container(key="ml_feed_refresh"):
-        if st.button("🔄 Atualizar feed", use_container_width=True):
-            st.rerun()
 
     _render_mobile_feed_body(
         posts_df,
