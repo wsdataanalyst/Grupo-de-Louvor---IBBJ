@@ -893,13 +893,7 @@ def inject_mobile_lab_app_shell() -> None:
 
 
 def inject_mobile_lab_theme() -> None:
-    if _STATIC_MOBILE_LAB_CSS_PATH.is_file():
-        st.markdown(
-            f'<link rel="stylesheet" href="{STATIC_MOBILE_LAB_THEME_HREF}">',
-            unsafe_allow_html=True,
-        )
-        return
-
+    """CSS inline (baseline layout) — cache 1×/sessão; não usar static parcial."""
     css_key = "_mobile_lab_css_blob"
     if css_key not in st.session_state:
         st.session_state[css_key] = mobile_lab_css()

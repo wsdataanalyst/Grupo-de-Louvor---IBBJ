@@ -1,0 +1,28 @@
+---
+description: Preservar layout mobile/desktop — baseline 8ffeb82
+alwaysApply: true
+---
+
+# Preservação de layout (Grupo de Louvor IBBJ)
+
+**Baseline visual:** `8ffeb82` — HTML/CSS do mobile lab (`ml-grid2`, `ml-glass`, bottom nav original).
+
+Fases 1–6 = **só performance**. Não redesenhar telas.
+
+## Proibido sem pedido explícito
+
+- CSS parcial por rota (`ibbj_base.css`, `static/pages/*.css`, `inject_ibbj_theme(route=...)`)
+- `inject_mobile_lab_theme()` via `static/mobile_lab_theme.css` (sempre inline `mobile_lab_css()`)
+- Trocar cards HTML do dashboard por botões Streamlit
+- `apply_mobile_lab_on_login()` para todos
+- Refatorar navegação/Feed junto com performance
+
+## Fases 1–6 permitidas
+
+- Lazy load, `app_data_loader`, fila Supabase, fragments de rerun
+- `static/ibbj_theme.css` completo (desktop)
+- Abas lazy Escalas / Gerenciar / Sugestões
+
+## Mudança pontual (ex.: Feed na nav)
+
+Uma alteração por vez, sem mexer em tema global nem HTML dos cards.
