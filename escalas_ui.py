@@ -7,14 +7,53 @@ import streamlit as st
 from ui_html import inject_ui_html
 
 # Rótulos das abas com ícones (Streamlit renderiza nativamente — evita CSS ::before quebrado)
-ESCALAS_TAB_LABELS = (
-    "👥  Minha equipe",
-    "📅  Todas minhas escalas",
-    "🎵  Sequência do Culto",
-    "🔄  Trocar escala",
-    "📬  Solicitações",
-    "💬  Chat do ensaio",
+ESCALAS_TAB_KEYS: tuple[tuple[str, str], ...] = (
+    ("equipe", "👥  Minha equipe"),
+    ("todas", "📅  Todas minhas escalas"),
+    ("sequencia", "🎵  Sequência do Culto"),
+    ("trocas", "🔄  Trocar escala"),
+    ("pedidos", "📬  Solicitações"),
+    ("ensaio", "💬  Chat do ensaio"),
 )
+
+ESCALAS_TAB_LABELS = tuple(label for _, label in ESCALAS_TAB_KEYS)
+
+_VALID_ESCALAS_TABS = frozenset(k for k, _ in ESCALAS_TAB_KEYS)
+
+
+def get_escalas_tab() -> str:
+    t = str(st.session_state.get("ig_escalas_tab", "equipe")).strip()
+    return t if t in _VALID_ESCALAS_TABS else "equipe"
+
+
+def set_escalas_tab(tab: str) -> None:
+    if tab in _VALID_ESCALAS_TABS:
+        st.session_state.ig_escalas_tab = tab
+        st.session_state.ml_escalas_tab = tab
+
+
+def apply_pending_escalas_tab() -> None:
+    """Atalhos de outras telas (ex.: abrir Sequência do Culto)."""
+    if st.session_state.pop("_open_sequencia_tab", False):
+        set_escalas_tab("sequencia")
+    pending = str(st.session_state.pop("ig_escalas_open_tab", "")).strip()
+    if pending in _VALID_ESCALAS_TABS:
+        set_escalas_tab(pending)
+
+
+def render_escalas_tab_bar(active: str) -> None:
+    """Abas lazy — só a aba ativa renderiza o corpo (Fase 1 performance)."""
+    cols = st.columns(len(ESCALAS_TAB_KEYS))
+    for col, (key, label) in zip(cols, ESCALAS_TAB_KEYS):
+        with col:
+            if st.button(
+                label,
+                key=f"ig_esc_tab_{key}",
+                use_container_width=True,
+                type="primary" if active == key else "secondary",
+            ):
+                set_escalas_tab(key)
+                st.rerun()
 
 
 def escalas_page_css() -> str:
@@ -147,6 +186,26 @@ def escalas_page_css() -> str:
         }
         [data-testid="stMain"]:has(.ig-escalas-page) [class*="st-key-ig_esc_go_gerenciar"] {
             margin-bottom: 0.5rem !important;
+        }
+        [data-testid="stMain"]:has(.ig-escalas-page) [class*="st-key-ig_esc_tab_"] .stButton > button {
+            margin: 0 !important;
+            padding: 0.45rem 0.35rem !important;
+            min-height: 2.35rem !important;
+            font-size: 0.72rem !important;
+            border-radius: 8px !important;
+            white-space: normal !important;
+            line-height: 1.25 !important;
+        }
+        [data-testid="stMain"]:has(.ig-escalas-page) [class*="st-key-ig_esc_tab_"] .stButton > button[kind="primary"] {
+            background: rgba(139, 92, 246, 0.28) !important;
+            border: 1px solid rgba(139, 92, 246, 0.45) !important;
+            color: #e9d5ff !important;
+            box-shadow: 0 0 16px rgba(139, 92, 246, 0.15) !important;
+        }
+        [data-testid="stMain"]:has(.ig-escalas-page) [class*="st-key-ig_esc_tab_"] .stButton > button[kind="secondary"] {
+            background: transparent !important;
+            border: 1px solid rgba(255, 255, 255, 0.08) !important;
+            color: #94a3b8 !important;
         }
         [data-testid="stMain"]:has(.ig-escalas-page) [class*="st-key-ig_esc_go_gerenciar"] .stButton > button {
             margin: 0 !important;

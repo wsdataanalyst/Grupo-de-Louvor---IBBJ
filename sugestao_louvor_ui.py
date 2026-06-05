@@ -18,6 +18,51 @@ SUGESTAO_TAB_LABELS = (
     "🔴  Recusadas",
 )
 
+SUGESTAO_GESTAO_TAB_KEYS: tuple[tuple[str, str], ...] = (
+    ("todas", SUGESTAO_TAB_LABELS[0]),
+    ("pendente", SUGESTAO_TAB_LABELS[1]),
+    ("em_analise", SUGESTAO_TAB_LABELS[2]),
+    ("aprovada", SUGESTAO_TAB_LABELS[3]),
+    ("recusada", SUGESTAO_TAB_LABELS[4]),
+)
+
+_VALID_SUGESTAO_GESTAO_TABS = frozenset(k for k, _ in SUGESTAO_GESTAO_TAB_KEYS)
+
+
+def get_sugestao_gestao_tab() -> str:
+    t = str(st.session_state.get("ig_sug_gestao_tab", "todas")).strip()
+    return t if t in _VALID_SUGESTAO_GESTAO_TABS else "todas"
+
+
+def set_sugestao_gestao_tab(tab: str) -> None:
+    if tab in _VALID_SUGESTAO_GESTAO_TABS:
+        st.session_state.ig_sug_gestao_tab = tab
+
+
+def sugestao_gestao_tab_filter(tab_key: str) -> str:
+    """Mapeia chave da aba para filtro de `_render_gestao_sugestoes_lideranca`."""
+    return {
+        "todas": "todas",
+        "pendente": "pendente",
+        "em_analise": "em_analise",
+        "aprovada": "aprovada",
+        "recusada": "recusada",
+    }.get(tab_key, "todas")
+
+
+def render_sugestao_gestao_tab_bar(active: str) -> None:
+    cols = st.columns(len(SUGESTAO_GESTAO_TAB_KEYS))
+    for col, (key, label) in zip(cols, SUGESTAO_GESTAO_TAB_KEYS):
+        with col:
+            if st.button(
+                label,
+                key=f"ig_sug_tab_{key}",
+                use_container_width=True,
+                type="primary" if active == key else "secondary",
+            ):
+                set_sugestao_gestao_tab(key)
+                st.rerun()
+
 STATUS_CSS = {
     "pendente": "ig-sug--pend",
     "em_analise": "ig-sug--analise",

@@ -7993,15 +7993,17 @@ def show_gerenciar_escalas(
     mobile_shell: bool = False,
 ):
     from gerenciar_escalas_ui import (
-        GERENCIAR_TAB_LABELS,
+        apply_pending_ger_tab,
         culto_ref_for_planner,
         cultos_esta_semana,
+        get_gerenciar_tab,
         render_gerenciar_header,
         render_gerenciar_kpis,
         render_gerenciar_nova_escala_button,
         render_gerenciar_page_close,
         render_gerenciar_page_open,
         render_gerenciar_sidebar,
+        render_gerenciar_tab_bar,
     )
 
     escalas_df, programa_df, equipe_df, _ = get_escalas_bundle()
@@ -8036,16 +8038,17 @@ def show_gerenciar_escalas(
 
     mobile_ger = mobile_shell or is_mobile_lab_enabled()
     if mobile_ger:
-        from mobile_gerenciar_escalas_ui import get_mobile_ger_tab
-
         pin_ml_page("Gerenciar Escalas")
-        gtab = get_mobile_ger_tab()
-        tab_montar = tab_sugestoes = tab_sequencia = tab_pdf = tab_whatsapp = None
+        if not mobile_shell:
+            from mobile_gerenciar_escalas_ui import render_mobile_gerenciar_tab_bar
+
+            apply_pending_ger_tab(mobile=True)
+            render_mobile_gerenciar_tab_bar()
+        gtab = get_gerenciar_tab(mobile=True)
     else:
-        gtab = ""
-        tab_montar, tab_sugestoes, tab_sequencia, tab_pdf, tab_whatsapp = st.tabs(
-            list(GERENCIAR_TAB_LABELS)
-        )
+        apply_pending_ger_tab(mobile=False)
+        render_gerenciar_tab_bar(mobile=False)
+        gtab = get_gerenciar_tab(mobile=False)
 
     def _body_montar() -> None:
         if not mobile_ger:
@@ -8133,26 +8136,14 @@ def show_gerenciar_escalas(
         )
         show_members_overview(members_df, louvores_df, escalas_df, equipe_df)
 
-    if mobile_ger:
-        bodies = {
-            "montar": _body_montar,
-            "sugestoes": _body_sugestoes,
-            "sequencia": _body_sequencia,
-            "pdf": _body_pdf,
-            "whatsapp": _body_whatsapp,
-        }
-        bodies.get(gtab, _body_montar)()
-    else:
-        with tab_montar:
-            _body_montar()
-        with tab_sugestoes:
-            _body_sugestoes()
-        with tab_sequencia:
-            _body_sequencia()
-        with tab_pdf:
-            _body_pdf()
-        with tab_whatsapp:
-            _body_whatsapp()
+    bodies = {
+        "montar": _body_montar,
+        "sugestoes": _body_sugestoes,
+        "sequencia": _body_sequencia,
+        "pdf": _body_pdf,
+        "whatsapp": _body_whatsapp,
+    }
+    bodies.get(gtab, _body_montar)()
 
     render_gerenciar_page_close()
 
@@ -8579,13 +8570,15 @@ def show_escalas_page(
     chat_ensaio_df: pd.DataFrame,
 ):
     from escalas_ui import (
-        ESCALAS_TAB_LABELS,
+        apply_pending_escalas_tab,
+        get_escalas_tab,
         render_escalas_gerenciar_button,
         render_escalas_header,
         render_escalas_info_banner,
         render_escalas_not_scheduled_warning,
         render_escalas_page_close,
         render_escalas_page_open,
+        render_escalas_tab_bar,
         render_escalas_tabs_spacer,
     )
 
@@ -8598,9 +8591,9 @@ def show_escalas_page(
         render_escalas_gerenciar_button()
     render_escalas_tabs_spacer()
 
-    tab_equipe, tab_todas, tab_sequencia, tab_trocar, tab_pedidos, tab_ensaio = st.tabs(
-        list(ESCALAS_TAB_LABELS)
-    )
+    apply_pending_escalas_tab()
+    active_tab = get_escalas_tab()
+    render_escalas_tab_bar(active_tab)
 
     member_map = members_options_escala(members_df)
     my_email = st.session_state.user_email.strip().lower()
@@ -8608,7 +8601,7 @@ def show_escalas_page(
 
     focus_id = st.session_state.pop("focus_escala_id", None)
 
-    with tab_equipe:
+    def _body_equipe() -> None:
         minhas = user_on_escala_semana(escalas_df, equipe_df, my_email, start, end)
         if focus_id:
             row_f = escalas_df[escalas_df["id"].astype(str) == str(focus_id)]
@@ -8640,7 +8633,7 @@ def show_escalas_page(
                 widget_key_prefix=f"eq_{eid_item}",
             )
 
-    with tab_todas:
+    def _body_todas() -> None:
         occ = member_escala_occurrences(my_email, escalas_df, equipe_df)
         if not occ:
             st.info("Você ainda não aparece em nenhuma escala registrada.")
@@ -8660,13 +8653,8 @@ def show_escalas_page(
                     widget_key_prefix=f"todas_{i}_{eid}",
                 )
 
-    with tab_sequencia:
-        pref = None
-        if st.session_state.get("_open_sequencia_tab"):
-            pref = st.session_state.pop("focus_sequencia_escala_id", None)
-            st.session_state.pop("_open_sequencia_tab", None)
-        if not pref:
-            pref = st.session_state.pop("focus_sequencia_escala_id", None)
+    def _body_sequencia() -> None:
+        pref = st.session_state.pop("focus_sequencia_escala_id", None)
         show_sequencia_culto_page(
             escalas_df,
             programa_df,
@@ -8676,7 +8664,7 @@ def show_escalas_page(
             escala_id_pref=pref,
         )
 
-    with tab_trocar:
+    def _body_trocar() -> None:
         st.write(
             "Divulgue para o grupo ou peça a um integrante específico. "
             "A escala atualiza após aceite ou quando alguém assumir."
@@ -8749,7 +8737,7 @@ def show_escalas_page(
                     )
                     st.rerun()
 
-    with tab_pedidos:
+    def _body_pedidos() -> None:
         _, rec, env = swap_alerts_for_user(
             trocas_df, my_email, escalas_df=escalas_df, equipe_df=equipe_df
         )
@@ -8812,7 +8800,7 @@ def show_escalas_page(
                 save_data(trocas_df, TROCAS_FILE)
                 st.rerun()
 
-    with tab_ensaio:
+    def _body_ensaio() -> None:
         minhas_ids = {
             str(item["escala"]["id"])
             for item in user_on_escala_semana(escalas_df, equipe_df, my_email, start, end)
@@ -8843,6 +8831,16 @@ def show_escalas_page(
                     "Fique atento(a)!"
                 )
             render_ensaio_chat(labels[escolha], chat_ensaio_df, members_df)
+
+    tab_bodies = {
+        "equipe": _body_equipe,
+        "todas": _body_todas,
+        "sequencia": _body_sequencia,
+        "trocas": _body_trocar,
+        "pedidos": _body_pedidos,
+        "ensaio": _body_ensaio,
+    }
+    tab_bodies.get(active_tab, _body_equipe)()
 
     render_escalas_page_close()
 
@@ -9830,25 +9828,23 @@ def show_sugestao_louvor(
                 _inject("</div>")
 
         if mgr:
+            from sugestao_louvor_ui import (
+                get_sugestao_gestao_tab,
+                render_sugestao_gestao_tab_bar,
+                sugestao_gestao_tab_filter,
+            )
+
             render_gestao_card_open()
-            tab_map = {
-                SUGESTAO_TAB_LABELS[0]: "todas",
-                SUGESTAO_TAB_LABELS[1]: SUGESTAO_STATUS_PENDENTE,
-                SUGESTAO_TAB_LABELS[2]: SUGESTAO_STATUS_EM_ANALISE,
-                SUGESTAO_TAB_LABELS[3]: SUGESTAO_STATUS_APROVADA,
-                SUGESTAO_TAB_LABELS[4]: SUGESTAO_STATUS_RECUSADA,
-            }
-            tabs = st.tabs(list(SUGESTAO_TAB_LABELS))
-            for tab, label in zip(tabs, SUGESTAO_TAB_LABELS):
-                with tab:
-                    tf = tab_map[label]
-                    _render_gestao_sugestoes_lideranca(
-                        sugestoes_df,
-                        louvores_df,
-                        premium=True,
-                        tab_filter=tf,
-                        key_prefix=f"gest_tab_{tf}",
-                    )
+            sug_tab = get_sugestao_gestao_tab()
+            render_sugestao_gestao_tab_bar(sug_tab)
+            tf = sugestao_gestao_tab_filter(sug_tab)
+            _render_gestao_sugestoes_lideranca(
+                sugestoes_df,
+                louvores_df,
+                premium=True,
+                tab_filter=tf,
+                key_prefix=f"gest_tab_{tf}",
+            )
             render_gestao_card_close()
 
         render_footer_banner()

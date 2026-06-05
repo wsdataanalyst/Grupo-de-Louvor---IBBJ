@@ -11,15 +11,79 @@ import streamlit as st
 
 from ui_html import inject_ui_html
 
-GERENCIAR_TAB_LABELS = (
-    "✨  Montar escala",
-    "💡  Sugestões",
-    "🎵  Sequência do Culto",
-    "📄  Exportar PDF",
-    "💬  WhatsApp integrantes",
+GERENCIAR_TAB_KEYS: tuple[tuple[str, str], ...] = (
+    ("montar", "✨  Montar escala"),
+    ("sugestoes", "💡  Sugestões"),
+    ("sequencia", "🎵  Sequência do Culto"),
+    ("pdf", "📄  Exportar PDF"),
+    ("whatsapp", "💬  WhatsApp integrantes"),
 )
 
+GERENCIAR_TAB_LABELS = tuple(label for _, label in GERENCIAR_TAB_KEYS)
+
+_VALID_GERENCIAR_TABS = frozenset(k for k, _ in GERENCIAR_TAB_KEYS)
+
 NOVA_ESCALA_LABEL = "➕ Nova escala"
+
+
+def _ger_tab_session_key(*, mobile: bool) -> str:
+    return "ml_ger_tab" if mobile else "ig_ger_tab"
+
+
+def get_gerenciar_tab(*, mobile: bool = False) -> str:
+    key = _ger_tab_session_key(mobile=mobile)
+    t = str(st.session_state.get(key, "montar")).strip()
+    return t if t in _VALID_GERENCIAR_TABS else "montar"
+
+
+def set_gerenciar_tab(tab: str, *, mobile: bool = False) -> None:
+    if tab not in _VALID_GERENCIAR_TABS:
+        return
+    st.session_state[_ger_tab_session_key(mobile=mobile)] = tab
+    st.session_state.ml_ger_tab = tab
+    st.session_state.ig_ger_tab = tab
+
+
+def apply_pending_ger_tab(*, mobile: bool = False) -> None:
+    """Atalhos (PDF, WhatsApp, Sequência) vindos de outras telas."""
+    if st.session_state.pop("_open_sequencia_tab", False):
+        set_gerenciar_tab("sequencia", mobile=mobile)
+    pending = str(st.session_state.pop("_ml_ger_open_tab", "")).strip().lower()
+    if pending in _VALID_GERENCIAR_TABS:
+        set_gerenciar_tab(pending, mobile=mobile)
+    pending_desk = str(st.session_state.pop("ig_ger_open_tab", "")).strip().lower()
+    if pending_desk in _VALID_GERENCIAR_TABS:
+        set_gerenciar_tab(pending_desk, mobile=mobile)
+
+
+def render_gerenciar_tab_bar(*, mobile: bool = False) -> str:
+    """Barra de abas lazy — desktop e mobile."""
+    active = get_gerenciar_tab(mobile=mobile)
+    short = (
+        ("montar", "✨\nMontar"),
+        ("sugestoes", "💡\nSugestões"),
+        ("sequencia", "🎵\nSequência"),
+        ("pdf", "📄\nPDF"),
+        ("whatsapp", "💬\nZap"),
+    ) if mobile else tuple((k, lbl) for k, lbl in GERENCIAR_TAB_KEYS)
+    cols = st.columns(len(short))
+    for col, (key, label) in zip(cols, short):
+        with col:
+            wrap_key = f"ml_ger_tab_{key}" if mobile else f"ig_ger_tab_{key}"
+            with st.container(key=wrap_key):
+                if st.button(
+                    label,
+                    key=f"{'ml' if mobile else 'ig'}_ger_tab_btn_{key}",
+                    use_container_width=True,
+                    type="primary" if active == key else "secondary",
+                ):
+                    set_gerenciar_tab(key, mobile=mobile)
+                    if mobile:
+                        from mobile_lab_nav import pin_ml_page
+
+                        pin_ml_page("Gerenciar Escalas")
+                    st.rerun()
+    return active
 
 
 def gerenciar_escalas_page_css() -> str:
@@ -189,6 +253,29 @@ def gerenciar_escalas_page_css() -> str:
         [data-testid="stMain"]:has(.ig-ger-page) div[data-testid="stTabs"] [data-baseweb="tab"]:hover {
             color: #e2e8f0 !important;
             background: rgba(37, 99, 235, 0.12) !important;
+        }
+        [data-testid="stMain"]:has(.ig-ger-page) [class*="st-key-ig_ger_tab_"] .stButton > button,
+        [data-testid="stMain"]:has(.ig-ger-page) [class*="st-key-ml_ger_tab_"] .stButton > button {
+            margin: 0 !important;
+            padding: 0.5rem 0.4rem !important;
+            min-height: 2.4rem !important;
+            font-size: 0.74rem !important;
+            border-radius: 10px !important;
+            white-space: normal !important;
+            line-height: 1.25 !important;
+        }
+        [data-testid="stMain"]:has(.ig-ger-page) [class*="st-key-ig_ger_tab_"] .stButton > button[kind="primary"],
+        [data-testid="stMain"]:has(.ig-ger-page) [class*="st-key-ml_ger_tab_"] .stButton > button[kind="primary"] {
+            background: rgba(139, 92, 246, 0.28) !important;
+            border: none !important;
+            color: #f8fafc !important;
+            box-shadow: 0 0 20px rgba(139, 92, 246, 0.2) !important;
+        }
+        [data-testid="stMain"]:has(.ig-ger-page) [class*="st-key-ig_ger_tab_"] .stButton > button[kind="secondary"],
+        [data-testid="stMain"]:has(.ig-ger-page) [class*="st-key-ml_ger_tab_"] .stButton > button[kind="secondary"] {
+            background: transparent !important;
+            border: 1px solid rgba(255, 255, 255, 0.08) !important;
+            color: #94a3b8 !important;
         }
         [data-testid="stMain"]:has(.ig-ger-page) div[data-testid="stTabs"] [data-baseweb="tab"][aria-selected="true"] {
             color: #f8fafc !important;

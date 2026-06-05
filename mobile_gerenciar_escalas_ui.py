@@ -7,7 +7,29 @@ import streamlit as st
 from mobile_lab_nav import pin_ml_page, user_can_gerenciar_escalas
 from mobile_lab_ui import inject_mobile_lab_theme
 
-GERENCIAR_TAB_KEYS = ("montar", "sugestoes", "sequencia", "pdf", "whatsapp")
+from gerenciar_escalas_ui import (
+    _VALID_GERENCIAR_TABS as GERENCIAR_TAB_KEYS,
+    apply_pending_ger_tab as _apply_pending_ger_tab,
+    get_gerenciar_tab,
+    render_gerenciar_tab_bar,
+    set_gerenciar_tab,
+)
+
+
+def get_mobile_ger_tab() -> str:
+    return get_gerenciar_tab(mobile=True)
+
+
+def set_mobile_ger_tab(tab: str) -> None:
+    set_gerenciar_tab(tab, mobile=True)
+
+
+def apply_pending_ger_tab() -> None:
+    _apply_pending_ger_tab(mobile=True)
+
+
+def render_mobile_gerenciar_tab_bar() -> str:
+    return render_gerenciar_tab_bar(mobile=True)
 
 
 def mobile_gerenciar_css() -> str:
@@ -115,51 +137,6 @@ def _render_mobile_header() -> None:
         """,
         unsafe_allow_html=True,
     )
-
-
-def get_mobile_ger_tab() -> str:
-    t = str(st.session_state.get("ml_ger_tab", "montar")).strip()
-    return t if t in GERENCIAR_TAB_KEYS else "montar"
-
-
-def set_mobile_ger_tab(tab: str) -> None:
-    if tab in GERENCIAR_TAB_KEYS:
-        st.session_state.ml_ger_tab = tab
-
-
-def apply_pending_ger_tab() -> None:
-    """Abre aba PDF/WhatsApp após atalho em outra tela."""
-    pending = str(st.session_state.pop("_ml_ger_open_tab", "")).strip().lower()
-    if pending in GERENCIAR_TAB_KEYS:
-        set_mobile_ger_tab(pending)
-
-
-def render_mobile_gerenciar_tab_bar() -> str:
-    """Barra de abas estilo app (substitui st.tabs no mobile)."""
-    from gerenciar_escalas_ui import GERENCIAR_TAB_LABELS
-
-    active = get_mobile_ger_tab()
-    short = [
-        ("montar", "✨\nMontar"),
-        ("sugestoes", "💡\nSugestões"),
-        ("sequencia", "🎵\nSequência"),
-        ("pdf", "📄\nPDF"),
-        ("whatsapp", "💬\nZap"),
-    ]
-    cols = st.columns(len(short))
-    for col, (key, label) in zip(cols, short):
-        with col:
-            with st.container(key=f"ml_ger_tab_{key}"):
-                if st.button(
-                    label,
-                    key=f"ml_ger_tab_btn_{key}",
-                    use_container_width=True,
-                    type="primary" if active == key else "secondary",
-                ):
-                    set_mobile_ger_tab(key)
-                    pin_ml_page("Gerenciar Escalas")
-                    st.rerun()
-    return active
 
 
 def render_mobile_gerenciar_escalas_page(
