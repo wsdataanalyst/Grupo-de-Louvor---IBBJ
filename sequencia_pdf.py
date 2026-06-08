@@ -119,7 +119,7 @@ def _draw_trecho_block(
     _draw_marcacao_line(pdf, marcacoes)
 
     pdf.set_font("Helvetica", "", 11)
-    pdf.set_text_color(235, 230, 245)
+    pdf.set_text_color(0, 0, 0)
     pdf.set_x(pdf.l_margin + 3)
     for line in str(para or "").splitlines():
         ln = line.strip()
@@ -295,7 +295,7 @@ def build_sequencia_culto_pdf(
 
         if not paragraphs:
             pdf.set_font("Helvetica", "I", 10)
-            pdf.set_text_color(140, 135, 160)
+            pdf.set_text_color(0, 0, 0)
             pdf.multi_cell(
                 page_w,
                 5,
@@ -307,7 +307,7 @@ def build_sequencia_culto_pdf(
             continue
 
         pdf.set_font("Helvetica", "B", 10)
-        pdf.set_text_color(226, 232, 240)
+        pdf.set_text_color(0, 0, 0)
         pdf.cell(page_w, 5, pdf_safe("Letra com marcacoes"), new_x="LMARGIN", new_y="NEXT")
         pdf.ln(1)
 
