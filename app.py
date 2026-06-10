@@ -5012,22 +5012,32 @@ def render_team_grid_html(
     escala_row,
     equipe_df: pd.DataFrame,
     members_df: pd.DataFrame,
+    *,
+    compact: bool = False,
 ) -> str:
     team = integrantes_escalados(escala_row, equipe_df, members_df)
     if not team:
         return ""
+    avatar_size = 40 if compact else 64
+    grid_class = "team-grid team-grid-compact" if compact else "team-grid"
     parts = []
     for p in team:
         email = str(p.get("email", "")).strip()
         nome = str(p.get("nome", ""))
-        foto = member_photo_html(email, members_df, 64, name=nome) if email else ""
+        foto = (
+            member_photo_html(email, members_df, avatar_size, name=nome)
+            if email
+            else ""
+        )
         funcao = normalize_funcao_escala(str(p.get("funcao", "Integrante")))
         parts.append(
             f'<div class="team-member-card">{foto}'
-            f'<p class="tm-name">{html.escape(nome)}</p>'
-            f'<p class="tm-role">{html.escape(funcao)}</p></div>'
+            f'<div class="tm-info">'
+            f'<span class="tm-name">{html.escape(nome)}</span>'
+            f'<span class="tm-role">{html.escape(funcao)}</span>'
+            f"</div></div>"
         )
-    return '<div class="team-grid">' + "".join(parts) + "</div>"
+    return f'<div class="{grid_class}">' + "".join(parts) + "</div>"
 
 
 def collect_escala_whatsapp_message(
@@ -5274,10 +5284,19 @@ def render_culto_programa(
         unsafe_allow_html=True,
     )
 
-    team_html = render_team_grid_html(escala_row, equipe_df, members_df)
+    from mobile_lab import is_mobile_lab_enabled
+
+    team_html = render_team_grid_html(
+        escala_row,
+        equipe_df,
+        members_df,
+        compact=not is_mobile_lab_enabled(),
+    )
     if team_html:
-        st.markdown("**👥 Equipe escalada**")
-        st.markdown(team_html, unsafe_allow_html=True)
+        st.markdown(
+            f'<p class="ig-equipe-title">👥 Equipe escalada</p>{team_html}',
+            unsafe_allow_html=True,
+        )
     else:
         st.caption("Equipe ainda em formação.")
 

@@ -74,6 +74,11 @@ def culto_programa_css() -> str:
       color: #f1f5f9 !important;
       word-break: break-word !important;
       width: 100% !important;
+      display: block !important;
+    }
+    .team-member-card .tm-info {
+      min-width: 0 !important;
+      flex: 1 1 auto !important;
     }
     .team-member-card .tm-role {
       margin: 0.22rem 0 0 !important;
@@ -83,6 +88,7 @@ def culto_programa_css() -> str:
       text-transform: uppercase !important;
       letter-spacing: 0.03em !important;
       line-height: 1.2 !important;
+      display: block !important;
     }
 
     .prog-card {

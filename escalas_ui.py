@@ -222,6 +222,55 @@ def escalas_page_css() -> str:
             border: 1px solid rgba(37, 99, 235, 0.4) !important;
             color: #93c5fd !important;
         }
+        /* Equipe escalada — layout compacto (somente web Escalas) */
+        [data-testid="stMain"]:has(.ig-escalas-page) .ig-equipe-title {
+            margin: 0.35rem 0 0.3rem !important;
+            font-size: 0.88rem !important;
+            font-weight: 700 !important;
+            color: #e2e8f0 !important;
+            line-height: 1.25 !important;
+        }
+        [data-testid="stMain"]:has(.ig-escalas-page) [data-testid="stMarkdownContainer"]:has(.team-grid-compact) {
+            margin-bottom: 0.35rem !important;
+        }
+        [data-testid="stMain"]:has(.ig-escalas-page) .team-grid-compact {
+            display: grid !important;
+            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)) !important;
+            gap: 0.35rem 0.55rem !important;
+            margin: 0 0 0.65rem !important;
+            width: 100% !important;
+        }
+        [data-testid="stMain"]:has(.ig-escalas-page) .team-grid-compact .team-member-card {
+            flex-direction: row !important;
+            align-items: center !important;
+            text-align: left !important;
+            gap: 0.5rem !important;
+            padding: 0.38rem 0.55rem !important;
+            border-radius: 12px !important;
+        }
+        [data-testid="stMain"]:has(.ig-escalas-page) .team-grid-compact .team-member-card img,
+        [data-testid="stMain"]:has(.ig-escalas-page) .team-grid-compact .team-member-card .member-avatar,
+        [data-testid="stMain"]:has(.ig-escalas-page) .team-grid-compact .team-member-card .member-avatar-ph {
+            width: 38px !important;
+            height: 38px !important;
+            min-width: 38px !important;
+            border-radius: 12px !important;
+            margin: 0 !important;
+            font-size: 0.95rem !important;
+        }
+        [data-testid="stMain"]:has(.ig-escalas-page) .team-grid-compact .tm-name {
+            font-size: 0.78rem !important;
+            line-height: 1.15 !important;
+        }
+        [data-testid="stMain"]:has(.ig-escalas-page) .team-grid-compact .tm-role {
+            margin: 0.08rem 0 0 !important;
+            font-size: 0.62rem !important;
+            line-height: 1.1 !important;
+        }
+        [data-testid="stMain"]:has(.ig-escalas-page) .culto-week-card {
+            margin-bottom: 0.45rem !important;
+            padding: 0.7rem 0.85rem !important;
+        }
     """
 
 
