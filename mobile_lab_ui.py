@@ -1054,7 +1054,7 @@ def _my_sugestoes_dashboard_stats(
     return n_month, n_aprov
 
 
-def _open_escala_in_app(*, escala_id: str, tab: str = "equipe") -> None:
+def _open_escala_in_app(*, escala_id: str, tab: str = "todas") -> None:
     from mobile_lab_nav import navigate_ml_page
 
     eid = str(escala_id or "").strip()
@@ -1237,7 +1237,7 @@ def render_mobile_lab_dashboard(
                         key="ml_dash_escala_app_btn",
                         use_container_width=True,
                     ):
-                        _open_escala_in_app(escala_id=eid, tab="equipe")
+                        _open_escala_in_app(escala_id=eid, tab="todas")
                         st.rerun()
             with hb2:
                 with st.container(key="ml_dash_escala_full"):

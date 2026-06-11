@@ -12,7 +12,6 @@ from mobile_lab_ui import inject_mobile_lab_theme
 
 
 ESCALAS_TABS: tuple[tuple[str, str, str], ...] = (
-    ("equipe", "👥", "Minha equipe"),
     ("todas", "📅", "Todas"),
     ("sequencia", "🎵", "Sequência"),
     ("trocas", "🔄", "Trocas e subs"),
@@ -24,12 +23,12 @@ def _esc(s: object) -> str:
 
 
 def _active_tab() -> str:
-    t = str(st.session_state.get("ml_escalas_tab", "equipe")).strip()
-    if t == "solicitacoes":
-        t = "trocas"
-        st.session_state.ml_escalas_tab = "trocas"
+    t = str(st.session_state.get("ml_escalas_tab", "todas")).strip()
+    if t in ("solicitacoes", "equipe"):
+        t = "trocas" if t == "solicitacoes" else "todas"
+        st.session_state.ml_escalas_tab = t
     keys = {k for k, _, _ in ESCALAS_TABS}
-    return t if t in keys else "equipe"
+    return t if t in keys else "todas"
 
 
 def _set_tab(tab: str) -> None:
@@ -589,7 +588,7 @@ def _render_tab_trocas(
     if minhas.empty:
         st.warning(
             "Não encontramos culto vinculado ao seu e-mail. "
-            "Confira se você está escalado em **Minha equipe**."
+            "Confira se você está escalado em **Todas**."
         )
         return
 
@@ -789,6 +788,8 @@ def render_mobile_escalas_page(
 
     active = _active_tab()
     _render_header()
+    _render_hero_hub()
+    _render_quick_access()
     _render_tabs(active)
 
     focus_id = str(st.session_state.get("ml_escalas_focus_id", "")).strip()
@@ -801,15 +802,7 @@ def render_mobile_escalas_page(
             ev = str(row.get("event", "Culto"))
             st.success(f"📅 **{ev}** · Culto em {dt_txt}")
 
-    if active == "equipe":
-        _render_tab_equipe(
-            minhas=minhas,
-            members_df=members_df,
-            equipe_df=equipe_df,
-            programa_df=programa_df,
-            louvores_df=louvores_df,
-        )
-    elif active == "todas":
+    if active == "todas":
         _render_tab_todas(
             my_email=my_email,
             escalas_df=escalas_df,
