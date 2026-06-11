@@ -57,9 +57,11 @@ def _esc(s: object) -> str:
 
 def _chat_view() -> str:
     if "ml_chat_view" not in st.session_state:
-        st.session_state.ml_chat_view = "list"
-    v = str(st.session_state.get("ml_chat_view", "list")).strip()
-    return v if v in _CHAT_VIEWS else "list"
+        st.session_state.ml_chat_view = "thread"
+    v = str(st.session_state.get("ml_chat_view", "thread")).strip()
+    if v == "list":
+        v = "thread"
+    return v if v in _CHAT_VIEWS else "thread"
 
 
 def _set_chat_view(view: str) -> None:
@@ -256,8 +258,10 @@ def _render_thread_view(members_df: pd.DataFrame) -> None:
         c_back, c_head, c_info = st.columns([0.55, 5, 0.55], gap="small")
         with c_back:
             with st.container(key="ml_chat_back"):
-                if st.button("←", key="ml_chat_back_btn", help="Conversas"):
-                    _set_chat_view("list")
+                if st.button("←", key="ml_chat_back_btn", help="Voltar"):
+                    from mobile_lab_nav import navigate_ml_page
+
+                    navigate_ml_page("Início")
                     st.rerun()
         with c_head:
             st.markdown(
@@ -347,7 +351,7 @@ def _render_stats_view(
     with c_back:
         with st.container(key="ml_chat_back"):
             if st.button("←", key="ml_chat_stats_back", help="Voltar"):
-                _set_chat_view("list")
+                _set_chat_view("thread")
                 st.rerun()
 
     today = datetime.now().date()
