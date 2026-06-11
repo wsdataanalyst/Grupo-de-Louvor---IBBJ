@@ -607,7 +607,7 @@ def _render_hub(
 
     c_search, c_sort = st.columns([3, 1])
     with c_search:
-        with st.container(key="ml_pl_search"):
+        with st.container(key="ml_pl_find_box"):
             st.text_input(
                 "Buscar playlist",
                 key="ml_pl_search",

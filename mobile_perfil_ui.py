@@ -62,16 +62,30 @@ def mobile_perfil_css() -> str:
       max-width: 900px !important;
     }
 
-    .ml-perf-header, .profile-header{
-      display: flex; gap: 20px; align-items: flex-start;
-      background: #071633; border-radius: 24px; padding: 20px;
+    .ml-perf-header-wrap{
+      position: relative;
       margin-bottom: 20px;
     }
+    .profile-header{
+      display: flex;
+      gap: 20px;
+      background: #071633;
+      padding: 20px 5.5rem 20px 20px;
+      border-radius: 24px;
+      margin-bottom: 0;
+      align-items: flex-start;
+    }
+    .profile-header img{
+      width: 90px;
+      height: 90px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 3px solid #6f4cff;
+    }
     .ml-perf-avatar-wrap{ position: relative; flex-shrink: 0; }
-    .ml-perf-header img, .profile-header img,
-    .ml-perf-avatar, .ml-perf-avatar-ph{
+    .ml-perf-avatar-ph{
       width: 90px; height: 90px; border-radius: 50%;
-      object-fit: cover; border: 3px solid #6f4cff;
+      border: 3px solid #6f4cff;
       display: flex; align-items: center; justify-content: center;
       font-size: 1.8rem; font-weight: 900; color: #e9d5ff;
       background: rgba(111,76,255,.18);
@@ -130,16 +144,24 @@ def mobile_perfil_css() -> str:
       color: #94a3b8; text-transform: uppercase; letter-spacing: 0.03em;
     }
 
-    .ml-perf-kit, .kitvoz-card{
+    .kitvoz-card{
       background: linear-gradient(90deg, #4026a7, #1f2b6f);
-      border-radius: 18px; padding: 18px;
-      margin-top: 15px; margin-bottom: 20px;
+      padding: 18px;
+      border-radius: 18px;
+      margin-top: 15px;
+      margin-bottom: 20px;
       font-weight: 600;
-      display: flex; align-items: center; gap: 0.65rem;
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      color: #fff;
     }
-    .ml-perf-kit small, .kitvoz-card small{
-      display: block; font-weight: 600; color: rgba(226,232,240,.9);
-      font-size: 0.82rem; margin-top: 0.2rem;
+    .kitvoz-card small{
+      display: block;
+      font-weight: 600;
+      font-size: 0.9rem;
+      margin-top: 0.15rem;
+      opacity: 0.92;
     }
 
     .ml-perf-level{
@@ -240,9 +262,40 @@ def mobile_perfil_css() -> str:
       color: #fca5a5 !important;
     }
     body:has(#ml-perfil-page) [class*="st-key-ml_perf_save"] .stButton > button[kind="primary"],
+    body:has(#ml-perfil-page) [class*="st-key-ml_perf_edit_hdr"]{
+      position: absolute !important;
+      top: 18px !important;
+      right: 14px !important;
+      z-index: 3 !important;
+      width: auto !important;
+      margin: 0 !important;
+      padding: 0 !important;
+    }
     body:has(#ml-perfil-page) [class*="st-key-ml_perf_edit_hdr"] .stButton > button{
       background: linear-gradient(135deg, #7c3aed, #5b21b6) !important;
       color: #fff !important; border: none !important;
+      min-height: 2.1rem !important;
+      padding: 0.35rem 0.85rem !important;
+      font-size: 0.72rem !important;
+      margin: 0 !important;
+      border-radius: 14px !important;
+    }
+    body:has(#ml-perfil-page) [class*="st-key-ml_perf_menu_wrap"] [class*="st-key-ml_perf_menu_"] .stButton > button{
+      border-radius: 0 !important;
+      margin-bottom: 0 !important;
+      border-bottom: none !important;
+      min-height: 3.45rem !important;
+      padding-top: 0.65rem !important;
+      padding-bottom: 0.65rem !important;
+      line-height: 1.25 !important;
+      white-space: pre-line !important;
+    }
+    body:has(#ml-perfil-page) [class*="st-key-ml_perf_menu_wrap"] [class*="st-key-ml_perf_menu_edit"] .stButton > button{
+      border-radius: 22px 22px 0 0 !important;
+    }
+    body:has(#ml-perfil-page) [class*="st-key-ml_perf_menu_wrap"] [class*="st-key-ml_perf_menu_help"] .stButton > button{
+      border-radius: 0 0 22px 22px !important;
+      border-bottom: 1px solid rgba(255,255,255,.06) !important;
     }
     body:has(#ml-perfil-page) .stTextInput > div > div > input,
     body:has(#ml-perfil-page) .stTextArea textarea,
@@ -364,9 +417,7 @@ def _render_profile_header(
     badge, badge_cls = _badge_for_roles(leadership)
     initial = (name.strip()[:1] or "?").upper()
     if photo_uri:
-        av = (
-            f'<img class="ml-perf-avatar" src="{_esc(photo_uri)}" alt="" />'
-        )
+        av = f'<img src="{_esc(photo_uri)}" alt="" />'
     else:
         av = f'<div class="ml-perf-avatar-ph">{_esc(initial)}</div>'
 
@@ -377,17 +428,10 @@ def _render_profile_header(
         roles_html += f'<div class="ml-perf-roles">{_esc(lead_txt)}</div>'
     roles_html += f'<div class="ml-perf-roles">{_esc(mus_txt)}</div>'
 
-    edit_btn = ""
-    if show_edit:
-        edit_btn = """
-        <div style="flex-shrink:0;">
-          <!-- botão Streamlit abaixo -->
-        </div>
-        """
-
+    st.markdown('<div class="ml-perf-header-wrap">', unsafe_allow_html=True)
     st.markdown(
         f"""
-        <div class="ml-perf-header profile-header">
+        <div class="profile-header">
           <div class="ml-perf-avatar-wrap">
             {av}
             <div class="ml-perf-cam">📷</div>
@@ -403,18 +447,16 @@ def _render_profile_header(
             <p class="ml-perf-email">✉ {_esc(email)}</p>
             {roles_html}
           </div>
-          {edit_btn}
         </div>
         """,
         unsafe_allow_html=True,
     )
     if show_edit:
-        c1, c2 = st.columns([3, 1])
-        with c2:
-            with st.container(key="ml_perf_edit_hdr"):
-                if st.button("Editar", key="ml_perf_edit_open", use_container_width=True):
-                    _set_view("edit")
-                    st.rerun()
+        with st.container(key="ml_perf_edit_hdr"):
+            if st.button("Editar", key="ml_perf_edit_open", use_container_width=True):
+                _set_view("edit")
+                st.rerun()
+    st.markdown("</div>", unsafe_allow_html=True)
 
 
 def _render_stats_grid(stats: dict[str, object]) -> None:
@@ -445,10 +487,10 @@ def _render_kit_voz(roles: str, bio: str) -> None:
     st.markdown(
         f"""
         <a href="{_esc(url)}" target="_blank" rel="noopener noreferrer" style="text-decoration:none;color:inherit;">
-          <div class="ml-perf-kit kitvoz-card">
+          <div class="kitvoz-card">
             <span style="font-size:1.35rem;">🎤</span>
             <div>
-              Kit Voz configurado
+              Kit Voz Configurado
               <small>{_esc(nipe)}</small>
             </div>
           </div>
@@ -510,16 +552,18 @@ def _render_activities(activities: list[dict]) -> None:
 
 def _render_account_menu() -> None:
     st.markdown('<div class="ml-perf-section"><span>Minha conta</span></div>', unsafe_allow_html=True)
-    for key, ico, title, sub in ACCOUNT_MENU:
-        with st.container(key=f"ml_perf_menu_{key}"):
-            if st.button(
-                f"{ico}  {title}",
-                key=f"ml_perf_menu_btn_{key}",
-                help=sub,
-                use_container_width=True,
-            ):
-                _set_view(key)
-                st.rerun()
+    st.markdown('<div class="ml-perf-menu">', unsafe_allow_html=True)
+    with st.container(key="ml_perf_menu_wrap"):
+        for key, ico, title, sub in ACCOUNT_MENU:
+            with st.container(key=f"ml_perf_menu_{key}"):
+                if st.button(
+                    f"{ico}  {title}\n{sub}",
+                    key=f"ml_perf_menu_btn_{key}",
+                    use_container_width=True,
+                ):
+                    _set_view(key)
+                    st.rerun()
+    st.markdown("</div>", unsafe_allow_html=True)
 
 
 def _render_logout() -> None:
