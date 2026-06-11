@@ -24,6 +24,22 @@ GERENCIAR_TAB_LABELS = tuple(label for _, label in GERENCIAR_TAB_KEYS)
 _VALID_GERENCIAR_TABS = frozenset(k for k, _ in GERENCIAR_TAB_KEYS)
 
 NOVA_ESCALA_LABEL = "➕ Nova escala"
+_PENDING_EDITOR_ESCALA_SEL = "_pending_editor_escala_sel"
+
+
+def request_editor_escala_selection(value: str | None) -> None:
+    """Agenda troca do selectbox — aplicar antes de instanciar o widget."""
+    st.session_state[_PENDING_EDITOR_ESCALA_SEL] = value
+
+
+def apply_pending_editor_escala_selection(escala_labels: list[str]) -> None:
+    if _PENDING_EDITOR_ESCALA_SEL not in st.session_state:
+        return
+    pending = st.session_state.pop(_PENDING_EDITOR_ESCALA_SEL)
+    if pending is not None and pending in escala_labels:
+        st.session_state["editor_escala_sel"] = pending
+    elif escala_labels:
+        st.session_state["editor_escala_sel"] = escala_labels[0]
 
 
 def _ger_tab_session_key(*, mobile: bool) -> str:
@@ -610,7 +626,7 @@ def render_gerenciar_kpis(
 
 
 def trigger_nova_escala() -> None:
-    st.session_state["editor_escala_sel"] = NOVA_ESCALA_LABEL
+    request_editor_escala_selection(NOVA_ESCALA_LABEL)
     try:
         from mobile_lab import is_mobile_lab_enabled
 

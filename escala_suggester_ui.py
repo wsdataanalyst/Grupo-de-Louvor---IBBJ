@@ -181,7 +181,9 @@ def render_escala_suggestions_panel(
                     save_data(programa_df, PROGRAMA_FILE)
                     hydrate_escala_sequencia_content(escala_id, programa_df, louvores_df)
 
-            st.session_state["editor_escala_sel"] = None
+            from gerenciar_escalas_ui import request_editor_escala_selection
+
+            request_editor_escala_selection(None)
             try:
                 from mobile_lab import is_mobile_lab_enabled
 

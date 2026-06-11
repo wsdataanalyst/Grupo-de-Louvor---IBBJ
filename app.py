@@ -7515,12 +7515,14 @@ def show_escala_completa_editor(
     escala_labels = [NOVA_ESCALA] + [escala_label(r) for _, r in todas.iterrows()]
     if premium_layout:
         from gerenciar_escalas_ui import (
+            apply_pending_editor_escala_selection,
             render_gerenciar_culto_section_open,
             render_gerenciar_form_card_close,
             render_gerenciar_nova_escala_outline,
         )
 
         render_gerenciar_culto_section_open()
+        apply_pending_editor_escala_selection(escala_labels)
         if is_mobile_lab_enabled():
             escolha = st.selectbox(
                 "Selecione o culto ou crie uma nova escala",
@@ -7548,6 +7550,9 @@ def show_escala_completa_editor(
             "<h3>Culto / escala</h3></div>",
             unsafe_allow_html=True,
         )
+        from gerenciar_escalas_ui import apply_pending_editor_escala_selection
+
+        apply_pending_editor_escala_selection(escala_labels)
         escolha = st.selectbox(
             "Selecione o culto ou crie uma nova escala",
             escala_labels,
