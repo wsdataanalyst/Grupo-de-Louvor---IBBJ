@@ -20,169 +20,12 @@ from ui_html import inject_page_script, inject_ui_html
 
 _WA_GROUP_AVATAR = "🎵"
 
-_WA_MOBILE_SURFACES = (
-    'body:has([class*="st-key-ml_chat_screen"]), body:has(#ml-ensaio-chat-active)'
-)
-_ML_CHAT_BODY = 'body:has([class*="st-key-ml_chat_screen"])'
-
-
-def wa_mobile_shared_surface_css() -> str:
-    """Compositor, header da thread e barra WA — chat geral e ensaio."""
-    s = _WA_MOBILE_SURFACES
-    return f"""
-    {_ML_CHAT_BODY} [class*="st-key-ml_chat_composer"],
-    body:has(#ml-ensaio-chat-active) [class*="st-key-ml_ensaio_composer"] {{
-      position: fixed !important;
-      left: 0 !important;
-      right: 0 !important;
-      transform: none !important;
-      width: 100% !important;
-      max-width: 100% !important;
-      bottom: calc(var(--ml-nav-height) + var(--ml-verse-height) + var(--ml-nav-offset)) !important;
-      z-index: 2147483650 !important;
-      margin: 0 !important;
-      padding: 0.25rem 0.4rem 0.35rem !important;
-      box-sizing: border-box !important;
-      background: var(--wa-compose) !important;
-      border: none !important;
-      border-top: 1px solid rgba(255,255,255,.08) !important;
-      border-radius: 0 !important;
-      box-shadow: none !important;
-      max-height: 42vh !important;
-      overflow-y: auto !important;
-      -webkit-overflow-scrolling: touch;
-    }}
-    {s} [class*="st-key-ml_chat_compose_main"] [data-testid="stHorizontalBlock"] {{
-      display: flex !important;
-      flex-direction: row !important;
-      flex-wrap: nowrap !important;
-      align-items: flex-end !important;
-      gap: 0.25rem !important;
-      width: 100% !important;
-    }}
-    {s} [class*="st-key-ml_chat_compose_main"] [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:nth-child(1),
-    {s} [class*="st-key-ml_chat_compose_main"] [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:nth-child(2),
-    {s} [class*="st-key-ml_chat_compose_main"] [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:nth-child(4) {{
-      flex: 0 0 2.45rem !important;
-      width: 2.45rem !important;
-      max-width: 2.45rem !important;
-      min-width: 2.45rem !important;
-    }}
-    {s} [class*="st-key-ml_chat_compose_main"] [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:nth-child(3) {{
-      flex: 1 1 auto !important;
-      width: auto !important;
-      max-width: none !important;
-      min-width: 0 !important;
-    }}
-    {s} [class*="st-key-ml_chat_attach_sheet"] [data-testid="stHorizontalBlock"],
-    {s} [class*="st-key-ml_chat_emoji_strip"] [data-testid="stHorizontalBlock"] {{
-      display: flex !important;
-      flex-direction: row !important;
-      flex-wrap: nowrap !important;
-      gap: 0.2rem !important;
-      width: 100% !important;
-      margin-bottom: 0.2rem !important;
-    }}
-    {s} [class*="st-key-ml_chat_attach_sheet"] [data-testid="stColumn"],
-    {s} [class*="st-key-ml_chat_emoji_strip"] [data-testid="stColumn"] {{
-      flex: 1 1 0 !important;
-      min-width: 0 !important;
-      max-width: 2.6rem !important;
-    }}
-    {s} [class*="st-key-ml_chat_attach_panel"] {{
-      max-height: 26vh !important;
-      overflow-y: auto !important;
-      margin-bottom: 0.3rem !important;
-      padding: 0.25rem !important;
-      background: rgba(0,0,0,.22) !important;
-      border-radius: 10px !important;
-      -webkit-overflow-scrolling: touch;
-    }}
-    {s} [class*="st-key-ml_chat_attach_panel"] [data-testid="stFileUploader"] section {{
-      padding: 0.35rem !important;
-      min-height: 0 !important;
-    }}
-    {s} [class*="st-key-ml_chat_attach_panel"] [data-testid="stFileUploader"] small,
-    {s} [class*="st-key-ml_chat_attach_panel"] [data-testid="stCameraInput"] small {{
-      display: none !important;
-    }}
-    {_ML_CHAT_BODY} [class*="st-key-ml_chat_composer"] [data-testid="stPopover"],
-    body:has(#ml-ensaio-chat-active) [class*="st-key-ml_ensaio_composer"] [data-testid="stPopover"],
-    {_ML_CHAT_BODY} [class*="st-key-ml_chat_composer"] [data-baseweb="popover"],
-    body:has(#ml-ensaio-chat-active) [class*="st-key-ml_ensaio_composer"] [data-baseweb="popover"] {{
-      display: none !important;
-    }}
-    {s} .wa-compose-bar [data-testid="stChatInput"] {{
-      background: #2a3942 !important;
-      border: none !important;
-      border-radius: 24px !important;
-      flex: 1;
-      min-height: 0 !important;
-    }}
-    {s} .wa-compose-bar [data-testid="stChatInput"] textarea {{
-      color: var(--wa-text) !important;
-      font-size: 0.9rem !important;
-      min-height: 2.25rem !important;
-      max-height: 4.5rem !important;
-      padding: 0.45rem 0.75rem !important;
-    }}
-    {s} .wa-compose-bar .stButton > button {{
-      min-height: 2.35rem !important;
-      max-height: 2.35rem !important;
-      min-width: 2.35rem !important;
-      max-width: 2.35rem !important;
-      padding: 0 !important;
-      border-radius: 50% !important;
-      background: transparent !important;
-      border: none !important;
-      color: var(--wa-meta) !important;
-      font-size: 1.15rem !important;
-      line-height: 1 !important;
-    }}
-    {_ML_CHAT_BODY} [class*="st-key-ml_chat_back"] .stButton > button,
-    body:has(#ml-ensaio-chat-active) [class*="st-key-ml_ensaio_back"] .stButton > button,
-    body:has(#ml-ensaio-chat-active) [class*="st-key-ml_ensaio_info_btn"] .stButton > button {{
-      background: transparent !important;
-      border: none !important;
-      color: var(--wa-accent) !important;
-      font-size: 1.35rem !important;
-      min-height: 2.5rem !important;
-      padding: 0 0.35rem !important;
-    }}
-    {_ML_CHAT_BODY} [class*="st-key-ml_chat_thread_top"] [data-testid="stHorizontalBlock"],
-    body:has(#ml-ensaio-chat-active) [class*="st-key-ml_ensaio_thread_top"] [data-testid="stHorizontalBlock"] {{
-      display: flex !important;
-      flex-direction: row !important;
-      flex-wrap: nowrap !important;
-      align-items: center !important;
-      gap: 0 !important;
-      margin: 0 !important;
-    }}
-    {_ML_CHAT_BODY} [class*="st-key-ml_chat_thread_top"] [data-testid="stColumn"]:nth-child(1),
-    {_ML_CHAT_BODY} [class*="st-key-ml_chat_thread_top"] [data-testid="stColumn"]:nth-child(3),
-    body:has(#ml-ensaio-chat-active) [class*="st-key-ml_ensaio_thread_top"] [data-testid="stColumn"]:nth-child(1),
-    body:has(#ml-ensaio-chat-active) [class*="st-key-ml_ensaio_thread_top"] [data-testid="stColumn"]:nth-child(3) {{
-      flex: 0 0 2.5rem !important;
-      width: 2.5rem !important;
-      max-width: 2.5rem !important;
-      min-width: 2.5rem !important;
-    }}
-    {_ML_CHAT_BODY} [class*="st-key-ml_chat_thread_top"] [data-testid="stColumn"]:nth-child(2),
-    body:has(#ml-ensaio-chat-active) [class*="st-key-ml_ensaio_thread_top"] [data-testid="stColumn"]:nth-child(2) {{
-      flex: 1 1 auto !important;
-      width: auto !important;
-      min-width: 0 !important;
-      max-width: none !important;
-    }}
-    """
-
 
 def wa_mobile_chat_css() -> str:
-    b = _ML_CHAT_BODY
     return (
         notification_badge_css()
-        + f"""
-    :root {{
+        + """
+    :root {
       --wa-bg: #0b141a;
       --wa-header: #202c33;
       --wa-compose: #202c33;
@@ -194,64 +37,85 @@ def wa_mobile_chat_css() -> str:
       --wa-meta: #8696a0;
       --wa-accent: #00a884;
       --wa-unread: #25d366;
-    }}
-    {b} [data-testid="stAppViewContainer"],
-    {b} [data-testid="stMain"] {{
-      background: var(--wa-bg, #0b141a) !important;
-    }}
-    {b} [data-testid="stAppViewContainer"] .main .block-container {{
+    }
+    body:has(#ml-chat-page) [data-testid="stAppViewContainer"] .main .block-container {
       padding-top: 0 !important;
       padding-left: 0 !important;
       padding-right: 0 !important;
       padding-bottom: 0 !important;
       max-width: 100% !important;
-    }}
-    {b} [data-testid="stMain"] > div {{
+    }
+    body:has(#ml-chat-page) [data-testid="stMain"] > div {
       padding-top: 0 !important;
-    }}
-    {b} #chat-scroll-box.wa-chat-feed {{
-      position: relative !important;
-      top: auto !important;
-      left: auto !important;
-      right: auto !important;
-      bottom: auto !important;
+    }
+    #ml-chat-page.wa-chat-thread-shell {
+      display: none !important;
+      height: 0 !important;
+      min-height: 0 !important;
+      margin: 0 !important;
+      padding: 0 !important;
+    }
+    body:has(#ml-chat-page) #chat-scroll-box.wa-chat-feed {
+      position: fixed !important;
+      top: calc(var(--ml-thread-header) + env(safe-area-inset-top, 0px)) !important;
+      left: 0 !important;
+      right: 0 !important;
+      bottom: calc(
+        var(--ml-nav-height) + var(--ml-verse-height) + var(--ml-nav-offset)
+        + var(--ml-compose-clearance, 5.75rem)
+      ) !important;
       width: 100% !important;
       max-width: 100% !important;
-      min-height: 38vh !important;
-      max-height: 52vh !important;
+      min-height: 0 !important;
+      max-height: none !important;
       height: auto !important;
-      overflow-y: auto !important;
-      -webkit-overflow-scrolling: touch;
-      z-index: 1 !important;
+      z-index: 50 !important;
       background: var(--wa-bg) !important;
       background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.02'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E") !important;
-      margin: 0.25rem 0 0.35rem !important;
-      border-radius: 0 !important;
-    }}
-    {b} [class*="st-key-ml_chat_thread_top"] {{
-      position: relative !important;
-      top: auto !important;
-      left: auto !important;
-      right: auto !important;
-      z-index: 2 !important;
+    }
+    body:has(#ml-chat-page) [class*="st-key-ml_chat_thread_top"] {
+      position: fixed !important;
+      top: env(safe-area-inset-top, 0px) !important;
+      left: 0 !important;
+      right: 0 !important;
+      z-index: 120 !important;
       background: var(--wa-header) !important;
       border-bottom: 1px solid rgba(255,255,255,.08) !important;
       padding: 0.15rem 0.25rem 0.1rem !important;
-      margin: 0 0 0.15rem !important;
-    }}
-    {b} [class*="st-key-ml_chat_feed_wrap"] {{
+      margin: 0 !important;
+    }
+    body:has(#ml-chat-page) [class*="st-key-ml_chat_thread_top"] [data-testid="stHorizontalBlock"] {
+      display: flex !important;
+      flex-direction: row !important;
+      flex-wrap: nowrap !important;
+      align-items: center !important;
+      gap: 0 !important;
+      margin: 0 !important;
+    }
+    body:has(#ml-chat-page) [class*="st-key-ml_chat_thread_top"] [data-testid="stColumn"]:nth-child(1),
+    body:has(#ml-chat-page) [class*="st-key-ml_chat_thread_top"] [data-testid="stColumn"]:nth-child(3) {
+      flex: 0 0 2.5rem !important;
+      width: 2.5rem !important;
+      max-width: 2.5rem !important;
+      min-width: 2.5rem !important;
+    }
+    body:has(#ml-chat-page) [class*="st-key-ml_chat_thread_top"] [data-testid="stColumn"]:nth-child(2) {
+      flex: 1 1 auto !important;
+      width: auto !important;
+      min-width: 0 !important;
+      max-width: none !important;
+    }
+    body:has(#ml-chat-page) [class*="st-key-ml_chat_feed_wrap"] {
+      height: 0 !important;
       min-height: 0 !important;
       margin: 0 !important;
       padding: 0 !important;
       overflow: visible !important;
-      border: none !important;
-    }}
-    {b} [class*="st-key-ml_chat_feed_wrap"] .ml-chat-feed-area {{
+    }
+    body:has(#ml-chat-page) [class*="st-key-ml_chat_feed_wrap"] .ml-chat-feed-area {
       margin: 0 !important;
       padding: 0 !important;
-    }}
-    """
-        + """
+    }
     .wa-chat-list-view {
       padding: 0 0.5rem 0.75rem;
     }
@@ -640,9 +504,121 @@ def wa_mobile_chat_css() -> str:
       color: var(--wa-text);
       font-size: 0.8rem;
     }
-    """
-        + wa_mobile_shared_surface_css()
-        + """
+    body:has(#ml-chat-page) [class*="st-key-ml_chat_composer"] {
+      position: fixed !important;
+      left: 0 !important;
+      right: 0 !important;
+      transform: none !important;
+      width: 100% !important;
+      max-width: 100% !important;
+      bottom: calc(var(--ml-nav-height) + var(--ml-verse-height) + var(--ml-nav-offset)) !important;
+      z-index: 2147483650 !important;
+      margin: 0 !important;
+      padding: 0.25rem 0.4rem 0.35rem !important;
+      box-sizing: border-box !important;
+      background: var(--wa-compose) !important;
+      border: none !important;
+      border-top: 1px solid rgba(255,255,255,.08) !important;
+      border-radius: 0 !important;
+      box-shadow: none !important;
+      max-height: 42vh !important;
+      overflow-y: auto !important;
+      -webkit-overflow-scrolling: touch;
+    }
+    /* Barra principal: uma linha [+][😊][mensagem][🎤] */
+    body:has(#ml-chat-page) [class*="st-key-ml_chat_compose_main"] [data-testid="stHorizontalBlock"] {
+      display: flex !important;
+      flex-direction: row !important;
+      flex-wrap: nowrap !important;
+      align-items: flex-end !important;
+      gap: 0.25rem !important;
+      width: 100% !important;
+    }
+    body:has(#ml-chat-page) [class*="st-key-ml_chat_compose_main"] [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:nth-child(1),
+    body:has(#ml-chat-page) [class*="st-key-ml_chat_compose_main"] [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:nth-child(2),
+    body:has(#ml-chat-page) [class*="st-key-ml_chat_compose_main"] [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:nth-child(4) {
+      flex: 0 0 2.45rem !important;
+      width: 2.45rem !important;
+      max-width: 2.45rem !important;
+      min-width: 2.45rem !important;
+    }
+    body:has(#ml-chat-page) [class*="st-key-ml_chat_compose_main"] [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:nth-child(3) {
+      flex: 1 1 auto !important;
+      width: auto !important;
+      max-width: none !important;
+      min-width: 0 !important;
+    }
+    body:has(#ml-chat-page) [class*="st-key-ml_chat_attach_sheet"] [data-testid="stHorizontalBlock"],
+    body:has(#ml-chat-page) [class*="st-key-ml_chat_emoji_strip"] [data-testid="stHorizontalBlock"] {
+      display: flex !important;
+      flex-direction: row !important;
+      flex-wrap: nowrap !important;
+      gap: 0.2rem !important;
+      width: 100% !important;
+      margin-bottom: 0.2rem !important;
+    }
+    body:has(#ml-chat-page) [class*="st-key-ml_chat_attach_sheet"] [data-testid="stColumn"],
+    body:has(#ml-chat-page) [class*="st-key-ml_chat_emoji_strip"] [data-testid="stColumn"] {
+      flex: 1 1 0 !important;
+      min-width: 0 !important;
+      max-width: 2.6rem !important;
+    }
+    body:has(#ml-chat-page) [class*="st-key-ml_chat_attach_panel"] {
+      max-height: 26vh !important;
+      overflow-y: auto !important;
+      margin-bottom: 0.3rem !important;
+      padding: 0.25rem !important;
+      background: rgba(0,0,0,.22) !important;
+      border-radius: 10px !important;
+      -webkit-overflow-scrolling: touch;
+    }
+    body:has(#ml-chat-page) [class*="st-key-ml_chat_attach_panel"] [data-testid="stFileUploader"] section {
+      padding: 0.35rem !important;
+      min-height: 0 !important;
+    }
+    body:has(#ml-chat-page) [class*="st-key-ml_chat_attach_panel"] [data-testid="stFileUploader"] small,
+    body:has(#ml-chat-page) [class*="st-key-ml_chat_attach_panel"] [data-testid="stCameraInput"] small {
+      display: none !important;
+    }
+    body:has(#ml-chat-page) [class*="st-key-ml_chat_composer"] [data-testid="stPopover"],
+    body:has(#ml-chat-page) [class*="st-key-ml_chat_composer"] [data-baseweb="popover"] {
+      display: none !important;
+    }
+    body:has(#ml-chat-page) .wa-compose-bar [data-testid="stChatInput"] {
+      background: #2a3942 !important;
+      border: none !important;
+      border-radius: 24px !important;
+      flex: 1;
+      min-height: 0 !important;
+    }
+    body:has(#ml-chat-page) .wa-compose-bar [data-testid="stChatInput"] textarea {
+      color: var(--wa-text) !important;
+      font-size: 0.9rem !important;
+      min-height: 2.25rem !important;
+      max-height: 4.5rem !important;
+      padding: 0.45rem 0.75rem !important;
+    }
+    body:has(#ml-chat-page) .wa-compose-bar .stButton > button {
+      min-height: 2.35rem !important;
+      max-height: 2.35rem !important;
+      min-width: 2.35rem !important;
+      max-width: 2.35rem !important;
+      padding: 0 !important;
+      border-radius: 50% !important;
+      background: transparent !important;
+      border: none !important;
+      color: var(--wa-meta) !important;
+      font-size: 1.15rem !important;
+      line-height: 1 !important;
+    }
+    body:has(#ml-chat-page) [class*="st-key-ml_chat_back"] .stButton > button {
+      background: transparent !important;
+      border: none !important;
+      color: var(--wa-accent) !important;
+      font-size: 1.35rem !important;
+      min-height: 2.5rem !important;
+      padding: 0 0.35rem !important;
+    }
     """
     )
 
@@ -787,20 +763,16 @@ def build_wa_messages_html(chat_df: pd.DataFrame, members_df: pd.DataFrame) -> s
 
 
 def build_wa_messages_html_cached(
-    chat_df: pd.DataFrame,
-    members_df: pd.DataFrame,
-    *,
-    rev: str,
-    html_key: str | None = None,
-    rev_key: str | None = None,
+    chat_df: pd.DataFrame, members_df: pd.DataFrame, *, rev: str
 ) -> str:
-    hk = html_key or _FEED_HTML_KEY
-    rk = rev_key or _FEED_REV_KEY
-    if st.session_state.get(rk) == rev and st.session_state.get(hk):
-        return str(st.session_state[hk])
+    if (
+        st.session_state.get(_FEED_REV_KEY) == rev
+        and st.session_state.get(_FEED_HTML_KEY)
+    ):
+        return str(st.session_state[_FEED_HTML_KEY])
     html_block = build_wa_messages_html(chat_df, members_df)
-    st.session_state[hk] = html_block
-    st.session_state[rk] = rev
+    st.session_state[_FEED_HTML_KEY] = html_block
+    st.session_state[_FEED_REV_KEY] = rev
     return html_block
 
 
@@ -809,30 +781,15 @@ def render_wa_mobile_messages(
     members_df: pd.DataFrame,
     *,
     rev: str | None = None,
-    html_key: str | None = None,
-    rev_key: str | None = None,
-    scroll_box_id: str = "chat-scroll-box",
-    delete_query_param: str = "ml_del",
-    composer_selector: str = '[class*="st-key-ml_chat_composer"]',
 ) -> None:
     feed_rev = rev if rev is not None else str(st.session_state.get("_chat_rev", ""))
-    html_block = build_wa_messages_html_cached(
-        chat_df,
-        members_df,
-        rev=feed_rev,
-        html_key=html_key,
-        rev_key=rev_key,
-    )
+    html_block = build_wa_messages_html_cached(chat_df, members_df, rev=feed_rev)
     st.markdown(
-        f'<div id="{scroll_box_id}" class="chat-feed wa-chat-feed">{html_block}'
+        f'<div id="chat-scroll-box" class="chat-feed wa-chat-feed">{html_block}'
         f'<div id="chat-scroll-end" class="wa-feed-bottom-spacer" aria-hidden="true"></div></div>',
         unsafe_allow_html=True,
     )
-    inject_wa_scroll_and_lightbox(
-        scroll_box_id=scroll_box_id,
-        delete_query_param=delete_query_param,
-        composer_selector=composer_selector,
-    )
+    inject_wa_scroll_and_lightbox()
 
 
 def render_wa_feed_from_cache(members_df: pd.DataFrame) -> bool:
@@ -851,29 +808,17 @@ def render_wa_feed_from_cache(members_df: pd.DataFrame) -> bool:
         f'<div id="chat-scroll-end" class="wa-feed-bottom-spacer" aria-hidden="true"></div></div>',
         unsafe_allow_html=True,
     )
-    inject_wa_scroll_and_lightbox()
     return True
 
 
-def render_wa_thread_header_html(
-    *,
-    member_count: int = 0,
-    online_hint: str = "",
-    title: str = "",
-    subtitle: str = "",
-    avatar: str = "",
-) -> str:
-    title_show = title or GROUP_CHAT_TITLE
-    status = subtitle or online_hint or (
-        f"{member_count} participantes" if member_count else GROUP_CHAT_SUB
-    )
-    avatar_show = avatar or _WA_GROUP_AVATAR
+def render_wa_thread_header_html(*, member_count: int, online_hint: str = "") -> str:
+    status = online_hint or f"{member_count} participantes"
     online_cls = " is-online" if online_hint and "online" in online_hint.lower() else ""
     return f"""
     <header class="wa-thread-header" aria-label="Cabeçalho do chat">
-      <div class="wa-thread-header__avatar">{avatar_show}</div>
+      <div class="wa-thread-header__avatar">{_WA_GROUP_AVATAR}</div>
       <div class="wa-thread-header__body">
-        <p class="wa-thread-header__title">{_esc(title_show)}</p>
+        <p class="wa-thread-header__title">{_esc(GROUP_CHAT_TITLE)}</p>
         <p class="wa-thread-header__status{online_cls}">{_esc(status)}</p>
       </div>
       <div class="wa-thread-header__actions">
@@ -895,27 +840,45 @@ def render_wa_list_header_html() -> str:
 
 
 def inject_wa_scroll_nudge_only() -> None:
-    """Rola ao fim quando há mensagem nova ou envio recente."""
-    inject_wa_scroll_and_lightbox()
+    """Só rola ao fim após enviar — sem reinjetar todo o script."""
+    if not st.session_state.pop("_chat_scroll_bottom", False):
+        return
+    inject_page_script(
+        """
+        (function () {
+          var doc = window.parent.document;
+          function syncComposeClearance() {
+            var box = doc.getElementById("chat-scroll-box");
+            var comp = doc.querySelector('[class*="st-key-ml_chat_composer"]');
+            if (!box) return;
+            var h = 92;
+            if (comp) h = Math.max(72, comp.getBoundingClientRect().height);
+            var clearance = Math.ceil(h + 14) + "px";
+            doc.documentElement.style.setProperty("--ml-compose-clearance", clearance);
+            box.style.paddingBottom = clearance;
+            var end = doc.getElementById("chat-scroll-end");
+            if (end) end.style.height = clearance;
+          }
+          syncComposeClearance();
+          var box = doc.getElementById("chat-scroll-box");
+          if (box) box.scrollTop = box.scrollHeight + 9999;
+          var end = doc.getElementById("chat-scroll-end");
+          if (end) end.scrollIntoView({ block: "end", behavior: "auto" });
+        })();
+        """
+    )
 
 
-def inject_wa_scroll_and_lightbox(
-    *,
-    scroll_box_id: str = "chat-scroll-box",
-    delete_query_param: str = "ml_del",
-    composer_selector: str = '[class*="st-key-ml_chat_composer"]',
-) -> None:
-    from chat_whatsapp import should_force_chat_scroll
+def inject_wa_scroll_and_lightbox() -> None:
+    if st.session_state.get("_wa_chat_js_ready"):
+        inject_wa_scroll_nudge_only()
+        return
 
-    force = should_force_chat_scroll()
+    st.session_state["_wa_chat_js_ready"] = True
+    force = st.session_state.pop("_chat_scroll_bottom", False)
     force_js = "true" if force else "false"
-    del_param_js = delete_query_param.replace("\\", "\\\\").replace('"', '\\"')
-    composer_sel_js = composer_selector.replace("\\", "\\\\").replace('"', '\\"')
-    scroll_id_js = scroll_box_id.replace("\\", "\\\\").replace('"', '\\"')
 
-    if not st.session_state.get("_wa_lightbox_html"):
-        st.session_state["_wa_lightbox_html"] = True
-        inject_ui_html(
+    inject_ui_html(
         """
         <button type="button" class="wa-jump-bottom" id="wa-jump-bottom" aria-label="Ir para última mensagem">
           ↓ Última mensagem
@@ -950,34 +913,15 @@ def inject_wa_scroll_and_lightbox(
     inject_page_script(
         f"""
         (function () {{
+          var doc = window.parent.document;
           var forceScroll = {force_js};
-          var scrollId = "{scroll_id_js}";
-          var box = document.getElementById(scrollId);
-          var jumpBtn = document.getElementById("wa-jump-bottom");
-          var lb = document.getElementById("wa-lightbox");
-          var doc = document;
-          if (!box) {{
-            try {{
-              if (window.parent && window.parent.document) {{
-                box = window.parent.document.getElementById(scrollId);
-                if (box) doc = window.parent.document;
-              }}
-            }} catch (e) {{}}
-          }}
-          if (!jumpBtn) {{
-            try {{
-              jumpBtn = (doc || document).getElementById("wa-jump-bottom");
-            }} catch (e) {{}}
-          }}
-          if (!lb) {{
-            try {{
-              lb = (doc || document).getElementById("wa-lightbox");
-            }} catch (e) {{}}
-          }}
+          var box = doc.getElementById("chat-scroll-box");
+          var jumpBtn = doc.getElementById("wa-jump-bottom");
+          var lb = doc.getElementById("wa-lightbox");
           if (!box) return;
 
           function syncComposeClearance() {{
-            var comp = doc.querySelector("{composer_sel_js}");
+            var comp = doc.querySelector('[class*="st-key-ml_chat_composer"]');
             var h = 92;
             if (comp) h = Math.max(72, comp.getBoundingClientRect().height);
             var clearance = Math.ceil(h + 16) + "px";
@@ -1015,15 +959,14 @@ def inject_wa_scroll_and_lightbox(
           if (forceScroll || nearBottom()) scrollToEnd(false);
           else updateJump();
 
-          if (box._waScrollObs) {{
-            try {{ box._waScrollObs.disconnect(); }} catch (e) {{}}
+          if (!box.dataset.waObs) {{
+            box.dataset.waObs = "1";
+            new MutationObserver(function () {{
+              syncComposeClearance();
+              if (nearBottom() || forceScroll) scrollToEnd(false);
+              else updateJump();
+            }}).observe(box, {{ childList: true, subtree: true }});
           }}
-          box._waScrollObs = new MutationObserver(function () {{
-            syncComposeClearance();
-            if (nearBottom() || forceScroll) scrollToEnd(false);
-            else updateJump();
-          }});
-          box._waScrollObs.observe(box, {{ childList: true, subtree: true }});
 
           var comp = doc.querySelector('[class*="st-key-ml_chat_composer"]');
           if (comp && !comp.dataset.waPadObs) {{
@@ -1209,7 +1152,7 @@ def inject_wa_scroll_and_lightbox(
               closeMsgSheet();
               var url = new URL(window.parent.location.href);
               url.searchParams.set(
-                "{del_param_js}",
+                "ml_del",
                 encodeURIComponent(ts) + "|" + encodeURIComponent(em)
               );
               window.parent.location.href = url.toString();
