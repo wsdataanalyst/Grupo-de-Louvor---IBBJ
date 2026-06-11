@@ -12,10 +12,13 @@ from mobile_lab_ui import inject_mobile_lab_theme
 
 
 ESCALAS_TABS: tuple[tuple[str, str, str], ...] = (
-    ("todas", "📅", "Todas"),
+    ("visao", "🏠", "Visão Geral"),
+    ("escalas", "📅", "Escalas"),
     ("sequencia", "🎵", "Sequência"),
-    ("trocas", "🔄", "Trocas e subs"),
+    ("disponibilidade", "👤", "Disponibilidade"),
 )
+
+_SECTOR_FILTERS = ("Todos", "Vocal", "Instrumental", "Técnico", "Produção", "Apoio")
 
 
 def _esc(s: object) -> str:
@@ -23,16 +26,504 @@ def _esc(s: object) -> str:
 
 
 def _active_tab() -> str:
-    t = str(st.session_state.get("ml_escalas_tab", "todas")).strip()
-    if t in ("solicitacoes", "equipe"):
-        t = "trocas" if t == "solicitacoes" else "todas"
+    t = str(st.session_state.get("ml_escalas_tab", "visao")).strip()
+    legacy = {
+        "solicitacoes": "disponibilidade",
+        "trocas": "disponibilidade",
+        "equipe": "visao",
+        "todas": "escalas",
+    }
+    if t in legacy:
+        t = legacy[t]
         st.session_state.ml_escalas_tab = t
     keys = {k for k, _, _ in ESCALAS_TABS}
-    return t if t in keys else "todas"
+    return t if t in keys else "visao"
 
 
 def _set_tab(tab: str) -> None:
     st.session_state.ml_escalas_tab = tab
+
+
+def _classify_sector(funcao: str) -> str:
+    f = str(funcao or "").lower()
+    if "técnico" in f or "tecnico" in f or "som" in f:
+        return "Técnico"
+    if any(
+        x in f
+        for x in (
+            "vocal",
+            "ministrador",
+            "contralto",
+            "soprano",
+            "tenor",
+            "barit",
+            "mezzo",
+        )
+    ):
+        return "Vocal"
+    if any(
+        x in f
+        for x in ("baix", "guitar", "bater", "teclad", "violon", "banda", "instrument")
+    ):
+        return "Instrumental"
+    if "produ" in f or "mídia" in f or "midia" in f:
+        return "Produção"
+    return "Apoio"
+
+
+def _group_team_sectors(team: list[dict]) -> dict[str, list[dict]]:
+    grouped: dict[str, list[dict]] = {s: [] for s in _SECTOR_FILTERS if s != "Todos"}
+    for person in team:
+        sector = _classify_sector(str(person.get("funcao", "")))
+        grouped.setdefault(sector, []).append(person)
+    return grouped
+
+
+def _resolve_escala_row(
+    my_email: str,
+    escalas_df: pd.DataFrame,
+    equipe_df: pd.DataFrame,
+    *,
+    prefer_id: str | None = None,
+) -> pd.Series | None:
+    if prefer_id:
+        match = escalas_df[escalas_df["id"].astype(str) == str(prefer_id)]
+        if not match.empty:
+            return match.iloc[0]
+
+    from escala_member_stats import member_escala_occurrences
+
+    today = date.today()
+    for culto_d, eid, _ev in member_escala_occurrences(my_email, escalas_df, equipe_df):
+        try:
+            d = pd.Timestamp(culto_d).date()
+        except (ValueError, TypeError):
+            continue
+        if d >= today:
+            match = escalas_df[escalas_df["id"].astype(str) == str(eid)]
+            if not match.empty:
+                return match.iloc[0]
+
+    from dashboard_ui import next_upcoming_escala
+
+    nxt = next_upcoming_escala(escalas_df)
+    if nxt:
+        match = escalas_df[escalas_df["id"].astype(str) == str(nxt.get("id", ""))]
+        if not match.empty:
+            return match.iloc[0]
+    if not escalas_df.empty:
+        df = escalas_df.copy()
+        df["_sort"] = pd.to_datetime(df["date"], errors="coerce")
+        df = df.sort_values("_sort")
+        if not df.empty:
+            return df.iloc[0]
+    return None
+
+
+def _escala_metrics(
+    escala_row: pd.Series,
+    equipe_df: pd.DataFrame,
+    members_df: pd.DataFrame,
+    programa_df: pd.DataFrame,
+    louvores_df: pd.DataFrame,
+) -> dict[str, object]:
+    from app import (
+        enrich_programa_from_catalog,
+        integrantes_escalados,
+        programa_por_escala,
+    )
+    from app_features import lookup_louvor_meta
+    from louvor_meta import format_duracao_total, parse_duracao_min
+
+    team = integrantes_escalados(escala_row, equipe_df, members_df)
+    escala_id = str(escala_row.get("id", ""))
+    prog = programa_por_escala(programa_df, escala_id)
+    if not louvores_df.empty:
+        prog = enrich_programa_from_catalog(prog, louvores_df)
+
+    total_min = 0.0
+    if not prog.empty:
+        for _, item in prog.iterrows():
+            meta = lookup_louvor_meta(
+                louvores_df,
+                str(item.get("louvor_title", "")),
+                str(item.get("artist", "")),
+            )
+            total_min += parse_duracao_min(meta.get("duracao_min", ""))
+
+    filled = min(100, int(len(team) * 100 / 12)) if team else 0
+
+    return {
+        "integrantes": len(team),
+        "musicas": len(prog),
+        "duracao": format_duracao_total(total_min) if total_min else "—",
+        "preenchida": f"{filled}%",
+        "prog": prog,
+        "team": team,
+    }
+
+
+def _format_escala_datetime(escala_row: pd.Series) -> tuple[str, str, str]:
+    from app import _DIAS_SEMANA_PT
+
+    event = str(escala_row.get("event", "Culto"))
+    location = (
+        str(escala_row.get("location", escala_row.get("local", "Templo IBBJ"))).strip()
+        or "Templo IBBJ"
+    )
+    try:
+        dt = pd.to_datetime(escala_row.get("date"))
+        date_txt = f"{_DIAS_SEMANA_PT[dt.weekday()]}, {dt.strftime('%d/%m/%Y')}"
+    except (ValueError, TypeError):
+        date_txt = str(escala_row.get("date", ""))
+    time_txt = str(escala_row.get("time", escala_row.get("hora", "19:00"))).strip() or "19:00"
+    return event, f"{date_txt} • {time_txt}", location
+
+
+def _sector_avatar_html(members: list[dict], members_df: pd.DataFrame, limit: int = 4) -> str:
+    from app import member_photo_html
+
+    parts: list[str] = []
+    extra = max(0, len(members) - limit)
+    for person in members[:limit]:
+        email = str(person.get("email", "")).strip()
+        nome = str(person.get("nome", ""))
+        if email:
+            parts.append(member_photo_html(email, members_df, 28, name=nome))
+        else:
+            initial = (nome.strip()[:1] or "?").upper()
+            parts.append(f'<span class="ml-esc-mini-ph">{_esc(initial)}</span>')
+    html_av = "".join(parts)
+    if extra:
+        html_av += f'<span class="ml-esc-sector-more">+{extra}</span>'
+    return html_av
+
+
+def _render_proximo_culto_card(escala_row: pd.Series) -> None:
+    event, when, location = _format_escala_datetime(escala_row)
+    st.markdown(
+        f"""
+        <div class="ml-esc-card">
+          <div class="ml-esc-card-top">
+            <h3>Próximo culto</h3>
+          </div>
+          <p>📅 {_esc(when)}</p>
+          <h2>🎵 {_esc(event)}</h2>
+          <p>📍 {_esc(location)}</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def _render_metrics_grid(metrics: dict[str, object]) -> None:
+    items = (
+        ("👥", metrics["integrantes"], "Integrantes"),
+        ("🎵", metrics["musicas"], "Músicas"),
+        ("⏰", metrics["duracao"], "Duração"),
+        ("✅", metrics["preenchida"], "Escala"),
+    )
+    parts = ['<div class="ml-esc-metric-grid">']
+    for _ico, val, lbl in items:
+        parts.append(
+            f'<div class="ml-esc-metric"><b>{_esc(val)}</b><span>{_esc(lbl)}</span></div>'
+        )
+    parts.append("</div>")
+    st.markdown("".join(parts), unsafe_allow_html=True)
+
+
+def _render_equipes_escaladas(
+    team: list[dict],
+    members_df: pd.DataFrame,
+    *,
+    key_prefix: str,
+) -> None:
+    grouped = _group_team_sectors(team)
+    st.markdown(
+        '<div class="ml-esc-section-title">👥 Equipes escaladas</div>',
+        unsafe_allow_html=True,
+    )
+    sector_filter = st.selectbox(
+        "Setor",
+        list(_SECTOR_FILTERS),
+        key=f"{key_prefix}_sector_filter",
+        label_visibility="collapsed",
+    )
+
+    sector_icons = {
+        "Vocal": "🎤",
+        "Instrumental": "🎸",
+        "Técnico": "🎚️",
+        "Produção": "📷",
+        "Apoio": "🤝",
+    }
+    cards: list[tuple[str, list[dict]]] = []
+    for sector, members in grouped.items():
+        if not members:
+            continue
+        if sector_filter != "Todos" and sector != sector_filter:
+            continue
+        cards.append((sector, members))
+
+    if not cards:
+        st.info("Nenhuma equipe neste setor.")
+        return
+
+    for i in range(0, len(cards), 2):
+        cols = st.columns(2, gap="small")
+        for col, (sector, members) in zip(cols, cards[i : i + 2]):
+            ico = sector_icons.get(sector, "👥")
+            avatars = _sector_avatar_html(members, members_df)
+            with col:
+                st.markdown(
+                    f"""
+                    <div class="ml-esc-sector-card">
+                      <h4>{ico} {_esc(sector)}</h4>
+                      <p>{len(members)} integrante(s)</p>
+                      <div class="ml-esc-sector-av">{avatars}</div>
+                      <div class="ml-esc-sector-link">Ver detalhes →</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+
+
+def _render_cronograma(prog: pd.DataFrame, escala_row: pd.Series) -> None:
+    from app import _normalize_parte
+    from catalog_sanitize import format_louvor_display, sanitize_catalog_text
+
+    st.markdown(
+        '<div class="ml-esc-section-title">⏰ Cronograma do culto</div>',
+        unsafe_allow_html=True,
+    )
+    if prog.empty:
+        st.info("Programação ainda não montada.")
+        return
+
+    base_time = str(escala_row.get("time", escala_row.get("hora", "18:00"))).strip() or "18:00"
+    try:
+        cursor = pd.to_datetime(base_time, format="%H:%M", errors="coerce")
+        if pd.isna(cursor):
+            cursor = pd.to_datetime(base_time.replace("h", ":"), errors="coerce")
+    except (ValueError, TypeError):
+        cursor = None
+
+    for _, item in prog.iterrows():
+        if cursor is not None and not pd.isna(cursor):
+            hora = cursor.strftime("%H:%M")
+            cursor += pd.Timedelta(minutes=5)
+        else:
+            hora = str(item.get("ordem", "—"))
+        parte = _normalize_parte(str(item.get("parte", "")))
+        louvor = format_louvor_display(
+            sanitize_catalog_text(item.get("louvor_title", "")),
+            sanitize_catalog_text(item.get("artist", "")),
+        )
+        leader = sanitize_catalog_text(item.get("leader_name", ""))
+        sub = f"{parte}" + (f" • {leader}" if leader else "")
+        st.markdown(
+            f"""
+            <div class="ml-esc-crono-item">
+              <div class="ml-esc-crono-time">{_esc(hora)}</div>
+              <div class="ml-esc-crono-body">
+                <b>{_esc(louvor)}</b>
+                <small>{_esc(sub)}</small>
+              </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+
+def _render_sequencia_louvores(
+    prog: pd.DataFrame,
+    louvores_df: pd.DataFrame,
+    *,
+    escala_id: str,
+    members_df: pd.DataFrame,
+) -> None:
+    from app import instrument_kits_from_roles, get_current_member_row, cifra_search_url
+    from app_features import lookup_louvor_meta
+    from catalog_sanitize import format_louvor_display, sanitize_catalog_text
+    from cifra_fetch import resolve_letra_url
+    from louvor_meta import format_duracao_total, parse_duracao_min
+
+    st.markdown(
+        '<div class="ml-esc-section-title">🎵 Sequência do culto</div>',
+        unsafe_allow_html=True,
+    )
+    if prog.empty:
+        return
+
+    _idx, row_me = get_current_member_row(members_df)
+    roles_me = str(row_me.get("roles", "")) if row_me is not None else str(
+        st.session_state.get("user_roles", "")
+    )
+    bio_me = str(row_me.get("bio", "")) if row_me is not None else ""
+    kits_me = instrument_kits_from_roles(roles_me, bio=bio_me)
+
+    for i, (_, item) in enumerate(prog.iterrows(), start=1):
+        louvor = sanitize_catalog_text(item.get("louvor_title", ""))
+        artist = sanitize_catalog_text(item.get("artist", ""))
+        titulo = format_louvor_display(louvor, artist)
+        meta = lookup_louvor_meta(louvores_df, louvor, artist)
+        dur = format_duracao_total(parse_duracao_min(meta.get("duracao_min", "")))
+        yt = sanitize_catalog_text(item.get("youtube_url", ""))
+        cifra_stored = sanitize_catalog_text(item.get("cifra_url", ""))
+        cifra = cifra_stored if cifra_stored.startswith("http") else cifra_search_url(louvor, artist)
+        letra = resolve_letra_url(louvor, artist, cifra_club_url=cifra_stored)
+        ordem = str(item.get("ordem", i))
+        slug = f"{escala_id}_{ordem}"
+
+        st.markdown(
+            f"""
+            <div class="ml-esc-song-card">
+              <h4>{i}. {_esc(titulo)}</h4>
+              <p>⏱️ {_esc(dur)}</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        c1, c2 = st.columns(2, gap="small")
+        with c1:
+            with st.container(key=f"ml_esc_song_yt_{slug}"):
+                if yt:
+                    st.link_button("🎥 YouTube", yt, use_container_width=True)
+                else:
+                    st.button("🎥 YouTube", key=f"ml_esc_yt_off_{slug}", disabled=True, use_container_width=True)
+        with c2:
+            kit_url = ""
+            if kits_me:
+                from app import kit_youtube_url
+
+                kit_url = kit_youtube_url(kits_me[0][2], louvor)
+            with st.container(key=f"ml_esc_song_kit_{slug}"):
+                if kit_url:
+                    st.link_button("🎤 Kit Voz", kit_url, use_container_width=True)
+                else:
+                    st.button("🎤 Kit Voz", key=f"ml_esc_kit_off_{slug}", disabled=True, use_container_width=True)
+        c3, c4 = st.columns(2, gap="small")
+        with c3:
+            with st.container(key=f"ml_esc_song_cifra_{slug}"):
+                st.link_button("🎼 Cifra", cifra, use_container_width=True)
+        with c4:
+            with st.container(key=f"ml_esc_song_letra_{slug}"):
+                if letra:
+                    st.link_button("📄 Letra", letra, use_container_width=True)
+                else:
+                    st.button("📄 Letra", key=f"ml_esc_letra_off_{slug}", disabled=True, use_container_width=True)
+
+
+def _render_resumo_card(metrics: dict[str, object]) -> None:
+    st.markdown(
+        f"""
+        <div class="ml-esc-card">
+          <h3>Resumo</h3>
+          <p>⏱️ {_esc(metrics["duracao"])}</p>
+          <p>🎵 {_esc(metrics["musicas"])} música(s)</p>
+          <p>👥 {_esc(metrics["integrantes"])} integrante(s)</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def _render_acoes_escala(
+    escala_row: pd.Series,
+    *,
+    programa_df: pd.DataFrame,
+    equipe_df: pd.DataFrame,
+    members_df: pd.DataFrame,
+    louvores_df: pd.DataFrame,
+) -> None:
+    from app import collect_escala_whatsapp_message
+    from whatsapp_share import whatsapp_share_url
+
+    escala_id = str(escala_row.get("id", ""))
+    st.markdown('<div class="ml-esc-section-title">🚀 Ações</div>', unsafe_allow_html=True)
+
+    if st.button("📄 Abrir Sequência", key=f"ml_esc_act_seq_{escala_id}", use_container_width=True):
+        st.session_state["focus_sequencia_escala_id"] = escala_id
+        _set_tab("sequencia")
+        st.rerun()
+
+    from mobile_lab_nav import user_can_gerenciar_escalas
+
+    if user_can_gerenciar_escalas() or bool(st.session_state.get("ml_can_gerenciar")):
+        if st.button(
+            "🎯 Gerenciar Escalas",
+            key=f"ml_esc_act_ger_{escala_id}",
+            use_container_width=True,
+        ):
+            from mobile_lab_nav import navigate_ml_page
+
+            navigate_ml_page("Gerenciar Escalas", pin=True)
+            st.rerun()
+
+    msg = collect_escala_whatsapp_message(
+        escala_row, programa_df, equipe_df, members_df, louvores_df
+    )
+    if msg:
+        wa_url = whatsapp_share_url("Escala IBBJ", msg)
+        with st.container(key=f"ml_esc_act_wa_{escala_id}"):
+            st.link_button("📱 Enviar WhatsApp", wa_url, use_container_width=True)
+
+
+def _render_culto_layout(
+    escala_row: pd.Series,
+    *,
+    my_email: str,
+    equipe_df: pd.DataFrame,
+    members_df: pd.DataFrame,
+    programa_df: pd.DataFrame,
+    louvores_df: pd.DataFrame,
+    key_prefix: str,
+    full: bool = True,
+) -> None:
+    metrics = _escala_metrics(
+        escala_row, equipe_df, members_df, programa_df, louvores_df
+    )
+    escala_id = str(escala_row.get("id", ""))
+
+    _render_proximo_culto_card(escala_row)
+    _render_metrics_grid(metrics)
+    _render_equipes_escaladas(metrics["team"], members_df, key_prefix=key_prefix)
+    _render_cronograma(metrics["prog"], escala_row)
+
+    if full:
+        _render_sequencia_louvores(
+            metrics["prog"],
+            louvores_df,
+            escala_id=escala_id,
+            members_df=members_df,
+        )
+        _render_resumo_card(metrics)
+        _render_acoes_escala(
+            escala_row,
+            programa_df=programa_df,
+            equipe_df=equipe_df,
+            members_df=members_df,
+            louvores_df=louvores_df,
+        )
+
+
+def _user_escala_options(
+    my_email: str,
+    escalas_df: pd.DataFrame,
+    equipe_df: pd.DataFrame,
+) -> list[tuple[str, pd.Series]]:
+    from app import escala_label_for_user, member_escala_occurrences
+
+    rows: list[tuple[str, pd.Series]] = []
+    seen: set[str] = set()
+    for _d, eid, _ev in member_escala_occurrences(my_email, escalas_df, equipe_df):
+        match = escalas_df[escalas_df["id"].astype(str) == str(eid)]
+        if match.empty or str(eid) in seen:
+            continue
+        seen.add(str(eid))
+        row = match.iloc[0]
+        rows.append((escala_label_for_user(row, my_email, equipe_df), row))
+    return rows
 
 
 def _member_photo_uri(email: str, members_df: pd.DataFrame) -> str | None:
@@ -275,6 +766,235 @@ def mobile_escalas_css() -> str:
       color: rgba(196,181,253,.98);
       margin-right: 6px;
     }
+    .ml-esc-card{
+      background: rgba(255,255,255,.03);
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 20px;
+      padding: 18px 20px;
+      margin-bottom: 14px;
+    }
+    .ml-esc-card h3{
+      margin: 0 0 0.35rem;
+      font-size: 0.92rem;
+      font-weight: 800;
+      color: #c4b5fd;
+    }
+    .ml-esc-card h2{
+      margin: 0.15rem 0;
+      font-size: 1.35rem;
+      font-weight: 800;
+      color: #fff;
+      line-height: 1.15;
+    }
+    .ml-esc-card p{
+      margin: 0.2rem 0 0;
+      color: rgba(148,163,184,.95);
+      font-size: 0.88rem;
+      line-height: 1.4;
+    }
+    .ml-esc-card-top{
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      margin-bottom: 0.65rem;
+    }
+    .ml-esc-card-link{
+      color: #a78bfa;
+      font-size: 0.78rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .ml-esc-metric-grid{
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin: 0.65rem 0 0.15rem;
+    }
+    .ml-esc-metric{
+      background: rgba(255,255,255,.03);
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 18px;
+      padding: 14px 10px;
+      text-align: center;
+    }
+    .ml-esc-metric b{
+      display: block;
+      font-size: 1.15rem;
+      font-weight: 800;
+      color: #fff;
+      line-height: 1.1;
+    }
+    .ml-esc-metric span{
+      display: block;
+      margin-top: 0.25rem;
+      font-size: 0.68rem;
+      font-weight: 700;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .ml-esc-section-title{
+      font-size: 1rem;
+      font-weight: 800;
+      margin: 1rem 0 0.55rem;
+      color: #f8fafc;
+    }
+    .ml-esc-sector-grid{
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 0.35rem;
+    }
+    .ml-esc-sector-card{
+      background: rgba(255,255,255,.03);
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 18px;
+      padding: 14px;
+      min-height: 118px;
+    }
+    .ml-esc-sector-card h4{
+      margin: 0 0 0.35rem;
+      font-size: 0.88rem;
+      font-weight: 800;
+      color: #fff;
+    }
+    .ml-esc-sector-card p{
+      margin: 0;
+      font-size: 0.75rem;
+      color: #94a3b8;
+    }
+    .ml-esc-sector-av{
+      display: flex;
+      align-items: center;
+      gap: 0;
+      margin: 0.55rem 0 0.45rem;
+      min-height: 28px;
+    }
+    .ml-esc-sector-av img, .ml-esc-sector-av .ml-esc-mini-ph{
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 2px solid rgba(111,76,255,.45);
+      margin-left: -6px;
+      background: rgba(59,130,246,.2);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.62rem;
+      font-weight: 800;
+      color: #e9d5ff;
+    }
+    .ml-esc-sector-av img:first-child, .ml-esc-sector-av .ml-esc-mini-ph:first-child{
+      margin-left: 0;
+    }
+    .ml-esc-sector-more{
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      margin-left: -6px;
+      background: rgba(124,58,237,.35);
+      border: 2px solid rgba(111,76,255,.45);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.62rem;
+      font-weight: 800;
+      color: #fff;
+    }
+    .ml-esc-sector-link{
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: #a78bfa;
+    }
+    .ml-esc-crono-item{
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      background: rgba(255,255,255,.03);
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 18px;
+      padding: 14px 16px;
+      margin-bottom: 10px;
+    }
+    .ml-esc-crono-time{
+      flex-shrink: 0;
+      min-width: 52px;
+      padding: 8px 10px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, rgba(124,58,237,.55), rgba(91,33,182,.35));
+      border: 1px solid rgba(139,92,246,.35);
+      text-align: center;
+      font-size: 0.82rem;
+      font-weight: 800;
+      color: #fff;
+    }
+    .ml-esc-crono-body{
+      flex: 1;
+      min-width: 0;
+    }
+    .ml-esc-crono-body b{
+      display: block;
+      font-size: 0.9rem;
+      color: #fff;
+      margin-bottom: 0.2rem;
+    }
+    .ml-esc-crono-body small{
+      color: #94a3b8;
+      font-size: 0.76rem;
+      line-height: 1.35;
+    }
+    .ml-esc-song-card{
+      background: rgba(255,255,255,.03);
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 18px;
+      padding: 15px 16px;
+      margin-bottom: 12px;
+    }
+    .ml-esc-song-card h4{
+      margin: 0;
+      font-size: 1rem;
+      font-weight: 800;
+      color: #fff;
+    }
+    .ml-esc-song-card p{
+      margin: 0.35rem 0 0;
+      color: #94a3b8;
+      font-size: 0.82rem;
+    }
+    body:has(#ml-escalas-page) [class*="st-key-ml_esc_song_"] .stButton > button{
+      min-height: 2.35rem !important;
+      border-radius: 14px !important;
+      font-size: 0.76rem !important;
+      font-weight: 700 !important;
+      background: rgba(15,23,42,.72) !important;
+      border: 1px solid rgba(255,255,255,.08) !important;
+      color: #e2e8f0 !important;
+      padding: 0.35rem 0.25rem !important;
+    }
+    body:has(#ml-escalas-page) [class*="st-key-ml_esc_act_"] .stButton > button,
+    body:has(#ml-escalas-page) [class*="st-key-ml_esc_act_"] .stLinkButton > a{
+      width: 100% !important;
+      min-height: 2.85rem !important;
+      border-radius: 16px !important;
+      font-weight: 800 !important;
+      margin-bottom: 0.35rem !important;
+      background: rgba(15,23,42,.72) !important;
+      border: 1px solid rgba(255,255,255,.08) !important;
+      color: #e2e8f0 !important;
+    }
+    body:has(#ml-escalas-page) [class*="st-key-ml_esc_visao_full"] .stButton > button{
+      background: transparent !important;
+      border: none !important;
+      color: #a78bfa !important;
+      font-weight: 700 !important;
+      justify-content: flex-end !important;
+      min-height: 2rem !important;
+      padding: 0 !important;
+      margin: -0.5rem 0 0.25rem !important;
+      box-shadow: none !important;
+    }
     """
 
 
@@ -284,7 +1004,7 @@ def _render_header() -> None:
         <div id="ml-escalas-page" class="ml-page">
           <div class="ml-esc-header" style="margin-bottom:0.35rem;">
             <h1>Escalas</h1>
-            <p>Gerencie ensaios e cultos</p>
+            <p>Gerencie as escalas da sua equipe</p>
           </div>
         </div>
         """,
@@ -352,8 +1072,8 @@ def _render_quick_access() -> None:
             _set_tab("sequencia")
             st.rerun()
     with c2:
-        if st.button("🔄\nTrocas e subs", key="ml_esc_quick_trocas_btn", use_container_width=True):
-            _set_tab("trocas")
+        if st.button("🔄\nDisponibilidade", key="ml_esc_quick_trocas_btn", use_container_width=True):
+            _set_tab("disponibilidade")
             st.rerun()
 
 
@@ -451,7 +1171,7 @@ def _render_tab_equipe(
         )
 
 
-def _render_tab_todas(
+def _render_tab_visao(
     *,
     my_email: str,
     escalas_df: pd.DataFrame,
@@ -460,61 +1180,84 @@ def _render_tab_todas(
     programa_df: pd.DataFrame,
     louvores_df: pd.DataFrame,
 ) -> None:
-    from app import (
-        escala_label_for_user,
-        member_escala_occurrences,
-        render_culto_programa,
+    focus_id = str(st.session_state.get("ml_escalas_focus_id", "")).strip() or None
+    row = _resolve_escala_row(
+        my_email, escalas_df, equipe_df, prefer_id=focus_id
     )
-
-    occ = member_escala_occurrences(my_email, escalas_df, equipe_df)
-    if not occ:
-        st.info("Você ainda não aparece em nenhuma escala registrada.")
+    if row is None:
+        st.info("Nenhuma escala disponível no momento.")
         return
 
-    culto_rows: list[tuple[str, pd.Series]] = []
-    for _culto_d, eid, _ev in occ:
-        row_match = escalas_df[escalas_df["id"].astype(str) == str(eid)]
-        if row_match.empty:
-            continue
-        culto_rows.append((str(eid), row_match.iloc[0]))
+    escala_id = str(row.get("id", ""))
+    _render_proximo_culto_card(row)
+    if st.button(
+        "Ver escala completa →",
+        key="ml_esc_visao_full",
+        use_container_width=True,
+    ):
+        st.session_state["ml_esc_todas_escala_id"] = escala_id
+        _set_tab("escalas")
+        st.rerun()
 
-    if not culto_rows:
-        st.info("Você ainda não aparece em nenhuma escala registrada.")
-        return
-
-    st.caption(f"{len(culto_rows)} culto(s) no seu histórico.")
-    eids = [eid for eid, _ in culto_rows]
-
-    def _ml_todas_culto_label(eid: str) -> str:
-        row = next(r for e, r in culto_rows if e == eid)
-        return escala_label_for_user(row, my_email, equipe_df)
-
-    default_idx = 0
-    pref = st.session_state.get("ml_esc_todas_escala_id")
-    if pref:
-        for i, eid in enumerate(eids):
-            if eid == str(pref):
-                default_idx = i
-                break
-
-    escolha_id = st.selectbox(
-        "Culto",
-        options=eids,
-        index=default_idx,
-        format_func=_ml_todas_culto_label,
-        key="ml_esc_todas_sel",
+    metrics = _escala_metrics(
+        row, equipe_df, members_df, programa_df, louvores_df
     )
-    st.session_state["ml_esc_todas_escala_id"] = escolha_id
+    _render_metrics_grid(metrics)
+    _render_equipes_escaladas(
+        metrics["team"], members_df, key_prefix="ml_visao"
+    )
+    _render_cronograma(metrics["prog"], row)
 
-    row = next(r for e, r in culto_rows if e == escolha_id)
-    render_culto_programa(
+
+def _render_tab_escalas(
+    *,
+    my_email: str,
+    escalas_df: pd.DataFrame,
+    equipe_df: pd.DataFrame,
+    members_df: pd.DataFrame,
+    programa_df: pd.DataFrame,
+    louvores_df: pd.DataFrame,
+) -> None:
+    from app import escala_label_for_user
+
+    focus_id = str(st.session_state.get("ml_escalas_focus_id", "")).strip() or None
+    pref = str(st.session_state.get("ml_esc_todas_escala_id", "")).strip() or focus_id
+
+    options = _user_escala_options(my_email, escalas_df, equipe_df)
+    if options:
+        labels = [lbl for lbl, _ in options]
+        default_idx = 0
+        if pref:
+            for i, (_, r) in enumerate(options):
+                if str(r.get("id", "")) == pref:
+                    default_idx = i
+                    break
+        escolha = st.selectbox(
+            "Culto",
+            labels,
+            index=default_idx,
+            key="ml_esc_escalas_sel",
+        )
+        row = next(r for lbl, r in options if lbl == escolha)
+    else:
+        row = _resolve_escala_row(
+            my_email, escalas_df, equipe_df, prefer_id=pref
+        )
+        if row is None:
+            st.info("Você ainda não aparece em nenhuma escala registrada.")
+            return
+        st.caption(escala_label_for_user(row, my_email, equipe_df))
+
+    st.session_state["ml_esc_todas_escala_id"] = str(row.get("id", ""))
+    _render_culto_layout(
         row,
-        programa_df,
-        equipe_df,
-        members_df,
-        louvores_df,
-        ensaio_notice=True,
-        widget_key_prefix=f"ml_todas_{escolha_id}",
+        my_email=my_email,
+        equipe_df=equipe_df,
+        members_df=members_df,
+        programa_df=programa_df,
+        louvores_df=louvores_df,
+        key_prefix="ml_esc",
+        full=True,
     )
 
 
@@ -544,7 +1287,7 @@ def _render_tab_sequencia(
     )
 
 
-def _render_tab_trocas(
+def _render_tab_disponibilidade(
     *,
     my_email: str,
     escalas_df: pd.DataFrame,
@@ -566,9 +1309,9 @@ def _render_tab_trocas(
         """
         <div class="ml-glass" style="border-radius:22px;padding:14px;margin-bottom:12px;">
           <div style="font-size:1.4rem;margin-bottom:6px;">🔄</div>
-          <div style="font-weight:900;">Trocas e subs</div>
+          <div style="font-weight:900;">Disponibilidade</div>
           <p style="color:rgba(148,163,184,.92);font-size:0.88rem;margin:8px 0 0;line-height:1.35;">
-            Acompanhe pedidos, substituições e envie novas solicitações de troca.
+            Trocas, substituições e solicitações de disponibilidade.
           </p>
         </div>
         """,
@@ -588,7 +1331,7 @@ def _render_tab_trocas(
     if minhas.empty:
         st.warning(
             "Não encontramos culto vinculado ao seu e-mail. "
-            "Confira se você está escalado em **Todas**."
+            "Confira se você está escalado em **Escalas**."
         )
         return
 
@@ -788,8 +1531,6 @@ def render_mobile_escalas_page(
 
     active = _active_tab()
     _render_header()
-    _render_hero_hub()
-    _render_quick_access()
     _render_tabs(active)
 
     focus_id = str(st.session_state.get("ml_escalas_focus_id", "")).strip()
@@ -802,8 +1543,17 @@ def render_mobile_escalas_page(
             ev = str(row.get("event", "Culto"))
             st.success(f"📅 **{ev}** · Culto em {dt_txt}")
 
-    if active == "todas":
-        _render_tab_todas(
+    if active == "visao":
+        _render_tab_visao(
+            my_email=my_email,
+            escalas_df=escalas_df,
+            equipe_df=equipe_df,
+            members_df=members_df,
+            programa_df=programa_df,
+            louvores_df=louvores_df,
+        )
+    elif active == "escalas":
+        _render_tab_escalas(
             my_email=my_email,
             escalas_df=escalas_df,
             equipe_df=equipe_df,
@@ -820,8 +1570,8 @@ def render_mobile_escalas_page(
             equipe_df=equipe_df,
             members_df=members_df,
         )
-    elif active == "trocas":
-        _render_tab_trocas(
+    elif active == "disponibilidade":
+        _render_tab_disponibilidade(
             my_email=my_email,
             escalas_df=escalas_df,
             equipe_df=equipe_df,
