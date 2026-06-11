@@ -182,8 +182,7 @@ def mobile_lab_css() -> str:
     /* Marcadores invisíveis do shell não empurram o conteúdo */
     #ml-mobile-lab-mode,
     #ml-streamlit-shield,
-    #ml-bottom-nav-start,
-    #ml-chat-active {
+    #ml-bottom-nav-start {
       display: block !important;
       height: 0 !important;
       max-height: 0 !important;
@@ -196,8 +195,7 @@ def mobile_lab_css() -> str:
     }
     body:has(#ml-mobile-lab-mode) [data-testid="element-container"]:has(#ml-mobile-lab-mode),
     body:has(#ml-mobile-lab-mode) [data-testid="element-container"]:has(#ml-streamlit-shield),
-    body:has(#ml-mobile-lab-mode) [data-testid="element-container"]:has(#ml-bottom-nav-start),
-    body:has(#ml-mobile-lab-mode) [data-testid="element-container"]:has(#ml-chat-active) {
+    body:has(#ml-mobile-lab-mode) [data-testid="element-container"]:has(#ml-bottom-nav-start) {
       margin: 0 !important;
       padding: 0 !important;
       min-height: 0 !important;
@@ -898,7 +896,7 @@ def inject_mobile_lab_app_shell() -> None:
 
 def inject_mobile_lab_theme() -> None:
     """CSS inline (baseline layout) — cache 1×/sessão; não usar static parcial."""
-    css_key = "_mobile_lab_css_blob_v3"
+    css_key = "_mobile_lab_css_blob_v4"
     if css_key not in st.session_state:
         st.session_state[css_key] = mobile_lab_css()
     st.markdown(

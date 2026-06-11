@@ -219,7 +219,7 @@ def is_user_viewing_chat_mobile() -> bool:
             return False
         if str(st.session_state.get("ml_page", "")).strip() != "Chat":
             return False
-        return str(st.session_state.get("ml_chat_view", "thread")).strip() == "thread"
+        return str(st.session_state.get("ml_chat_view", "list")).strip() == "thread"
     except Exception:
         return False
 

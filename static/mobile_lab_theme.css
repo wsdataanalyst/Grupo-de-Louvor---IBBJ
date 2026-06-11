@@ -164,8 +164,7 @@
     /* Marcadores invisíveis do shell não empurram o conteúdo */
     #ml-mobile-lab-mode,
     #ml-streamlit-shield,
-    #ml-bottom-nav-start,
-    #ml-chat-active {
+    #ml-bottom-nav-start {
       display: block !important;
       height: 0 !important;
       max-height: 0 !important;
@@ -178,8 +177,7 @@
     }
     body:has(#ml-mobile-lab-mode) [data-testid="element-container"]:has(#ml-mobile-lab-mode),
     body:has(#ml-mobile-lab-mode) [data-testid="element-container"]:has(#ml-streamlit-shield),
-    body:has(#ml-mobile-lab-mode) [data-testid="element-container"]:has(#ml-bottom-nav-start),
-    body:has(#ml-mobile-lab-mode) [data-testid="element-container"]:has(#ml-chat-active) {
+    body:has(#ml-mobile-lab-mode) [data-testid="element-container"]:has(#ml-bottom-nav-start) {
       margin: 0 !important;
       padding: 0 !important;
       min-height: 0 !important;

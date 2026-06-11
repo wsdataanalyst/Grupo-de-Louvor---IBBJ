@@ -21,15 +21,16 @@ from ui_html import inject_page_script, inject_ui_html
 _WA_GROUP_AVATAR = "🎵"
 
 _WA_MOBILE_SURFACES = (
-    "body:has(#ml-chat-active), body:has(#ml-ensaio-chat-active)"
+    'body:has([class*="st-key-ml_chat_screen"]), body:has(#ml-ensaio-chat-active)'
 )
+_ML_CHAT_BODY = 'body:has([class*="st-key-ml_chat_screen"])'
 
 
 def wa_mobile_shared_surface_css() -> str:
     """Compositor, header da thread e barra WA — chat geral e ensaio."""
     s = _WA_MOBILE_SURFACES
     return f"""
-    body:has(#ml-chat-active) [class*="st-key-ml_chat_composer"],
+    {_ML_CHAT_BODY} [class*="st-key-ml_chat_composer"],
     body:has(#ml-ensaio-chat-active) [class*="st-key-ml_ensaio_composer"] {{
       position: fixed !important;
       left: 0 !important;
@@ -105,9 +106,9 @@ def wa_mobile_shared_surface_css() -> str:
     {s} [class*="st-key-ml_chat_attach_panel"] [data-testid="stCameraInput"] small {{
       display: none !important;
     }}
-    body:has(#ml-chat-active) [class*="st-key-ml_chat_composer"] [data-testid="stPopover"],
+    {_ML_CHAT_BODY} [class*="st-key-ml_chat_composer"] [data-testid="stPopover"],
     body:has(#ml-ensaio-chat-active) [class*="st-key-ml_ensaio_composer"] [data-testid="stPopover"],
-    body:has(#ml-chat-active) [class*="st-key-ml_chat_composer"] [data-baseweb="popover"],
+    {_ML_CHAT_BODY} [class*="st-key-ml_chat_composer"] [data-baseweb="popover"],
     body:has(#ml-ensaio-chat-active) [class*="st-key-ml_ensaio_composer"] [data-baseweb="popover"] {{
       display: none !important;
     }}
@@ -138,7 +139,7 @@ def wa_mobile_shared_surface_css() -> str:
       font-size: 1.15rem !important;
       line-height: 1 !important;
     }}
-    body:has(#ml-chat-active) [class*="st-key-ml_chat_back"] .stButton > button,
+    {_ML_CHAT_BODY} [class*="st-key-ml_chat_back"] .stButton > button,
     body:has(#ml-ensaio-chat-active) [class*="st-key-ml_ensaio_back"] .stButton > button,
     body:has(#ml-ensaio-chat-active) [class*="st-key-ml_ensaio_info_btn"] .stButton > button {{
       background: transparent !important;
@@ -148,7 +149,7 @@ def wa_mobile_shared_surface_css() -> str:
       min-height: 2.5rem !important;
       padding: 0 0.35rem !important;
     }}
-    body:has(#ml-chat-active) [class*="st-key-ml_chat_thread_top"] [data-testid="stHorizontalBlock"],
+    {_ML_CHAT_BODY} [class*="st-key-ml_chat_thread_top"] [data-testid="stHorizontalBlock"],
     body:has(#ml-ensaio-chat-active) [class*="st-key-ml_ensaio_thread_top"] [data-testid="stHorizontalBlock"] {{
       display: flex !important;
       flex-direction: row !important;
@@ -157,8 +158,8 @@ def wa_mobile_shared_surface_css() -> str:
       gap: 0 !important;
       margin: 0 !important;
     }}
-    body:has(#ml-chat-active) [class*="st-key-ml_chat_thread_top"] [data-testid="stColumn"]:nth-child(1),
-    body:has(#ml-chat-active) [class*="st-key-ml_chat_thread_top"] [data-testid="stColumn"]:nth-child(3),
+    {_ML_CHAT_BODY} [class*="st-key-ml_chat_thread_top"] [data-testid="stColumn"]:nth-child(1),
+    {_ML_CHAT_BODY} [class*="st-key-ml_chat_thread_top"] [data-testid="stColumn"]:nth-child(3),
     body:has(#ml-ensaio-chat-active) [class*="st-key-ml_ensaio_thread_top"] [data-testid="stColumn"]:nth-child(1),
     body:has(#ml-ensaio-chat-active) [class*="st-key-ml_ensaio_thread_top"] [data-testid="stColumn"]:nth-child(3) {{
       flex: 0 0 2.5rem !important;
@@ -166,7 +167,7 @@ def wa_mobile_shared_surface_css() -> str:
       max-width: 2.5rem !important;
       min-width: 2.5rem !important;
     }}
-    body:has(#ml-chat-active) [class*="st-key-ml_chat_thread_top"] [data-testid="stColumn"]:nth-child(2),
+    {_ML_CHAT_BODY} [class*="st-key-ml_chat_thread_top"] [data-testid="stColumn"]:nth-child(2),
     body:has(#ml-ensaio-chat-active) [class*="st-key-ml_ensaio_thread_top"] [data-testid="stColumn"]:nth-child(2) {{
       flex: 1 1 auto !important;
       width: auto !important;
@@ -177,10 +178,11 @@ def wa_mobile_shared_surface_css() -> str:
 
 
 def wa_mobile_chat_css() -> str:
+    b = _ML_CHAT_BODY
     return (
         notification_badge_css()
-        + """
-    :root {
+        + f"""
+    :root {{
       --wa-bg: #0b141a;
       --wa-header: #202c33;
       --wa-compose: #202c33;
@@ -192,68 +194,64 @@ def wa_mobile_chat_css() -> str:
       --wa-meta: #8696a0;
       --wa-accent: #00a884;
       --wa-unread: #25d366;
-    }
-    body:has(#ml-chat-active) [data-testid="stAppViewContainer"],
-    body:has(#ml-chat-active) [data-testid="stMain"] {
+    }}
+    {b} [data-testid="stAppViewContainer"],
+    {b} [data-testid="stMain"] {{
       background: var(--wa-bg, #0b141a) !important;
-    }
-    body:has(#ml-chat-active) [data-testid="stAppViewContainer"] .main .block-container {
+    }}
+    {b} [data-testid="stAppViewContainer"] .main .block-container {{
       padding-top: 0 !important;
       padding-left: 0 !important;
       padding-right: 0 !important;
       padding-bottom: 0 !important;
       max-width: 100% !important;
-    }
-    body:has(#ml-chat-active) [data-testid="stMain"] > div {
+    }}
+    {b} [data-testid="stMain"] > div {{
       padding-top: 0 !important;
-    }
-    #ml-chat-active.wa-chat-thread-shell {
-      display: none !important;
-      height: 0 !important;
-      min-height: 0 !important;
-      margin: 0 !important;
-      padding: 0 !important;
-    }
-    body:has(#ml-chat-active) #chat-scroll-box.wa-chat-feed {
-      position: fixed !important;
-      top: calc(var(--ml-thread-header) + env(safe-area-inset-top, 0px)) !important;
-      left: 0 !important;
-      right: 0 !important;
-      bottom: calc(
-        var(--ml-nav-height) + var(--ml-verse-height) + var(--ml-nav-offset)
-        + var(--ml-compose-clearance, 5.75rem)
-      ) !important;
+    }}
+    {b} #chat-scroll-box.wa-chat-feed {{
+      position: relative !important;
+      top: auto !important;
+      left: auto !important;
+      right: auto !important;
+      bottom: auto !important;
       width: 100% !important;
       max-width: 100% !important;
-      min-height: 0 !important;
-      max-height: none !important;
+      min-height: 38vh !important;
+      max-height: 52vh !important;
       height: auto !important;
-      z-index: 50 !important;
+      overflow-y: auto !important;
+      -webkit-overflow-scrolling: touch;
+      z-index: 1 !important;
       background: var(--wa-bg) !important;
       background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.02'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E") !important;
-    }
-    body:has(#ml-chat-active) [class*="st-key-ml_chat_thread_top"] {
-      position: fixed !important;
-      top: env(safe-area-inset-top, 0px) !important;
-      left: 0 !important;
-      right: 0 !important;
-      z-index: 120 !important;
+      margin: 0.25rem 0 0.35rem !important;
+      border-radius: 0 !important;
+    }}
+    {b} [class*="st-key-ml_chat_thread_top"] {{
+      position: relative !important;
+      top: auto !important;
+      left: auto !important;
+      right: auto !important;
+      z-index: 2 !important;
       background: var(--wa-header) !important;
       border-bottom: 1px solid rgba(255,255,255,.08) !important;
       padding: 0.15rem 0.25rem 0.1rem !important;
-      margin: 0 !important;
-    }
-    body:has(#ml-chat-active) [class*="st-key-ml_chat_feed_wrap"] {
+      margin: 0 0 0.15rem !important;
+    }}
+    {b} [class*="st-key-ml_chat_feed_wrap"] {{
       min-height: 0 !important;
       margin: 0 !important;
       padding: 0 !important;
       overflow: visible !important;
       border: none !important;
-    }
-    body:has(#ml-chat-active) [class*="st-key-ml_chat_feed_wrap"] .ml-chat-feed-area {
+    }}
+    {b} [class*="st-key-ml_chat_feed_wrap"] .ml-chat-feed-area {{
       margin: 0 !important;
       padding: 0 !important;
-    }
+    }}
+    """
+        + """
     .wa-chat-list-view {
       padding: 0 0.5rem 0.75rem;
     }
