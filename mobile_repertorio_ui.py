@@ -69,7 +69,7 @@ def mobile_repertorio_css() -> str:
       color: #fff !important;
       box-shadow: 0 0 24px rgba(124,58,237,.28) !important;
     }
-    body:has(#ml-repertorio-page) [class*="st-key-ml_rep_search"] .stTextInput > div > div > input{
+    body:has(#ml-repertorio-page) [class*="st-key-ml_rep_search_wrap"] .stTextInput > div > div > input{
       min-height: 3rem !important;
       border-radius: 18px !important;
       background: #111827 !important;
@@ -747,7 +747,7 @@ def _render_hub(
         ]
     ) if recent else 0
 
-    with st.container(key="ml_rep_search"):
+    with st.container(key="ml_rep_search_wrap"):
         _render_search_bar()
     _render_filters_expander(louvores_df)
 
@@ -828,7 +828,7 @@ def _render_lista(
                     st.session_state.ml_rep_list_tab = key
                     st.rerun()
 
-    with st.container(key="ml_rep_search"):
+    with st.container(key="ml_rep_search_wrap"):
         _render_search_bar()
 
     filtered, fav, _recent = _filtered_repertorio(
