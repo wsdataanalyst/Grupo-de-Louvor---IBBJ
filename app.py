@@ -886,7 +886,7 @@ def save_data(
     clear_load_data_cache(file_path)
     if file_path.name in ESCALA_LIVE_FILE_NAMES:
         try:
-            refresh_escalas_bundle()
+            refresh_escalas_bundle(prefer_local=True)
         except Exception:
             pass
     return True
@@ -2564,6 +2564,28 @@ def programa_por_escala(programa_df: pd.DataFrame, escala_id: str) -> pd.DataFra
     return prog.sort_values("ordem")
 
 
+_PENDING_PROG_DEL_KEY = "_pending_prog_del"
+
+
+def request_remove_programa_louvor(
+    escala_id: str,
+    programa_id: str,
+    key_prefix: str,
+) -> None:
+    st.session_state[_PENDING_PROG_DEL_KEY] = {
+        "escala_id": str(escala_id),
+        "programa_id": str(programa_id),
+        "key_prefix": str(key_prefix),
+    }
+
+
+def _rerun_full_app() -> None:
+    try:
+        st.rerun(scope="app")
+    except TypeError:
+        st.rerun()
+
+
 def remove_programa_louvor(
     programa_df: pd.DataFrame,
     escala_id: str,
@@ -2578,7 +2600,7 @@ def remove_programa_louvor(
     for i, idx in enumerate(remaining.index, start=1):
         df.loc[idx, "ordem"] = int(i)
     save_data(df, PROGRAMA_FILE)
-    return prepare_programa(load_data(PROGRAMA_FILE, PROGRAMA_COLUMNS))
+    return prepare_programa(df)
 
 
 def equipe_por_escala(equipe_df: pd.DataFrame, escala_id: str) -> pd.DataFrame:
@@ -4491,8 +4513,24 @@ def load_escalas_bundle_live() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame
     return escalas_df, programa_df, equipe_df, trocas_df
 
 
-def refresh_escalas_bundle() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    bundle = load_escalas_bundle_live()
+def load_escalas_bundle_local() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """Lê o bundle do disco local — evita sobrescrever gravação recente com nuvem desatualizada."""
+    escalas_df = prepare_escalas(load_csv_preserve_rows(ESCALAS_FILE, ESCALA_COLUMNS))
+    programa_df = prepare_programa(load_csv_preserve_rows(PROGRAMA_FILE, PROGRAMA_COLUMNS))
+    equipe_df = prepare_equipe(load_csv_preserve_rows(EQUIPE_FILE, EQUIPE_COLUMNS))
+    trocas_df = prepare_trocas(load_csv_preserve_rows(TROCAS_FILE, TROCA_COLUMNS))
+    return escalas_df, programa_df, equipe_df, trocas_df
+
+
+def refresh_escalas_bundle(
+    *,
+    prefer_local: bool = False,
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    bundle = (
+        load_escalas_bundle_local()
+        if prefer_local
+        else load_escalas_bundle_live()
+    )
     st.session_state["_escalas_bundle"] = bundle
     st.session_state["_escalas_rev"] = escalas_data_revision()
     return bundle
@@ -7349,6 +7387,16 @@ def render_programa_louvores_editor(
     key_prefix: str,
 ):
     _, programa_df, _, _ = get_escalas_bundle()
+    pending_del = st.session_state.pop(_PENDING_PROG_DEL_KEY, None)
+    if pending_del and str(pending_del.get("escala_id")) == str(escala_id):
+        pid_del = str(pending_del.get("programa_id", "")).strip()
+        kpref_del = str(pending_del.get("key_prefix", key_prefix))
+        if pid_del:
+            with st.spinner("Removendo louvor..."):
+                remove_programa_louvor(programa_df, escala_id, pid_del)
+            st.session_state.pop(f"{kpref_del}_ep_{pid_del}", None)
+            _, programa_df, _, _ = get_escalas_bundle()
+            st.toast("Louvor removido.", icon="🗑️")
     st.subheader("🎶 Louvores do culto")
     st.caption(
         "Busque à esquerda, toque em ➕ e defina a **parte do culto** de cada música em **Selecionados**."
@@ -7403,11 +7451,8 @@ def render_programa_louvores_editor(
                         key=f"{key_prefix}_pdel_{pid}",
                         use_container_width=True,
                     ):
-                        with st.spinner("Removendo louvor..."):
-                            remove_programa_louvor(programa_df, escala_id, pid)
-                        st.session_state.pop(f"{key_prefix}_ep_{pid}", None)
-                        st.toast("Louvor removido.", icon="🗑️")
-                        st.rerun()
+                        request_remove_programa_louvor(escala_id, pid, key_prefix)
+                        _rerun_full_app()
     else:
         st.info("Nenhum louvor na programação deste culto ainda.")
 
