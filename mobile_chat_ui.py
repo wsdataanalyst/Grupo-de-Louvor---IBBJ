@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 import html
-from datetime import datetime, timedelta
+from datetime import datetime
 from urllib.parse import unquote
 
 import pandas as pd
 import streamlit as st
 
 # Altere ao publicar — confirme no rodapé do chat se o Cloud atualizou
-ML_CHAT_BUILD = "2026-06-10-ml-chat-13"
+ML_CHAT_BUILD = "2026-06-10-ml-chat-14"
 
 from app_runtime import import_from_main_app
 from chat_runtime import (
@@ -228,25 +228,6 @@ def _draw_chat_feed(members_df: pd.DataFrame, *, force_reload: bool = False) -> 
     render_wa_mobile_messages(chat_df, members_df, rev=rev)
 
 
-@st.fragment(run_every=timedelta(seconds=4))
-def _wa_chat_thread_live(members_df: pd.DataFrame) -> None:
-    """
-    Feed + composer no mesmo fragment: ao enviar, rerun só desta área (rápido).
-    """
-    with st.container(key="ml_chat_feed_wrap"):
-        if not render_wa_feed_from_cache(members_df):
-            chat_df = st.session_state.get("_chat_df_cache")
-            if chat_df is None:
-                try:
-                    chat_df = load_chat_df_live()
-                except Exception:
-                    chat_df = pd.DataFrame()
-            rev = str(st.session_state.get("_chat_rev", ""))
-            render_wa_mobile_messages(chat_df, members_df, rev=rev)
-
-    _render_chat_composer_bar()
-
-
 def _render_chat_composer_bar() -> None:
     append_chat_message = st.session_state.get("_ml_append_chat")
     if not append_chat_message:
@@ -289,7 +270,22 @@ def _render_thread_view(members_df: pd.DataFrame) -> None:
                     _set_chat_view("info")
                     st.rerun()
 
-    _wa_chat_thread_live(members_df)
+    _render_thread_live(members_df)
+
+
+def _render_thread_live(members_df: pd.DataFrame) -> None:
+    with st.container(key="ml_chat_feed_wrap"):
+        if not render_wa_feed_from_cache(members_df):
+            chat_df = st.session_state.get("_chat_df_cache")
+            if chat_df is None:
+                try:
+                    chat_df = load_chat_df_live()
+                except Exception:
+                    chat_df = pd.DataFrame()
+            rev = str(st.session_state.get("_chat_rev", ""))
+            render_wa_mobile_messages(chat_df, members_df, rev=rev)
+
+    _render_chat_composer_bar()
 
 
 def _render_info_view(

@@ -4512,9 +4512,8 @@ def _feed_global_sync():
         pass
 
 
-@st.fragment(run_every=timedelta(seconds=CHAT_POLL_SECONDS))
-def _chat_global_sync():
-    """Atualiza contagem de não lidas e badge do menu Chat em tempo quase real."""
+def _chat_global_sync_core(*, bump_poll: bool = True) -> None:
+    """Sincroniza chat.csv → sessão (sem fragment — seguro no mobile)."""
     if not st.session_state.get("authenticated"):
         return
     try:
@@ -4526,9 +4525,12 @@ def _chat_global_sync():
     except Exception:
         pass
 
-    poll = int(st.session_state.get("_chat_poll_count", 0)) + 1
-    st.session_state._chat_poll_count = poll
-    force_reload = poll % CHAT_FORCE_RELOAD_EVERY_POLLS == 0
+    if bump_poll:
+        poll = int(st.session_state.get("_chat_poll_count", 0)) + 1
+        st.session_state._chat_poll_count = poll
+        force_reload = poll % CHAT_FORCE_RELOAD_EVERY_POLLS == 0
+    else:
+        force_reload = False
 
     try:
         new_rev = chat_data_revision()
@@ -4553,6 +4555,12 @@ def _chat_global_sync():
     st.session_state.chat_unread_count = unread
     if unread != prev:
         st.session_state._chat_unread_prev = prev
+
+
+@st.fragment(run_every=timedelta(seconds=CHAT_POLL_SECONDS))
+def _chat_global_sync():
+    """Atualiza contagem de não lidas e badge do menu Chat em tempo quase real."""
+    _chat_global_sync_core()
 
 
 def append_chat_message(
@@ -10351,6 +10359,7 @@ def _run_app() -> None:
 
             render_mobile_playlist_page(louvores_df, playlist_df, members_df)
         elif ml_page == "Chat":
+            _chat_global_sync_core(bump_poll=False)
             from mobile_chat_ui import render_mobile_chat_page
 
             render_mobile_chat_page(chat_df, members_df)
@@ -10391,7 +10400,8 @@ def _run_app() -> None:
                 feed_posts_df=feed_posts_df,
             )
 
-        _chat_global_sync()
+        if ml_page != "Chat":
+            _chat_global_sync()
         chat_unread = int(st.session_state.get("chat_unread_count", 0))
         prev_unread = int(st.session_state.get("_chat_unread_prev", 0))
         badge_pulse = chat_unread > prev_unread and chat_unread > 0
