@@ -599,6 +599,9 @@ def _save_profile_photo_mobile(
             st.session_state.user_profile_photo = filename
             st.session_state._profile_photo_saved_key = blob_key
             st.session_state.pop("_pending_profile_photo", None)
+            from app import ensure_current_user_profile_photo
+
+            ensure_current_user_profile_photo(members_df)
             st.success("Foto salva!")
             return True
     except ValueError as exc:
@@ -835,6 +838,7 @@ def render_mobile_perfil_page(
     from app import (
         PLAYLIST_COLUMNS,
         PLAYLIST_FILE,
+        ensure_current_user_profile_photo,
         get_current_member_row,
         load_data,
         playlist_for_user,
@@ -842,7 +846,6 @@ def render_mobile_perfil_page(
         prepare_playlist,
         profile_photo_to_data_uri,
         split_member_roles,
-        sync_user_profile_photo_field,
     )
     from escala_member_stats import member_escala_stats
     from playlist_ui import get_favorite_ids
@@ -852,7 +855,7 @@ def render_mobile_perfil_page(
     st.markdown('<div id="ml-perfil-page" class="ml-page">', unsafe_allow_html=True)
 
     members_df = prepare_members(members_df)
-    members_df = sync_user_profile_photo_field(members_df)
+    members_df = ensure_current_user_profile_photo(members_df)
     idx, row = get_current_member_row(members_df)
     if row is None:
         st.error("Não foi possível carregar o perfil.")

@@ -174,6 +174,7 @@ def invalidate_all_session_df_caches() -> None:
 
 # CSVs que devem refletir dados ao voltar do background (PWA / aba em segundo plano).
 RESUME_DATA_FILE_NAMES: tuple[str, ...] = (
+    "members.csv",
     "chat.csv",
     "escalas.csv",
     "programa_culto.csv",
@@ -193,6 +194,8 @@ def invalidate_resume_data_caches() -> None:
     for name in RESUME_DATA_FILE_NAMES:
         invalidate_session_df_cache(name)
     for key in (
+        "_members_df_cache",
+        "_members_rev",
         "_escalas_bundle",
         "_chat_df_cache",
         "_chat_rev",
@@ -323,6 +326,14 @@ def bootstrap_authenticated_data(*, mobile: bool) -> AppDataBundle:
 
     members_df = load_members_cached(load_members_df, members_file=MEMBERS_FILE)
     members_df = prepare_members(members_df)
+    if route in ("Perfil", "Membros"):
+        from app import ensure_current_user_profile_photo
+
+        members_df = load_members_df()
+        st.session_state["_members_df_cache"] = members_df
+        st.session_state["_members_rev"] = file_local_revision(MEMBERS_FILE)
+        members_df = prepare_members(members_df)
+        members_df = ensure_current_user_profile_photo(members_df)
 
     if _needs_chat(route, mobile=mobile):
         chat_df = load_chat_df_live()

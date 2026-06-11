@@ -864,15 +864,20 @@ def save_data(
 
     from remote_store import is_remote_enabled, push_file_from_disk, should_sync_file
 
+    members_critical = file_path == MEMBERS_FILE
     if should_sync_file(file_path) and is_remote_enabled():
         try:
-            if sync_remote:
-                if not push_file_from_disk(file_path):
-                    if is_current_developer() and not quiet:
-                        show_technical_error(
-                            "Salvo no servidor, mas não foi possível sincronizar com a nuvem. "
-                            "Verifique CONFIGURAR_SUPABASE.md."
-                        )
+            if sync_remote or members_critical:
+                if push_file_from_disk(file_path):
+                    if members_critical:
+                        from remote_sync_queue import dequeue_remote_push
+
+                        dequeue_remote_push(file_path.name)
+                elif is_current_developer() and not quiet:
+                    show_technical_error(
+                        "Salvo no servidor, mas não foi possível sincronizar com a nuvem. "
+                        "Verifique CONFIGURAR_SUPABASE.md."
+                    )
             else:
                 from remote_sync_queue import enqueue_remote_push
 
@@ -929,7 +934,11 @@ def email_to_photo_slug(email: str) -> str:
     return email.strip().lower().replace("@", "_at_").replace(".", "_")
 
 
-def ensure_local_profile_photos(members_df: pd.DataFrame) -> None:
+def ensure_local_profile_photos(
+    members_df: pd.DataFrame,
+    *,
+    emails: set[str] | None = None,
+) -> None:
     """Restaura fotos da nuvem após reboot (Streamlit Cloud)."""
     if members_df.empty:
         return
@@ -939,17 +948,30 @@ def ensure_local_profile_photos(members_df: pd.DataFrame) -> None:
         return
     PROFILE_PHOTOS_DIR.mkdir(parents=True, exist_ok=True)
     members_df = prepare_members(members_df)
+    want = {e.strip().lower() for e in emails} if emails else None
     for _, row in members_df.iterrows():
+        email = str(row.get("email", "")).strip().lower()
+        if want is not None and email not in want:
+            continue
         fn = str(row.get("profile_photo", "")).strip()
         if not fn:
             continue
         dest = PROFILE_PHOTOS_DIR / fn
-        if not dest.exists():
+        if not dest.exists() or dest.stat().st_size == 0:
             pull_profile_photo_file(fn, PROFILE_PHOTOS_DIR)
         elif dest.is_file():
             from remote_store import push_profile_photo_file
 
             push_profile_photo_file(dest)
+
+
+def ensure_current_user_profile_photo(members_df: pd.DataFrame) -> pd.DataFrame:
+    """Garante foto do usuário logado após rerun ou retorno do app."""
+    email = str(st.session_state.get("user_email", "")).strip().lower()
+    if not email:
+        return members_df
+    ensure_local_profile_photos(members_df, emails={email})
+    return sync_user_profile_photo_field(members_df)
 
 
 def profile_photo_file(email: str, stored_name: str = "") -> Path | None:
@@ -3389,6 +3411,7 @@ def handle_app_resume_query_params() -> bool:
 
         if is_remote_enabled():
             for path in (
+                MEMBERS_FILE,
                 CHAT_FILE,
                 ESCALAS_FILE,
                 PROGRAMA_FILE,
@@ -3403,6 +3426,12 @@ def handle_app_resume_query_params() -> bool:
                     pull_file_to_disk(path)
                 except Exception:
                     pass
+            try:
+                clear_load_data_cache(MEMBERS_FILE)
+                fresh = load_members_df()
+                ensure_local_profile_photos(fresh)
+            except Exception:
+                pass
     except Exception:
         pass
     try:
@@ -6541,7 +6570,7 @@ def show_user_profile(
     equipe_df: pd.DataFrame,
 ):
     members_df = prepare_members(members_df)
-    members_df = sync_user_profile_photo_field(members_df)
+    members_df = ensure_current_user_profile_photo(members_df)
     idx, row = get_current_member_row(members_df)
     if row is None:
         show_technical_error("Não foi possível carregar o perfil.")
@@ -10386,6 +10415,14 @@ def _run_app() -> None:
     if "data_guard_initialized" not in st.session_state:
         snapshot_data_folder(DATA_DIR)
         st.session_state.data_guard_initialized = True
+
+    try:
+        from remote_sync_queue import flush_remote_push_queue, init_remote_push_queue_from_disk
+
+        init_remote_push_queue_from_disk()
+        flush_remote_push_queue(max_items=12)
+    except Exception:
+        pass
 
     try:
         try:
