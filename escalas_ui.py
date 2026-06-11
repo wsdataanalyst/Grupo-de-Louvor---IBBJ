@@ -13,7 +13,6 @@ ESCALAS_TAB_KEYS: tuple[tuple[str, str], ...] = (
     ("sequencia", "🎵  Sequência do Culto"),
     ("trocas", "🔄  Trocar escala"),
     ("pedidos", "📬  Solicitações"),
-    ("ensaio", "💬  Chat do ensaio"),
 )
 
 ESCALAS_TAB_LABELS = tuple(label for _, label in ESCALAS_TAB_KEYS)
@@ -307,7 +306,7 @@ def render_escalas_info_banner() -> None:
                     <strong class="ig-escalas-link">Gerenciar Escalas</strong>.
                 </p>
                 <span class="ig-escalas-info-sub">
-                    Aqui você solicita trocas e acompanha o chat do ensaio.
+                    Aqui você solicita trocas e acompanha suas escalas.
                 </span>
             </div>
         </div>

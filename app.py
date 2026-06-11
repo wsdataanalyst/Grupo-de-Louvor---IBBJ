@@ -892,6 +892,35 @@ def save_data(
     return True
 
 
+def _pending_save_state_key(action: str) -> str:
+    return f"_ig_pending_save_{action}"
+
+
+def start_pending_save(action: str, message: str = "Salvando escala...") -> None:
+    st.session_state[_pending_save_state_key(action)] = message
+
+
+def pop_pending_save(action: str) -> str | None:
+    return st.session_state.pop(_pending_save_state_key(action), None)
+
+
+def run_pending_save(
+    action: str,
+    save_fn,
+    *,
+    success_message: str | None = None,
+    toast_icon: str = "💾",
+) -> bool:
+    msg = pop_pending_save(action)
+    if msg is None:
+        return False
+    with st.spinner(msg):
+        save_fn()
+    if success_message:
+        st.toast(success_message, icon=toast_icon)
+    return True
+
+
 def new_id() -> str:
     return str(uuid.uuid4())[:8]
 
@@ -7324,19 +7353,52 @@ def render_programa_louvores_editor(
                     key=f"{key_prefix}_ep_{pid}",
                 )
                 c1, c2 = st.columns(2)
-                with c1:
-                    if st.button("💾 Salvar parte", key=f"{key_prefix}_savep_{pid}", use_container_width=True):
-                        idx_row = programa_df.index[programa_df["id"].astype(str) == pid]
-                        if len(idx_row):
-                            programa_df.loc[idx_row[0], "parte"] = str(parte_salvar).strip()
-                            save_data(programa_df, PROGRAMA_FILE)
-                            st.success("Parte atualizada.")
-                            st.rerun()
-                with c2:
-                    if st.button("🗑️ Remover louvor", key=f"{key_prefix}_pdel_{pid}", use_container_width=True):
-                        programa_df = programa_df[programa_df["id"].astype(str) != pid]
+                save_part_action = f"prog_savep_{key_prefix}_{pid}"
+                del_part_action = f"prog_pdel_{key_prefix}_{pid}"
+
+                def _save_programa_parte() -> None:
+                    idx_row = programa_df.index[programa_df["id"].astype(str) == pid]
+                    if len(idx_row):
+                        parte_val = str(
+                            st.session_state.get(f"{key_prefix}_ep_{pid}", parte_salvar)
+                        ).strip()
+                        programa_df.loc[idx_row[0], "parte"] = parte_val
                         save_data(programa_df, PROGRAMA_FILE)
-                        st.success("Louvor removido.")
+
+                def _remove_programa_parte() -> None:
+                    nonlocal programa_df
+                    programa_df = programa_df[programa_df["id"].astype(str) != pid]
+                    save_data(programa_df, PROGRAMA_FILE)
+
+                if run_pending_save(
+                    save_part_action,
+                    _save_programa_parte,
+                    success_message="Parte atualizada.",
+                ):
+                    st.rerun()
+                if run_pending_save(
+                    del_part_action,
+                    _remove_programa_parte,
+                    success_message="Louvor removido.",
+                ):
+                    st.rerun()
+                with c1:
+                    if st.button(
+                        "💾 Salvar parte",
+                        key=f"{key_prefix}_savep_{pid}",
+                        use_container_width=True,
+                    ):
+                        start_pending_save(save_part_action, "Salvando música...")
+                        st.toast("Salvando música...", icon="💾")
+                        st.rerun()
+                with c2:
+                    if st.button(
+                        "🗑️ Remover louvor",
+                        key=f"{key_prefix}_pdel_{pid}",
+                        use_container_width=True,
+                    ):
+                        start_pending_save(del_part_action, "Removendo louvor...")
+                        st.toast("Removendo louvor...", icon="🗑️")
                         st.rerun()
     else:
         st.info("Nenhum louvor na programação deste culto ainda.")
@@ -7347,49 +7409,64 @@ def render_programa_louvores_editor(
     leader_opts = ["—"] + list(member_map.keys())
     leader_label = st.selectbox("Quem conduz (padrão nos novos)", leader_opts, key=f"{key_prefix}_lead")
 
+    add_louvores_action = f"prog_ladd_{key_prefix}"
+
+    def _add_programa_louvores() -> None:
+        picked_rows = get_picked_louvores_for_programa(
+            key_prefix, louvores_catalog_options(louvores_df)
+        )
+        if not picked_rows:
+            st.warning("Selecione ao menos um louvor e defina a parte em **Selecionados**.")
+            return
+        next_order = int(prog["ordem"].max() + 1) if not prog.empty else 1
+        leader_email = ""
+        leader_name = ""
+        lead_lbl = str(st.session_state.get(f"{key_prefix}_lead", leader_label))
+        if lead_lbl and lead_lbl != "—":
+            leader_email = member_map.get(lead_lbl, "")
+            leader_name = lead_lbl.split(" (")[0]
+        novas = []
+        for i, row in enumerate(picked_rows):
+            novas.append(
+                {
+                    "id": new_id(),
+                    "escala_id": escala_id,
+                    "ordem": next_order + i,
+                    "parte": row["parte"],
+                    "louvor_title": row["titulo"],
+                    "artist": row["artist"],
+                    "key": row["key"],
+                    "youtube_url": row["youtube_url"],
+                    "cifra_url": row["cifra_url"],
+                    "leader_email": leader_email or row["leader_email"],
+                    "leader_name": leader_name or row["leader_name"],
+                    "notes": "",
+                }
+            )
+        save_data(
+            pd.concat([programa_df, pd.DataFrame(novas)], ignore_index=True),
+            PROGRAMA_FILE,
+        )
+        programa_df_local = prepare_programa(load_data(PROGRAMA_FILE, PROGRAMA_COLUMNS))
+        hydrate_escala_sequencia_content(escala_id, programa_df_local, louvores_df)
+        clear_louvor_picker_state(key_prefix)
+
+    if run_pending_save(
+        add_louvores_action,
+        _add_programa_louvores,
+        success_message="Louvores adicionados à escala.",
+    ):
+        st.rerun()
+
     if st.button(
         "➕ Adicionar louvores selecionados",
         type="primary",
         key=f"{key_prefix}_ladd",
         use_container_width=True,
     ):
-        picked_rows = get_picked_louvores_for_programa(key_prefix, louvores_catalog_options(louvores_df))
-        if not picked_rows:
-            st.warning("Selecione ao menos um louvor e defina a parte em **Selecionados**.")
-        else:
-            next_order = int(prog["ordem"].max() + 1) if not prog.empty else 1
-            leader_email = ""
-            leader_name = ""
-            if leader_label and leader_label != "—":
-                leader_email = member_map.get(leader_label, "")
-                leader_name = leader_label.split(" (")[0]
-            novas = []
-            for i, row in enumerate(picked_rows):
-                novas.append(
-                    {
-                        "id": new_id(),
-                        "escala_id": escala_id,
-                        "ordem": next_order + i,
-                        "parte": row["parte"],
-                        "louvor_title": row["titulo"],
-                        "artist": row["artist"],
-                        "key": row["key"],
-                        "youtube_url": row["youtube_url"],
-                        "cifra_url": row["cifra_url"],
-                        "leader_email": leader_email or row["leader_email"],
-                        "leader_name": leader_name or row["leader_name"],
-                        "notes": "",
-                    }
-                )
-            save_data(
-                pd.concat([programa_df, pd.DataFrame(novas)], ignore_index=True),
-                PROGRAMA_FILE,
-            )
-            programa_df = prepare_programa(load_data(PROGRAMA_FILE, PROGRAMA_COLUMNS))
-            hydrate_escala_sequencia_content(escala_id, programa_df, louvores_df)
-            st.success(f"{len(novas)} louvor(es) adicionado(s). O dashboard já está atualizado.")
-            clear_louvor_picker_state(key_prefix)
-            st.rerun()
+        start_pending_save(add_louvores_action, "Salvando músicas na escala...")
+        st.toast("Salvando músicas na escala...", icon="💾")
+        st.rerun()
 
     total_min = programa_duracao_total(programa_df, escala_id, louvores_df)
     if total_min > 0:
@@ -7618,6 +7695,122 @@ def show_escala_completa_editor(
                 render_gerenciar_louvores_tip()
                 render_gerenciar_form_card_close()
 
+            def _save_nova_escala() -> None:
+                nonlocal escalas_df, equipe_df, programa_df
+                culto_event_val = str(st.session_state.get("nova_esc_event", "")).strip()
+                culto_date_val = st.session_state.get("nova_esc_data", culto_date)
+                data_ensaio_val = st.session_state.get("nova_esc_ensaio", data_ensaio)
+                responsavel_val = st.session_state.get("nova_esc_resp", responsavel)
+                equipe_labels_val = st.session_state.get("nova_esc_equipe", equipe_labels)
+                notas_val = str(st.session_state.get("nova_esc_notas", notas)).strip()
+                email = member_map[responsavel_val]
+                row = members_df[
+                    members_df["email"].astype(str).str.lower() == email
+                ].iloc[0]
+                name = member_display_name(row)
+                escala_id = new_id()
+                new_escala = {
+                    "id": escala_id,
+                    "date": culto_date_val.strftime("%Y-%m-%d"),
+                    "event": culto_event_val,
+                    "responsible": name,
+                    "member_email": email,
+                    "member_name": name,
+                    "notes": notas_val,
+                    "rehearsal_date": data_ensaio_val.strftime("%Y-%m-%d"),
+                }
+                escalas_df = pd.concat(
+                    [escalas_df, pd.DataFrame([new_escala])], ignore_index=True
+                )
+                save_data(escalas_df, ESCALAS_FILE)
+
+                novas_eq = []
+                for label in equipe_labels_val:
+                    em = member_map[label]
+                    mrow = members_df[
+                        members_df["email"].astype(str).str.lower() == em
+                    ].iloc[0]
+                    funcao = default_funcao_para_escala(mrow)
+                    novas_eq.append(
+                        {
+                            "id": new_id(),
+                            "escala_id": escala_id,
+                            "member_email": em,
+                            "member_name": member_display_name(mrow),
+                            "funcao": funcao,
+                        }
+                    )
+                if novas_eq:
+                    equipe_df = pd.concat(
+                        [equipe_df, pd.DataFrame(novas_eq)], ignore_index=True
+                    )
+                    save_data(equipe_df, EQUIPE_FILE)
+
+                picked_rows = get_picked_louvores_for_programa(
+                    "nova_esc", louvores_catalog_options(louvores_df), email, name
+                )
+                if picked_rows:
+                    novas_prog = []
+                    for i, row in enumerate(picked_rows):
+                        novas_prog.append(
+                            {
+                                "id": new_id(),
+                                "escala_id": escala_id,
+                                "ordem": i + 1,
+                                "parte": row["parte"],
+                                "louvor_title": row["titulo"],
+                                "artist": row["artist"],
+                                "key": row["key"],
+                                "youtube_url": row["youtube_url"],
+                                "cifra_url": row["cifra_url"],
+                                "leader_email": email,
+                                "leader_name": name,
+                                "notes": "",
+                            }
+                        )
+                    save_data(
+                        pd.concat(
+                            [programa_df, pd.DataFrame(novas_prog)], ignore_index=True
+                        ),
+                        PROGRAMA_FILE,
+                    )
+                    programa_df = prepare_programa(
+                        load_data(PROGRAMA_FILE, PROGRAMA_COLUMNS)
+                    )
+                    hydrate_escala_sequencia_content(
+                        escala_id, programa_df, louvores_df
+                    )
+
+                try:
+                    queue_whatsapp_after_escala_save(
+                        new_escala,
+                        programa_df,
+                        equipe_df,
+                        members_df,
+                        louvores_df,
+                    )
+                except Exception:
+                    pass
+                try:
+                    schedule_feed_posts_for_escala(
+                        escala_id,
+                        new_escala,
+                        equipe_df,
+                        members_df,
+                        programa_df,
+                        louvores_df,
+                    )
+                except Exception:
+                    pass
+
+            if run_pending_save(
+                "nova_esc_complete",
+                _save_nova_escala,
+                success_message="Escala salva!",
+            ):
+                clear_louvor_picker_state("nova_esc")
+                st.rerun()
+
             save_label = "Salvar Escala Completa" if premium_layout else "💾 Salvar escala completa"
             if st.button(
                 save_label,
@@ -7628,110 +7821,8 @@ def show_escala_completa_editor(
                 if not culto_event.strip():
                     show_form_error("Informe o nome do culto/evento.")
                 else:
-                    email = member_map[responsavel]
-                    row = members_df[
-                        members_df["email"].astype(str).str.lower() == email
-                    ].iloc[0]
-                    name = member_display_name(row)
-                    escala_id = new_id()
-                    new_escala = {
-                        "id": escala_id,
-                        "date": culto_date.strftime("%Y-%m-%d"),
-                        "event": culto_event.strip(),
-                        "responsible": name,
-                        "member_email": email,
-                        "member_name": name,
-                        "notes": notas.strip(),
-                        "rehearsal_date": data_ensaio.strftime("%Y-%m-%d"),
-                    }
-                    escalas_df = pd.concat(
-                        [escalas_df, pd.DataFrame([new_escala])], ignore_index=True
-                    )
-                    save_data(escalas_df, ESCALAS_FILE)
-
-                    novas_eq = []
-                    for label in equipe_labels:
-                        em = member_map[label]
-                        mrow = members_df[
-                            members_df["email"].astype(str).str.lower() == em
-                        ].iloc[0]
-                        funcao = default_funcao_para_escala(mrow)
-                        novas_eq.append(
-                            {
-                                "id": new_id(),
-                                "escala_id": escala_id,
-                                "member_email": em,
-                                "member_name": member_display_name(mrow),
-                                "funcao": funcao,
-                            }
-                        )
-                    if novas_eq:
-                        equipe_df = pd.concat(
-                            [equipe_df, pd.DataFrame(novas_eq)], ignore_index=True
-                        )
-                        save_data(equipe_df, EQUIPE_FILE)
-
-                    picked_rows = get_picked_louvores_for_programa(
-                        "nova_esc", louvores_catalog_options(louvores_df), email, name
-                    )
-                    if picked_rows:
-                        novas_prog = []
-                        for i, row in enumerate(picked_rows):
-                            novas_prog.append(
-                                {
-                                    "id": new_id(),
-                                    "escala_id": escala_id,
-                                    "ordem": i + 1,
-                                    "parte": row["parte"],
-                                    "louvor_title": row["titulo"],
-                                    "artist": row["artist"],
-                                    "key": row["key"],
-                                    "youtube_url": row["youtube_url"],
-                                    "cifra_url": row["cifra_url"],
-                                    "leader_email": email,
-                                    "leader_name": name,
-                                    "notes": "",
-                                }
-                            )
-                        save_data(
-                            pd.concat(
-                                [programa_df, pd.DataFrame(novas_prog)], ignore_index=True
-                            ),
-                            PROGRAMA_FILE,
-                        )
-                        programa_df = prepare_programa(
-                            load_data(PROGRAMA_FILE, PROGRAMA_COLUMNS)
-                        )
-                        hydrate_escala_sequencia_content(
-                            escala_id, programa_df, louvores_df
-                        )
-
-                    try:
-                        queue_whatsapp_after_escala_save(
-                            new_escala,
-                            programa_df,
-                            equipe_df,
-                            members_df,
-                            louvores_df,
-                        )
-                    except Exception:
-                        pass
-                    try:
-                        schedule_feed_posts_for_escala(
-                            escala_id,
-                            new_escala,
-                            equipe_df,
-                            members_df,
-                            programa_df,
-                            louvores_df,
-                        )
-                    except Exception:
-                        pass
-                    st.success(
-                        "Escala salva! Quem estiver no Dashboard ou em Escalas vê a atualização "
-                        "em poucos segundos, sem precisar sair do app."
-                    )
-                    clear_louvor_picker_state("nova_esc")
+                    start_pending_save("nova_esc_complete", "Salvando escala...")
+                    st.toast("Salvando escala...", icon="💾")
                     st.rerun()
 
         if col_painel is not None:
@@ -7832,43 +7923,32 @@ def show_escala_completa_editor(
         salvar_meta = st.form_submit_button("💾 Salvar dados do culto", use_container_width=True)
 
     if salvar_meta:
-        _check_escala_selection_aviso(
-            novo_resp,
-            member_map,
-            nova_data,
-            escalas_df,
-            equipe_df,
-            exclude_escala_id=escala_id,
-        )
-        email = member_map[novo_resp]
-        mrow = members_df[members_df["email"].astype(str).str.lower() == email].iloc[0]
-        name = member_display_name(mrow)
-        idx = escalas_df.index[escalas_df["id"].astype(str) == escala_id][0]
-        escalas_df.loc[idx, "date"] = nova_data.strftime("%Y-%m-%d")
-        escalas_df.loc[idx, "event"] = novo_evento.strip()
-        escalas_df.loc[idx, "responsible"] = name
-        escalas_df.loc[idx, "member_email"] = email
-        escalas_df.loc[idx, "member_name"] = name
-        escalas_df.loc[idx, "notes"] = novas_notas.strip()
-        escalas_df.loc[idx, "rehearsal_date"] = nova_data_ensaio.strftime("%Y-%m-%d")
-        save_data(escalas_df, ESCALAS_FILE)
-        st.success("Dados do culto atualizados.")
+        with st.spinner("Salvando dados do culto..."):
+            _check_escala_selection_aviso(
+                novo_resp,
+                member_map,
+                nova_data,
+                escalas_df,
+                equipe_df,
+                exclude_escala_id=escala_id,
+            )
+            email = member_map[novo_resp]
+            mrow = members_df[members_df["email"].astype(str).str.lower() == email].iloc[0]
+            name = member_display_name(mrow)
+            idx = escalas_df.index[escalas_df["id"].astype(str) == escala_id][0]
+            escalas_df.loc[idx, "date"] = nova_data.strftime("%Y-%m-%d")
+            escalas_df.loc[idx, "event"] = novo_evento.strip()
+            escalas_df.loc[idx, "responsible"] = name
+            escalas_df.loc[idx, "member_email"] = email
+            escalas_df.loc[idx, "member_name"] = name
+            escalas_df.loc[idx, "notes"] = novas_notas.strip()
+            escalas_df.loc[idx, "rehearsal_date"] = nova_data_ensaio.strftime("%Y-%m-%d")
+            save_data(escalas_df, ESCALAS_FILE)
+        st.toast("Dados do culto atualizados.", icon="✅")
         st.rerun()
 
     st.markdown("---")
     render_equipe_editor(escala_id, equipe_df, members_df, escalas_df, f"ed_{escala_id}")
-
-    st.markdown("---")
-    if not st.session_state.get(f"ed_ensaio_open_{escala_id}"):
-        if st.button(
-            "💬 Abrir chat do ensaio",
-            key=f"ed_ensaio_btn_{escala_id}",
-            use_container_width=True,
-        ):
-            st.session_state[f"ed_ensaio_open_{escala_id}"] = True
-            st.rerun()
-    elif chat_ensaio_df is not None:
-        render_ensaio_chat(escala_id, chat_ensaio_df, members_df)
 
     st.markdown("---")
     render_programa_louvores_editor(
@@ -9094,45 +9174,12 @@ def show_escalas_page(
                 save_data(trocas_df, TROCAS_FILE)
                 st.rerun()
 
-    def _body_ensaio() -> None:
-        minhas_ids = {
-            str(item["escala"]["id"])
-            for item in user_on_escala_semana(escalas_df, equipe_df, my_email, start, end)
-        }
-        if not minhas_ids:
-            st.info("Participe de uma escala desta semana para acessar o chat do ensaio.")
-        else:
-            labels = {}
-            for eid in minhas_ids:
-                row = escalas_df[escalas_df["id"].astype(str) == eid]
-                if not row.empty:
-                    labels[escala_label(row.iloc[0])] = eid
-            escolha = st.selectbox("Escala / culto", list(labels.keys()))
-            escala_row = escalas_df[
-                escalas_df["id"].astype(str) == str(labels[escolha])
-            ].iloc[0]
-            is_mgr_ensaio = is_scale_manager(st.session_state.user_roles)
-            if rehearsal_date_is_set(escala_row):
-                st.success(f"📅 Ensaio: {format_rehearsal_date_pt(escala_row)}")
-            elif is_mgr_ensaio:
-                st.warning(
-                    "⚠️ **Definir data do ensaio** — cadastre em **Gerenciar Escalas** "
-                    "para avisar quem está escalado."
-                )
-            else:
-                st.warning(
-                    "⏳ **Definir data do ensaio** — aguardando o líder confirmar. "
-                    "Fique atento(a)!"
-                )
-            render_ensaio_chat(labels[escolha], chat_ensaio_df, members_df)
-
     tab_bodies = {
         "equipe": _body_equipe,
         "todas": _body_todas,
         "sequencia": _body_sequencia,
         "trocas": _body_trocar,
         "pedidos": _body_pedidos,
-        "ensaio": _body_ensaio,
     }
 
     @st.fragment

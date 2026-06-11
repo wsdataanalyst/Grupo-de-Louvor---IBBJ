@@ -143,42 +143,43 @@ def render_escala_suggestions_panel(
 
         target = next((s for s in plan if s.culto_date.isoformat() == apply_iso), None)
         if target and not target.existing_escala_id:
-            escala_id = new_id()
-            payload = culto_suggestion_payload(target, escala_id)
-            escalas_df, programa_df, equipe_df, _ = get_escalas_bundle()
-            escalas_df = pd.concat(
-                [escalas_df, pd.DataFrame([payload["escala"]])], ignore_index=True
-            )
-            save_data(escalas_df, ESCALAS_FILE)
+            with st.spinner("Salvando escala..."):
+                escala_id = new_id()
+                payload = culto_suggestion_payload(target, escala_id)
+                escalas_df, programa_df, equipe_df, _ = get_escalas_bundle()
+                escalas_df = pd.concat(
+                    [escalas_df, pd.DataFrame([payload["escala"]])], ignore_index=True
+                )
+                save_data(escalas_df, ESCALAS_FILE)
 
-            eq_rows = []
-            for row in payload["equipe"]:
-                eq_rows.append({"id": new_id(), **row})
-            if eq_rows:
-                equipe_df = pd.concat(
-                    [equipe_df, pd.DataFrame(eq_rows)], ignore_index=True
-                )
-                save_data(prepare_equipe(equipe_df), EQUIPE_FILE)
+                eq_rows = []
+                for row in payload["equipe"]:
+                    eq_rows.append({"id": new_id(), **row})
+                if eq_rows:
+                    equipe_df = pd.concat(
+                        [equipe_df, pd.DataFrame(eq_rows)], ignore_index=True
+                    )
+                    save_data(prepare_equipe(equipe_df), EQUIPE_FILE)
 
-            prog_rows = []
-            for row in payload["programa"]:
-                prog_rows.append(
-                    {
-                        "id": new_id(),
-                        "youtube_url": "",
-                        "cifra_url": "",
-                        "notes": "",
-                        **row,
-                    }
-                )
-            if prog_rows:
-                programa_df = load_data(PROGRAMA_FILE, PROGRAMA_COLUMNS)
-                programa_df = prepare_programa(programa_df)
-                programa_df = pd.concat(
-                    [programa_df, pd.DataFrame(prog_rows)], ignore_index=True
-                )
-                save_data(programa_df, PROGRAMA_FILE)
-                hydrate_escala_sequencia_content(escala_id, programa_df, louvores_df)
+                prog_rows = []
+                for row in payload["programa"]:
+                    prog_rows.append(
+                        {
+                            "id": new_id(),
+                            "youtube_url": "",
+                            "cifra_url": "",
+                            "notes": "",
+                            **row,
+                        }
+                    )
+                if prog_rows:
+                    programa_df = load_data(PROGRAMA_FILE, PROGRAMA_COLUMNS)
+                    programa_df = prepare_programa(programa_df)
+                    programa_df = pd.concat(
+                        [programa_df, pd.DataFrame(prog_rows)], ignore_index=True
+                    )
+                    save_data(programa_df, PROGRAMA_FILE)
+                    hydrate_escala_sequencia_content(escala_id, programa_df, louvores_df)
 
             st.session_state["editor_escala_sel"] = None
             try:
@@ -192,8 +193,8 @@ def render_escala_suggestions_panel(
                     set_mobile_ger_tab("montar")
             except Exception:
                 pass
-            st.success(
-                f"Escala criada para {target.culto_date.strftime('%d/%m/%Y')}. "
-                "Ajuste ensaio e detalhes em **Montar / editar escala**."
+            st.toast(
+                f"Escala criada para {target.culto_date.strftime('%d/%m/%Y')}.",
+                icon="✅",
             )
             st.rerun()

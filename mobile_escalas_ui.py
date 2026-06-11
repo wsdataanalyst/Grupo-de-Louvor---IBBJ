@@ -16,7 +16,6 @@ ESCALAS_TABS: tuple[tuple[str, str, str], ...] = (
     ("todas", "📅", "Todas"),
     ("sequencia", "🎵", "Sequência"),
     ("trocas", "🔄", "Trocas e subs"),
-    ("ensaio", "💬", "Ensaio"),
 )
 
 
@@ -357,10 +356,6 @@ def _render_quick_access() -> None:
         if st.button("🔄\nTrocas e subs", key="ml_esc_quick_trocas_btn", use_container_width=True):
             _set_tab("trocas")
             st.rerun()
-    if st.button("💬\nChat ensaio", key="ml_esc_quick_chat_btn", use_container_width=True):
-        st.session_state.ml_ensaio_thread_open = True
-        _set_tab("ensaio")
-        st.rerun()
 
 
 def _render_not_scheduled_warning() -> None:
@@ -770,70 +765,6 @@ def _render_swap_tracking_section(
             st.rerun()
 
 
-def _render_tab_ensaio(
-    *,
-    minhas: list[dict],
-    escalas_df: pd.DataFrame,
-    equipe_df: pd.DataFrame,
-    chat_ensaio_df: pd.DataFrame,
-    members_df: pd.DataFrame,
-) -> None:
-    from app import (
-        escala_label,
-        format_rehearsal_date_pt,
-        rehearsal_date_is_set,
-    )
-    from chat_whatsapp import mark_chat_scroll_bottom
-    from mobile_ensaio_chat_ui import render_mobile_ensaio_chat
-
-    if not minhas:
-        _render_not_scheduled_warning()
-        return
-
-    labels: dict[str, str] = {}
-    for item in minhas:
-        escala = item["escala"]
-        eid = str(escala.get("id", ""))
-        labels[escala_label(escala)] = eid
-
-    with st.container(key="ml_ensaio_pick"):
-        escolha = st.selectbox(
-            "Escala / culto",
-            list(labels.keys()),
-            key="ml_esc_ensaio_pick",
-        )
-    escala_id = str(labels[escolha])
-    escala_row = escalas_df[escalas_df["id"].astype(str) == escala_id].iloc[0]
-    if rehearsal_date_is_set(escala_row):
-        ensaio_sub = f"Ensaio: {format_rehearsal_date_pt(escala_row)}"
-    else:
-        ensaio_sub = "Ensaio: a confirmar"
-
-    thread_open = bool(st.session_state.get("ml_ensaio_thread_open"))
-    if not thread_open:
-        st.caption("Converse com a equipe escalada para este culto.")
-        if st.button(
-            "💬 Abrir chat do ensaio",
-            key="ml_ensaio_open_btn",
-            type="primary",
-            use_container_width=True,
-        ):
-            st.session_state.ml_ensaio_thread_open = True
-            st.session_state.ml_ensaio_view = "thread"
-            mark_chat_scroll_bottom()
-            st.rerun()
-        return
-
-    render_mobile_ensaio_chat(
-        escala_id,
-        members_df,
-        title=escolha,
-        subtitle=ensaio_sub,
-        equipe_df=equipe_df,
-        escala_row=escala_row,
-    )
-
-
 def render_mobile_escalas_page(
     *,
     escalas_df: pd.DataFrame,
@@ -842,7 +773,7 @@ def render_mobile_escalas_page(
     programa_df: pd.DataFrame,
     equipe_df: pd.DataFrame,
     louvores_df: pd.DataFrame,
-    chat_ensaio_df: pd.DataFrame,
+    **_: object,
 ) -> None:
     """Página Escalas mobile premium com abas e funções do app web."""
     inject_mobile_lab_theme()
@@ -902,13 +833,5 @@ def render_mobile_escalas_page(
             escalas_df=escalas_df,
             equipe_df=equipe_df,
             trocas_df=trocas_df,
-            members_df=members_df,
-        )
-    elif active == "ensaio":
-        _render_tab_ensaio(
-            minhas=minhas,
-            escalas_df=escalas_df,
-            equipe_df=equipe_df,
-            chat_ensaio_df=chat_ensaio_df,
             members_df=members_df,
         )
