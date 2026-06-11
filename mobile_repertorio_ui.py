@@ -69,7 +69,7 @@ def mobile_repertorio_css() -> str:
       color: #fff !important;
       box-shadow: 0 0 24px rgba(124,58,237,.28) !important;
     }
-    body:has(#ml-repertorio-page) [class*="st-key-ml_rep_hub_search"] .stTextInput > div > div > input{
+    body:has(#ml-repertorio-page) [class*="st-key-ml_rep_q"] .stTextInput > div > div > input{
       min-height: 3rem !important;
       border-radius: 18px !important;
       background: #111827 !important;
@@ -527,19 +527,42 @@ def _song_card_html(
     """
 
 
+_REP_SEARCH_KEY = "ml_rep_q"
+
+
+def _rep_search_widget_key() -> str:
+    return _REP_SEARCH_KEY
+
+
+def _migrate_rep_search_keys() -> None:
+    """Remove slots legados de widget e migra valor para ml_rep_q."""
+    legacy_keys = (
+        "ml_rep_search",
+        "ml_rep_hub_search",
+        "ml_rep_search_hub",
+        "ml_rep_search_list",
+        "ml_rep_q_hub",
+        "ml_rep_q_list",
+    )
+    migrated = ""
+    for k in legacy_keys:
+        raw = st.session_state.pop(k, None)
+        if raw is not None and str(raw).strip():
+            migrated = str(raw).strip()
+    if not migrated:
+        return
+    if not str(st.session_state.get(_REP_SEARCH_KEY, "")).strip():
+        st.session_state[_REP_SEARCH_KEY] = migrated
+
+
 def _rep_search_value() -> str:
-    legacy = str(st.session_state.get("ml_rep_search", "")).strip()
-    cur = str(st.session_state.get("ml_rep_hub_search", legacy)).strip()
-    return cur
+    return str(st.session_state.get(_REP_SEARCH_KEY, "")).strip()
 
 
 def _render_search_bar() -> str:
-    legacy = str(st.session_state.get("ml_rep_search", "")).strip()
-    if "ml_rep_hub_search" not in st.session_state and legacy:
-        st.session_state["ml_rep_hub_search"] = legacy
     return st.text_input(
         "Buscar",
-        key="ml_rep_hub_search",
+        key=_REP_SEARCH_KEY,
         placeholder="Buscar música ou artista...",
         label_visibility="collapsed",
     )
@@ -567,6 +590,9 @@ def _render_filters_expander(louvores_df: pd.DataFrame) -> None:
         )
         if st.button("Limpar filtros", key="ml_rep_clear", use_container_width=True):
             for k in (
+                _REP_SEARCH_KEY,
+                "ml_rep_q_hub",
+                "ml_rep_q_list",
                 "ml_rep_hub_search",
                 "ml_rep_search",
                 "ml_rep_f_letter",
@@ -1174,6 +1200,7 @@ def render_mobile_repertorio_page(
     """Página Repertório mobile premium com dados reais do ministério."""
     inject_mobile_lab_theme()
     st.markdown(f"<style>{mobile_repertorio_css()}</style>", unsafe_allow_html=True)
+    _migrate_rep_search_keys()
 
     louvores_df = ensure_louvor_content_columns(
         louvores_df.copy() if louvores_df is not None else pd.DataFrame()
