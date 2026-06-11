@@ -21,7 +21,7 @@ from ui_html import inject_page_script, inject_ui_html
 _WA_GROUP_AVATAR = "🎵"
 
 _WA_MOBILE_SURFACES = (
-    "body:has(#ml-chat-page), body:has(#ml-ensaio-chat-active)"
+    "body:has(#ml-chat-active), body:has(#ml-ensaio-chat-active)"
 )
 
 
@@ -29,7 +29,7 @@ def wa_mobile_shared_surface_css() -> str:
     """Compositor, header da thread e barra WA — chat geral e ensaio."""
     s = _WA_MOBILE_SURFACES
     return f"""
-    body:has(#ml-chat-page) [class*="st-key-ml_chat_composer"],
+    body:has(#ml-chat-active) [class*="st-key-ml_chat_composer"],
     body:has(#ml-ensaio-chat-active) [class*="st-key-ml_ensaio_composer"] {{
       position: fixed !important;
       left: 0 !important;
@@ -105,9 +105,9 @@ def wa_mobile_shared_surface_css() -> str:
     {s} [class*="st-key-ml_chat_attach_panel"] [data-testid="stCameraInput"] small {{
       display: none !important;
     }}
-    body:has(#ml-chat-page) [class*="st-key-ml_chat_composer"] [data-testid="stPopover"],
+    body:has(#ml-chat-active) [class*="st-key-ml_chat_composer"] [data-testid="stPopover"],
     body:has(#ml-ensaio-chat-active) [class*="st-key-ml_ensaio_composer"] [data-testid="stPopover"],
-    body:has(#ml-chat-page) [class*="st-key-ml_chat_composer"] [data-baseweb="popover"],
+    body:has(#ml-chat-active) [class*="st-key-ml_chat_composer"] [data-baseweb="popover"],
     body:has(#ml-ensaio-chat-active) [class*="st-key-ml_ensaio_composer"] [data-baseweb="popover"] {{
       display: none !important;
     }}
@@ -138,7 +138,7 @@ def wa_mobile_shared_surface_css() -> str:
       font-size: 1.15rem !important;
       line-height: 1 !important;
     }}
-    body:has(#ml-chat-page) [class*="st-key-ml_chat_back"] .stButton > button,
+    body:has(#ml-chat-active) [class*="st-key-ml_chat_back"] .stButton > button,
     body:has(#ml-ensaio-chat-active) [class*="st-key-ml_ensaio_back"] .stButton > button,
     body:has(#ml-ensaio-chat-active) [class*="st-key-ml_ensaio_info_btn"] .stButton > button {{
       background: transparent !important;
@@ -148,7 +148,7 @@ def wa_mobile_shared_surface_css() -> str:
       min-height: 2.5rem !important;
       padding: 0 0.35rem !important;
     }}
-    body:has(#ml-chat-page) [class*="st-key-ml_chat_thread_top"] [data-testid="stHorizontalBlock"],
+    body:has(#ml-chat-active) [class*="st-key-ml_chat_thread_top"] [data-testid="stHorizontalBlock"],
     body:has(#ml-ensaio-chat-active) [class*="st-key-ml_ensaio_thread_top"] [data-testid="stHorizontalBlock"] {{
       display: flex !important;
       flex-direction: row !important;
@@ -157,8 +157,8 @@ def wa_mobile_shared_surface_css() -> str:
       gap: 0 !important;
       margin: 0 !important;
     }}
-    body:has(#ml-chat-page) [class*="st-key-ml_chat_thread_top"] [data-testid="stColumn"]:nth-child(1),
-    body:has(#ml-chat-page) [class*="st-key-ml_chat_thread_top"] [data-testid="stColumn"]:nth-child(3),
+    body:has(#ml-chat-active) [class*="st-key-ml_chat_thread_top"] [data-testid="stColumn"]:nth-child(1),
+    body:has(#ml-chat-active) [class*="st-key-ml_chat_thread_top"] [data-testid="stColumn"]:nth-child(3),
     body:has(#ml-ensaio-chat-active) [class*="st-key-ml_ensaio_thread_top"] [data-testid="stColumn"]:nth-child(1),
     body:has(#ml-ensaio-chat-active) [class*="st-key-ml_ensaio_thread_top"] [data-testid="stColumn"]:nth-child(3) {{
       flex: 0 0 2.5rem !important;
@@ -166,7 +166,7 @@ def wa_mobile_shared_surface_css() -> str:
       max-width: 2.5rem !important;
       min-width: 2.5rem !important;
     }}
-    body:has(#ml-chat-page) [class*="st-key-ml_chat_thread_top"] [data-testid="stColumn"]:nth-child(2),
+    body:has(#ml-chat-active) [class*="st-key-ml_chat_thread_top"] [data-testid="stColumn"]:nth-child(2),
     body:has(#ml-ensaio-chat-active) [class*="st-key-ml_ensaio_thread_top"] [data-testid="stColumn"]:nth-child(2) {{
       flex: 1 1 auto !important;
       width: auto !important;
@@ -193,28 +193,28 @@ def wa_mobile_chat_css() -> str:
       --wa-accent: #00a884;
       --wa-unread: #25d366;
     }
-    body:has(#ml-chat-page) [data-testid="stAppViewContainer"],
-    body:has(#ml-chat-page) [data-testid="stMain"] {
+    body:has(#ml-chat-active) [data-testid="stAppViewContainer"],
+    body:has(#ml-chat-active) [data-testid="stMain"] {
       background: var(--wa-bg, #0b141a) !important;
     }
-    body:has(#ml-chat-page) [data-testid="stAppViewContainer"] .main .block-container {
+    body:has(#ml-chat-active) [data-testid="stAppViewContainer"] .main .block-container {
       padding-top: 0 !important;
       padding-left: 0 !important;
       padding-right: 0 !important;
       padding-bottom: 0 !important;
       max-width: 100% !important;
     }
-    body:has(#ml-chat-page) [data-testid="stMain"] > div {
+    body:has(#ml-chat-active) [data-testid="stMain"] > div {
       padding-top: 0 !important;
     }
-    #ml-chat-page.wa-chat-thread-shell {
+    #ml-chat-active.wa-chat-thread-shell {
       display: none !important;
       height: 0 !important;
       min-height: 0 !important;
       margin: 0 !important;
       padding: 0 !important;
     }
-    body:has(#ml-chat-page) #chat-scroll-box.wa-chat-feed {
+    body:has(#ml-chat-active) #chat-scroll-box.wa-chat-feed {
       position: fixed !important;
       top: calc(var(--ml-thread-header) + env(safe-area-inset-top, 0px)) !important;
       left: 0 !important;
@@ -232,7 +232,7 @@ def wa_mobile_chat_css() -> str:
       background: var(--wa-bg) !important;
       background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.02'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E") !important;
     }
-    body:has(#ml-chat-page) [class*="st-key-ml_chat_thread_top"] {
+    body:has(#ml-chat-active) [class*="st-key-ml_chat_thread_top"] {
       position: fixed !important;
       top: env(safe-area-inset-top, 0px) !important;
       left: 0 !important;
@@ -243,14 +243,14 @@ def wa_mobile_chat_css() -> str:
       padding: 0.15rem 0.25rem 0.1rem !important;
       margin: 0 !important;
     }
-    body:has(#ml-chat-page) [class*="st-key-ml_chat_feed_wrap"] {
+    body:has(#ml-chat-active) [class*="st-key-ml_chat_feed_wrap"] {
       min-height: 0 !important;
       margin: 0 !important;
       padding: 0 !important;
       overflow: visible !important;
       border: none !important;
     }
-    body:has(#ml-chat-page) [class*="st-key-ml_chat_feed_wrap"] .ml-chat-feed-area {
+    body:has(#ml-chat-active) [class*="st-key-ml_chat_feed_wrap"] .ml-chat-feed-area {
       margin: 0 !important;
       padding: 0 !important;
     }

@@ -4698,23 +4698,23 @@
             }
 
             /* Chat mobile: barra de digitação em uma linha */
-            body:has(#ml-chat-page) [class*="st-key-ml_chat_compose_main"] [data-testid="stHorizontalBlock"] {
+            body:has(#ml-chat-active) [class*="st-key-ml_chat_compose_main"] [data-testid="stHorizontalBlock"] {
                 flex-wrap: nowrap !important;
             }
-            body:has(#ml-chat-page) [class*="st-key-ml_chat_compose_main"] [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {
+            body:has(#ml-chat-active) [class*="st-key-ml_chat_compose_main"] [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {
                 flex: 0 0 auto !important;
                 width: auto !important;
                 max-width: none !important;
             }
-            body:has(#ml-chat-page) [class*="st-key-ml_chat_compose_main"] [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:nth-child(3) {
+            body:has(#ml-chat-active) [class*="st-key-ml_chat_compose_main"] [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:nth-child(3) {
                 flex: 1 1 auto !important;
                 min-width: 0 !important;
             }
 
-            body:has(#ml-chat-page) [data-testid="stMain"] [data-testid="stVerticalBlock"] {
+            body:has(#ml-chat-active) [data-testid="stMain"] [data-testid="stVerticalBlock"] {
                 gap: 0.15rem !important;
             }
-            body:has(#ml-chat-page) [data-testid="element-container"] {
+            body:has(#ml-chat-active) [data-testid="element-container"] {
                 margin-bottom: 0 !important;
             }
 

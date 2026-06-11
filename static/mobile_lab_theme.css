@@ -165,7 +165,7 @@
     #ml-mobile-lab-mode,
     #ml-streamlit-shield,
     #ml-bottom-nav-start,
-    #ml-chat-page {
+    #ml-chat-active {
       display: block !important;
       height: 0 !important;
       max-height: 0 !important;
@@ -179,7 +179,7 @@
     body:has(#ml-mobile-lab-mode) [data-testid="element-container"]:has(#ml-mobile-lab-mode),
     body:has(#ml-mobile-lab-mode) [data-testid="element-container"]:has(#ml-streamlit-shield),
     body:has(#ml-mobile-lab-mode) [data-testid="element-container"]:has(#ml-bottom-nav-start),
-    body:has(#ml-mobile-lab-mode) [data-testid="element-container"]:has(#ml-chat-page) {
+    body:has(#ml-mobile-lab-mode) [data-testid="element-container"]:has(#ml-chat-active) {
       margin: 0 !important;
       padding: 0 !important;
       min-height: 0 !important;

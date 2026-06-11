@@ -10,7 +10,7 @@ import pandas as pd
 import streamlit as st
 
 # Altere ao publicar — confirme no rodapé do chat se o Cloud atualizou
-ML_CHAT_BUILD = "2026-06-01-ml-chat-10"
+ML_CHAT_BUILD = "2026-06-10-ml-chat-11"
 
 from app_runtime import import_from_main_app
 from chat_runtime import (
@@ -30,8 +30,6 @@ from chat_ui import (
     chat_page_css,
     count_chat_media,
     last_group_preview,
-    render_chat_page_close,
-    render_chat_page_open,
     render_conv_items_after_search,
     render_info_panel_html,
     role_badge_meta,
@@ -100,34 +98,45 @@ def mobile_chat_css() -> str:
         + chat_page_css()
         + wa_mobile_chat_css()
         + r"""
-    body:has(#ml-chat-page) .ig-chat-header,
-    body:has(#ml-chat-page) .ml-chat-topbar { display: none !important; }
-    body:has(#ml-chat-page) .ml-chat-thread-shell { display: none !important; }
-    body:has(#ml-chat-page) .ml-chat-quick-row { display: none !important; }
-    body:has(#ml-chat-page) #ml-chat-page > p { display: none !important; }
-    body:has(#ml-chat-page) [data-testid="stCaptionContainer"],
-    body:has(#ml-chat-page) .stCaption { display: none !important; }
-    body:has(#ml-chat-page) .ig-chat-page::before { display: none !important; }
-    body:has(#ml-chat-page) .ig-chat-page {
-      min-height: 0 !important;
-      padding: 0 !important;
-      margin: 0 !important;
-      background: transparent !important;
+    body:has(#ml-chat-active) .ig-chat-header,
+    body:has(#ml-chat-active) .ml-chat-topbar { display: none !important; }
+    body:has(#ml-chat-active) .ml-chat-thread-shell { display: none !important; }
+    body:has(#ml-chat-active) .ml-chat-quick-row { display: none !important; }
+    body:has(#ml-chat-active) [data-testid="stCaptionContainer"],
+    body:has(#ml-chat-active) .stCaption { display: none !important; }
+    body:has(#ml-chat-active) [data-testid="stAppViewContainer"],
+    body:has(#ml-chat-active) [data-testid="stMain"] {
+      background: #0b141a !important;
     }
-    body:has(#ml-chat-page) [class*="st-key-ml_chat_open_equipe"] .stButton > button {
+    body:has(#ml-chat-active) [data-testid="stAppViewContainer"] .main .block-container {
+      padding-top: 0.35rem !important;
+      padding-left: 0.5rem !important;
+      padding-right: 0.5rem !important;
+      padding-bottom: calc(var(--ml-nav-height) + var(--ml-verse-height) + var(--ml-nav-offset) + 12px) !important;
+      max-width: 100% !important;
+    }
+    body:has(#ml-chat-active) [data-testid="stMain"] [data-testid="stVerticalBlock"],
+    body:has(#ml-chat-active) [data-testid="element-container"]:not(:has(#ml-chat-active)) {
+      visibility: visible !important;
+      opacity: 1 !important;
+      height: auto !important;
+      min-height: 0 !important;
+      overflow: visible !important;
+    }
+    body:has(#ml-chat-active) [class*="st-key-ml_chat_open_equipe"] .stButton > button {
       border-radius: 0 !important;
       background: var(--wa-header) !important;
       color: var(--wa-text) !important;
       min-height: 3.5rem !important;
       font-weight: 600 !important;
     }
-    body:has(#ml-chat-page) [data-testid="stRadio"] > div {
+    body:has(#ml-chat-active) [data-testid="stRadio"] > div {
       flex-wrap: nowrap !important;
       overflow-x: auto !important;
       gap: 0.35rem !important;
       padding: 0 0.5rem !important;
     }
-    body:has(#ml-chat-page) [data-testid="stRadio"] label {
+    body:has(#ml-chat-active) [data-testid="stRadio"] label {
       padding: 0.4rem 0.75rem !important;
       border-radius: 999px !important;
       background: #202c33 !important;
@@ -135,12 +144,12 @@ def mobile_chat_css() -> str:
       font-size: 0.78rem !important;
       color: #8696a0 !important;
     }
-    body:has(#ml-chat-page) [data-testid="stRadio"] label[data-checked="true"] {
+    body:has(#ml-chat-active) [data-testid="stRadio"] label[data-checked="true"] {
       background: #00a884 !important;
       color: #fff !important;
       border-color: #00a884 !important;
     }
-    body:has(#ml-chat-page) [data-testid="stTextInput"] input {
+    body:has(#ml-chat-active) [data-testid="stTextInput"] input {
       background: #202c33 !important;
       border: none !important;
       border-radius: 8px !important;
@@ -230,9 +239,11 @@ def _draw_chat_feed(members_df: pd.DataFrame, *, force_reload: bool = False) -> 
 
 @st.fragment(run_every=timedelta(seconds=4))
 def _wa_chat_thread_live(members_df: pd.DataFrame) -> None:
-    """
-    Feed + composer no mesmo fragment: ao enviar, rerun só desta área (rápido).
-    """
+    """Atualiza feed + compositor (fragment opcional — fallback abaixo)."""
+    _render_thread_live(members_df)
+
+
+def _render_thread_live(members_df: pd.DataFrame) -> None:
     with st.container(key="ml_chat_feed_wrap"):
         if not render_wa_feed_from_cache(members_df):
             chat_df = st.session_state.get("_chat_df_cache")
@@ -289,7 +300,10 @@ def _render_thread_view(members_df: pd.DataFrame) -> None:
                     _set_chat_view("info")
                     st.rerun()
 
-    _wa_chat_thread_live(members_df)
+    try:
+        _wa_chat_thread_live(members_df)
+    except Exception:
+        _render_thread_live(members_df)
 
 
 def _render_info_view(
@@ -393,6 +407,14 @@ def _render_stats_view(
 
 
 def render_mobile_chat_page(chat_df: pd.DataFrame, members_df: pd.DataFrame) -> None:
+    try:
+        _render_mobile_chat_page_inner(chat_df, members_df)
+    except Exception as exc:
+        st.error("Não foi possível abrir o chat.")
+        st.exception(exc)
+
+
+def _render_mobile_chat_page_inner(chat_df: pd.DataFrame, members_df: pd.DataFrame) -> None:
     append_chat_message = None
     count_unread_chat_messages = lambda _df=None: int(
         st.session_state.get("chat_unread_count", 0) or 0
@@ -443,10 +465,8 @@ def render_mobile_chat_page(chat_df: pd.DataFrame, members_df: pd.DataFrame) -> 
     n_members = len(members_visible_to_group(members_df))
     imgs, auds, _ = count_chat_media(chat_df)
 
-    render_chat_page_open()
     st.markdown(
-        f'<div id="ml-chat-page" class="ml-page wa-chat-thread-shell" '
-        f'data-build="{_esc(ML_CHAT_BUILD)}" aria-hidden="true"></div>',
+        f'<span id="ml-chat-active" data-build="{_esc(ML_CHAT_BUILD)}" aria-hidden="true"></span>',
         unsafe_allow_html=True,
     )
 
@@ -467,5 +487,3 @@ def render_mobile_chat_page(chat_df: pd.DataFrame, members_df: pd.DataFrame) -> 
             chat_df=chat_df,
         )
         st.markdown("</div>", unsafe_allow_html=True)
-
-    render_chat_page_close()
