@@ -15,6 +15,7 @@ from mobile_lab_ui import inject_mobile_lab_theme
 from repertorio_ui import (
     category_counts,
     compute_repertorio_stats,
+    top_louvores_usage,
 )
 
 LIST_TABS: tuple[tuple[str, str], ...] = (
@@ -33,7 +34,33 @@ def _esc(s: object) -> str:
 
 def _view() -> str:
     v = str(st.session_state.get("ml_rep_view", "hub")).strip()
-    return v if v in ("hub", "lista", "detalhe", "categorias", "ferramentas") else "hub"
+    if v == "ferramentas":
+        v = "hub"
+        st.session_state.ml_rep_view = "hub"
+    return v if v in ("hub", "lista", "detalhe", "categorias") else "hub"
+
+
+def _active_tool() -> str:
+    t = str(st.session_state.get("ml_rep_active_tool", "")).strip()
+    legacy_map = {
+        "validacao": "ml_rep_tool_open_validacao",
+        "importar": "ml_rep_tool_open_importar",
+    }
+    if not t:
+        for key, flag in legacy_map.items():
+            if st.session_state.get(flag):
+                t = key
+                st.session_state.ml_rep_active_tool = key
+                st.session_state.pop(flag, None)
+                break
+    return t
+
+
+def _toggle_tool(tool: str) -> None:
+    if _active_tool() == tool:
+        st.session_state.pop("ml_rep_active_tool", None)
+    else:
+        st.session_state.ml_rep_active_tool = tool
 
 
 def _set_view(view: str) -> None:
@@ -160,8 +187,34 @@ def mobile_repertorio_css() -> str:
       color: #a78bfa !important;
     }
     body:has(#ml-repertorio-page) [class*="st-key-ml_rep_tool_"] .stButton > button{
-      border-radius: 18px !important;
+      min-height: 2.75rem !important;
+      border-radius: 16px !important;
       font-weight: 700 !important;
+      font-size: 0.76rem !important;
+      white-space: pre-line !important;
+      line-height: 1.15 !important;
+      background: #0f172a !important;
+      border: 1px solid rgba(255,255,255,.06) !important;
+      color: #e2e8f0 !important;
+      padding: 0.45rem 0.35rem !important;
+    }
+    body:has(#ml-repertorio-page) [class*="st-key-ml_rep_tool_"] .stButton > button[kind="primary"]{
+      background: linear-gradient(135deg, rgba(88,56,255,.45), rgba(10,22,65,.95)) !important;
+      border-color: rgba(139,92,246,.35) !important;
+      color: #fff !important;
+      box-shadow: 0 0 18px rgba(124,58,237,.2) !important;
+    }
+    .ml-rep-tools-card{
+      background: rgba(8,18,55,.92);
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 20px;
+      padding: 14px 14px 10px;
+      margin: 0.65rem 0 0.85rem;
+    }
+    .ml-rep-tools-card p{
+      margin: 0 0 0.55rem;
+      color: #94a3b8;
+      font-size: 0.76rem;
     }
     body:has(#ml-repertorio-page) div[data-testid="stTabs"] [data-baseweb="tab-list"]{
       gap: 0.35rem !important;
@@ -450,9 +503,7 @@ def _render_top_bar(louvores_df: pd.DataFrame, *, is_mgr: bool) -> None:
     with c1:
         with st.container(key="ml_rep_import"):
             if st.button("📥 Importar", use_container_width=True):
-                st.session_state.ml_rep_back_to = "hub"
-                st.session_state.ml_rep_tool_open_importar = True
-                _set_view("ferramentas")
+                st.session_state.ml_rep_active_tool = "importar"
                 st.rerun()
     with c2:
         with st.container(key="ml_rep_nova"):
@@ -766,7 +817,12 @@ def _render_hub(
 
     if louvores_df.empty:
         st.warning("Repertório ainda não gerado. Execute: `python build_louvores_db.py`")
+        if is_mgr:
+            _render_tools_section(louvores_df, programa_df, is_mgr=is_mgr)
         return
+
+    if is_mgr:
+        _render_tools_section(louvores_df, programa_df, is_mgr=is_mgr)
 
     stats = compute_repertorio_stats(louvores_df)
     my_email = str(st.session_state.get("user_email", "")).strip().lower()
@@ -829,11 +885,85 @@ def _render_hub(
 
     _render_categories_grid(louvores_df)
 
-    if is_mgr:
-        if st.button("Abrir ferramentas do repertório", key="ml_rep_open_tools"):
-            st.session_state.ml_rep_back_to = "hub"
-            _set_view("ferramentas")
-            st.rerun()
+
+def _render_tools_section(
+    louvores_df: pd.DataFrame,
+    programa_df: pd.DataFrame,
+    *,
+    is_mgr: bool,
+) -> None:
+    if not is_mgr:
+        return
+
+    from app import _render_louvor_validation_search, _render_louvores_edit_manager
+    from louvor_content import count_louvores_missing_content, count_louvores_with_full_content
+
+    completas = count_louvores_with_full_content(louvores_df)
+    faltam = count_louvores_missing_content(louvores_df)
+    stats = compute_repertorio_stats(louvores_df)
+    active = _active_tool()
+
+    st.markdown(
+        f"""
+        <div class="ml-rep-tools-card">
+          <div class="ml-rep-section-title" style="margin:0 0 0.35rem;">Ferramentas</div>
+          <p>Banco local: <b>{completas}</b> de <b>{len(louvores_df)}</b> com letra e cifra
+          · <b>{faltam}</b> pendente(s)</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    tools = (
+        ("validacao", "✅ Validação\nbíblica"),
+        ("relatorio", "📊 Relatório\ncompleto"),
+        ("sugestoes", "💡 Sugestões"),
+        ("importar", "📥 Importar\nmúsicas"),
+    )
+    for i in range(0, len(tools), 2):
+        cols = st.columns(2, gap="small")
+        for col, (key, label) in zip(cols, tools[i : i + 2]):
+            with col:
+                with st.container(key=f"ml_rep_tool_{key}"):
+                    if st.button(
+                        label,
+                        key=f"ml_rep_tool_btn_{key}",
+                        type="primary" if active == key else "secondary",
+                        use_container_width=True,
+                    ):
+                        if key == "sugestoes":
+                            st.session_state.ml_page = "Sugestões"
+                            st.session_state.pop("ml_rep_active_tool", None)
+                            st.rerun()
+                        _toggle_tool(key)
+                        st.rerun()
+
+    if active == "validacao":
+        with st.expander("Validação bíblica", expanded=True):
+            _render_louvor_validation_search(louvores_df)
+    elif active == "importar":
+        with st.expander("Editar / importar louvores", expanded=True):
+            if st.session_state.get("rep_add_open"):
+                st.caption("Use o bloco **Nova música** acima ou edite abaixo.")
+            _render_louvores_edit_manager(louvores_df, key_prefix="edit_rep_ml_tool")
+    elif active == "relatorio":
+        with st.expander("Relatório do repertório", expanded=True):
+            st.markdown(
+                f"""
+                - **Total:** {stats['total']} músicas
+                - **Com cifra:** {stats['cifra']}
+                - **Com YouTube:** {stats['youtube']}
+                - **Letra + cifra local:** {completas}
+                - **Pendentes:** {faltam}
+                """,
+            )
+            ranking = top_louvores_usage(programa_df, limit=10)
+            if ranking:
+                st.markdown("**Mais usadas nos cultos**")
+                for title, cnt in ranking:
+                    st.caption(f"· {title} — {cnt}×")
+            else:
+                st.caption("Nenhum louvor registrado em programações ainda.")
 
 
 def _render_lista(
@@ -1145,51 +1275,6 @@ def _render_detalhe(
             st.markdown(f'<div class="ml-rep-hist-item">{_esc(msg)}</div>', unsafe_allow_html=True)
 
 
-def _render_ferramentas(louvores_df: pd.DataFrame, *, is_mgr: bool) -> None:
-    _render_back()
-    st.markdown(
-        """
-        <div class="ml-rep-section-title" style="margin-top:0;">Ferramentas</div>
-        <p style="color:rgba(148,163,184,.92);font-size:0.88rem;margin:0 0 1rem;">Repertório</p>
-        """,
-        unsafe_allow_html=True,
-    )
-    if not is_mgr:
-        st.info("Ferramentas avançadas disponíveis para líderes do ministério.")
-        return
-    from app import _render_louvor_validation_search, _render_louvores_edit_manager
-    from louvor_content import count_louvores_missing_content, count_louvores_with_full_content
-
-    tools = (
-        ("validacao", "✅ Validação bíblica"),
-        ("relatorio", "📊 Relatório completo"),
-        ("sugestoes", "💡 Sugestões"),
-        ("importar", "📥 Importar músicas"),
-    )
-    for key, label in tools:
-        with st.container(key=f"ml_rep_tool_{key}"):
-            if st.button(label, key=f"ml_rep_tool_btn_{key}", use_container_width=True):
-                st.session_state[f"ml_rep_tool_open_{key}"] = True
-                st.rerun()
-
-    if st.session_state.get("ml_rep_tool_open_validacao"):
-        with st.expander("Validação bíblica", expanded=True):
-            _render_louvor_validation_search(louvores_df)
-    if st.session_state.get("ml_rep_tool_open_importar"):
-        with st.expander("Editar / importar louvores", expanded=True):
-            if st.session_state.get("rep_add_open"):
-                st.caption("O editor já está aberto em **Adicionar música**.")
-            else:
-                _render_louvores_edit_manager(louvores_df, key_prefix="edit_rep_ml_tool")
-
-    completas = count_louvores_with_full_content(louvores_df)
-    faltam = count_louvores_missing_content(louvores_df)
-    st.caption(
-        f"Banco local: **{completas}** de **{len(louvores_df)}** com letra e cifra · "
-        f"**{faltam}** pendente(s)."
-    )
-
-
 def render_mobile_repertorio_page(
     louvores_df: pd.DataFrame,
     *,
@@ -1218,8 +1303,6 @@ def render_mobile_repertorio_page(
         _render_lista(louvores_df, sugestoes_df, playlist_df)
     elif view == "categorias":
         _render_categorias(louvores_df)
-    elif view == "ferramentas":
-        _render_ferramentas(louvores_df, is_mgr=is_mgr)
     else:
         _render_hub(
             louvores_df,
