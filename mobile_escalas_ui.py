@@ -466,28 +466,62 @@ def _render_tab_todas(
     programa_df: pd.DataFrame,
     louvores_df: pd.DataFrame,
 ) -> None:
-    from app import member_escala_occurrences, render_culto_programa
+    from app import (
+        escala_label_for_user,
+        member_escala_occurrences,
+        render_culto_programa,
+    )
 
     occ = member_escala_occurrences(my_email, escalas_df, equipe_df)
     if not occ:
         st.info("Você ainda não aparece em nenhuma escala registrada.")
         return
-    st.caption(f"{len(occ)} culto(s) no seu histórico.")
-    for i, (_culto_d, eid, _ev) in enumerate(occ):
+
+    culto_rows: list[tuple[str, pd.Series]] = []
+    for _culto_d, eid, _ev in occ:
         row_match = escalas_df[escalas_df["id"].astype(str) == str(eid)]
         if row_match.empty:
             continue
-        ev = str(row_match.iloc[0].get("event", ""))
-        with st.expander(f"📅 {_esc(ev)}", expanded=(i == 0)):
-            render_culto_programa(
-                row_match.iloc[0],
-                programa_df,
-                equipe_df,
-                members_df,
-                louvores_df,
-                ensaio_notice=True,
-                widget_key_prefix=f"ml_todas_{i}_{eid}",
-            )
+        culto_rows.append((str(eid), row_match.iloc[0]))
+
+    if not culto_rows:
+        st.info("Você ainda não aparece em nenhuma escala registrada.")
+        return
+
+    st.caption(f"{len(culto_rows)} culto(s) no seu histórico.")
+    eids = [eid for eid, _ in culto_rows]
+
+    def _ml_todas_culto_label(eid: str) -> str:
+        row = next(r for e, r in culto_rows if e == eid)
+        return escala_label_for_user(row, my_email, equipe_df)
+
+    default_idx = 0
+    pref = st.session_state.get("ml_esc_todas_escala_id")
+    if pref:
+        for i, eid in enumerate(eids):
+            if eid == str(pref):
+                default_idx = i
+                break
+
+    escolha_id = st.selectbox(
+        "Culto",
+        options=eids,
+        index=default_idx,
+        format_func=_ml_todas_culto_label,
+        key="ml_esc_todas_sel",
+    )
+    st.session_state["ml_esc_todas_escala_id"] = escolha_id
+
+    row = next(r for e, r in culto_rows if e == escolha_id)
+    render_culto_programa(
+        row,
+        programa_df,
+        equipe_df,
+        members_df,
+        louvores_df,
+        ensaio_notice=True,
+        widget_key_prefix=f"ml_todas_{escolha_id}",
+    )
 
 
 def _render_tab_sequencia(

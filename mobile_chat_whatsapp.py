@@ -193,6 +193,10 @@ def wa_mobile_chat_css() -> str:
       --wa-accent: #00a884;
       --wa-unread: #25d366;
     }
+    body:has(#ml-chat-page) [data-testid="stAppViewContainer"],
+    body:has(#ml-chat-page) [data-testid="stMain"] {
+      background: var(--wa-bg, #0b141a) !important;
+    }
     body:has(#ml-chat-page) [data-testid="stAppViewContainer"] .main .block-container {
       padding-top: 0 !important;
       padding-left: 0 !important;
@@ -240,11 +244,11 @@ def wa_mobile_chat_css() -> str:
       margin: 0 !important;
     }
     body:has(#ml-chat-page) [class*="st-key-ml_chat_feed_wrap"] {
-      height: 0 !important;
       min-height: 0 !important;
       margin: 0 !important;
       padding: 0 !important;
       overflow: visible !important;
+      border: none !important;
     }
     body:has(#ml-chat-page) [class*="st-key-ml_chat_feed_wrap"] .ml-chat-feed-area {
       margin: 0 !important;
@@ -948,11 +952,30 @@ def inject_wa_scroll_and_lightbox(
     inject_page_script(
         f"""
         (function () {{
-          var doc = window.parent.document;
           var forceScroll = {force_js};
-          var box = doc.getElementById("{scroll_id_js}");
-          var jumpBtn = doc.getElementById("wa-jump-bottom");
-          var lb = doc.getElementById("wa-lightbox");
+          var scrollId = "{scroll_id_js}";
+          var box = document.getElementById(scrollId);
+          var jumpBtn = document.getElementById("wa-jump-bottom");
+          var lb = document.getElementById("wa-lightbox");
+          var doc = document;
+          if (!box) {{
+            try {{
+              if (window.parent && window.parent.document) {{
+                box = window.parent.document.getElementById(scrollId);
+                if (box) doc = window.parent.document;
+              }}
+            }} catch (e) {{}}
+          }}
+          if (!jumpBtn) {{
+            try {{
+              jumpBtn = (doc || document).getElementById("wa-jump-bottom");
+            }} catch (e) {{}}
+          }}
+          if (!lb) {{
+            try {{
+              lb = (doc || document).getElementById("wa-lightbox");
+            }} catch (e) {{}}
+          }}
           if (!box) return;
 
           function syncComposeClearance() {{

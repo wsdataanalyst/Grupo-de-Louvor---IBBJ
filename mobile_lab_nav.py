@@ -144,6 +144,8 @@ def navigate_ml_page(page: str, *, pin: bool = False) -> None:
         unpin_ml_page()
     if page not in ML_PAGES:
         page = "Início"
+    if page == "Chat" and str(st.session_state.get("ml_page", "")).strip() != "Chat":
+        st.session_state.ml_chat_view = "list"
     st.session_state.ml_page = page
     persist_ml_page_query(page)
     if pin or page == "Gerenciar Escalas":

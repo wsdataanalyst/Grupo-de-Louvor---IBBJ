@@ -155,11 +155,11 @@ def mobile_ensaio_chat_css() -> str:
       -webkit-overflow-scrolling: touch !important;
     }
     body:has(#ml-ensaio-chat-active) [class*="st-key-ml_ensaio_feed_wrap"] {
-      height: 0 !important;
       min-height: 0 !important;
       margin: 0 !important;
       padding: 0 !important;
       overflow: visible !important;
+      border: none !important;
     }
     body:has(#ml-ensaio-chat-active) [class*="st-key-ml_ensaio_pick"] {
       position: fixed !important;

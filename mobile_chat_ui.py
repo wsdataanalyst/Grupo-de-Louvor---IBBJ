@@ -57,9 +57,9 @@ def _esc(s: object) -> str:
 
 def _chat_view() -> str:
     if "ml_chat_view" not in st.session_state:
-        st.session_state.ml_chat_view = "thread"
-    v = str(st.session_state.get("ml_chat_view", "thread")).strip()
-    return v if v in _CHAT_VIEWS else "thread"
+        st.session_state.ml_chat_view = "list"
+    v = str(st.session_state.get("ml_chat_view", "list")).strip()
+    return v if v in _CHAT_VIEWS else "list"
 
 
 def _set_chat_view(view: str) -> None:
@@ -412,8 +412,13 @@ def render_mobile_chat_page(chat_df: pd.DataFrame, members_df: pd.DataFrame) -> 
             "mark_chat_seen",
             "members_visible_to_group",
         )
-    except (ImportError, AttributeError):
-        pass
+    except (ImportError, AttributeError) as exc:
+        st.error(
+            "Chat indisponível: o app não carregou as funções do servidor. "
+            "Recarregue a página ou aguarde o deploy terminar."
+        )
+        st.caption(str(exc))
+        return
 
     st.session_state["_ml_append_chat"] = append_chat_message
 
