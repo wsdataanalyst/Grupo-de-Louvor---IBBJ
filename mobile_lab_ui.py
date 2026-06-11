@@ -1114,6 +1114,13 @@ def render_mobile_lab_dashboard(
     first = (str(user_full_name).strip().split(" ") or [""])[:1][0]
     hello = first or "bem-vindo"
     equipe = equipe_df if equipe_df is not None else pd.DataFrame()
+    if equipe.empty:
+        try:
+            from app import get_escalas_bundle
+
+            _, _, equipe, _ = get_escalas_bundle()
+        except Exception:
+            equipe = pd.DataFrame()
     next_culto = _next_user_culto(my_email, escalas_df, equipe)
     cultos_mes, cultos_proximo_mes = _user_cultos_month_counts(
         my_email, escalas_df, equipe
