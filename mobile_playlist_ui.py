@@ -48,7 +48,10 @@ def _filter_key() -> str:
 
 
 def _search_query() -> str:
-    return str(st.session_state.get("ml_pl_search", "")).strip().lower()
+    # Chave única do widget (evita colisão com containers legados ml_pl_search).
+    legacy = str(st.session_state.get("ml_pl_search", "")).strip()
+    cur = str(st.session_state.get("ml_pl_hub_search", legacy)).strip()
+    return cur.lower()
 
 
 def _sort_key() -> str:
@@ -200,8 +203,8 @@ def mobile_playlist_css() -> str:
     body:has(#ml-playlist-page) [class*="st-key-ml_pl_filters"] [data-testid="stColumn"]{
       flex: 0 0 auto !important; width: auto !important; max-width: none !important;
     }
-    body:has(#ml-playlist-page) [class*="st-key-ml_pl_search"] .stTextInput > div > div > input,
-    body:has(#ml-playlist-page) [class*="st-key-ml_pl_add_search"] .stTextInput > div > div > input{
+    body:has(#ml-playlist-page) [class*="st-key-ml_pl_hub_search"] .stTextInput > div > div > input,
+    body:has(#ml-playlist-page) [class*="st-key-ml_pl_add_box"] .stTextInput > div > div > input{
       border-radius: 18px !important; min-height: 2.85rem !important;
       background: rgba(7,21,45,.92) !important; border: 1px solid rgba(255,255,255,.08) !important;
     }
@@ -607,13 +610,12 @@ def _render_hub(
 
     c_search, c_sort = st.columns([3, 1])
     with c_search:
-        with st.container(key="ml_pl_find_box"):
-            st.text_input(
-                "Buscar playlist",
-                key="ml_pl_search",
-                placeholder="🔎 Buscar playlist...",
-                label_visibility="collapsed",
-            )
+        st.text_input(
+            "Buscar playlist",
+            key="ml_pl_hub_search",
+            placeholder="🔎 Buscar playlist...",
+            label_visibility="collapsed",
+        )
     with c_sort:
         sort_labels = {"recent": "Recentes", "name": "Nome", "tracks": "Faixas"}
         cur = _sort_key()
@@ -828,7 +830,7 @@ def _render_add(
         if ritmo != "Todos":
             pool = pool[pool["ritmo"].astype(str) == ritmo]
 
-    with st.container(key="ml_pl_add_search"):
+    with st.container(key="ml_pl_add_box"):
         st.caption("Busque no repertório e toque em ➕ para incluir na playlist.")
     render_playlist_add_search(
         louvores_df,
@@ -844,7 +846,11 @@ def _render_nova() -> None:
         '<div class="ml-pl-section"><span>📋 Nova playlist</span></div>',
         unsafe_allow_html=True,
     )
-    nome = st.text_input("Nome da playlist", placeholder="Ex.: Treino Domingo")
+    nome = st.text_input(
+        "Nome da playlist",
+        placeholder="Ex.: Treino Domingo",
+        key="ml_pl_nova_name",
+    )
     c1, c2 = st.columns(2)
     with c1:
         if st.button("Criar", type="primary", use_container_width=True, key="ml_pl_nova_create"):
