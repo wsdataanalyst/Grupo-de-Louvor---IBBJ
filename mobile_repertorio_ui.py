@@ -69,7 +69,7 @@ def mobile_repertorio_css() -> str:
       color: #fff !important;
       box-shadow: 0 0 24px rgba(124,58,237,.28) !important;
     }
-    body:has(#ml-repertorio-page) [class*="st-key-ml_rep_search_wrap"] .stTextInput > div > div > input{
+    body:has(#ml-repertorio-page) [class*="st-key-ml_rep_hub_search"] .stTextInput > div > div > input{
       min-height: 3rem !important;
       border-radius: 18px !important;
       background: #111827 !important;
@@ -527,10 +527,19 @@ def _song_card_html(
     """
 
 
+def _rep_search_value() -> str:
+    legacy = str(st.session_state.get("ml_rep_search", "")).strip()
+    cur = str(st.session_state.get("ml_rep_hub_search", legacy)).strip()
+    return cur
+
+
 def _render_search_bar() -> str:
+    legacy = str(st.session_state.get("ml_rep_search", "")).strip()
+    if "ml_rep_hub_search" not in st.session_state and legacy:
+        st.session_state["ml_rep_hub_search"] = legacy
     return st.text_input(
         "Buscar",
-        key="ml_rep_search",
+        key="ml_rep_hub_search",
         placeholder="Buscar música ou artista...",
         label_visibility="collapsed",
     )
@@ -558,6 +567,7 @@ def _render_filters_expander(louvores_df: pd.DataFrame) -> None:
         )
         if st.button("Limpar filtros", key="ml_rep_clear", use_container_width=True):
             for k in (
+                "ml_rep_hub_search",
                 "ml_rep_search",
                 "ml_rep_f_letter",
                 "ml_rep_f_tom",
@@ -701,7 +711,7 @@ def _filtered_repertorio(
     return (
         _filter_df(
             louvores_df,
-            search=str(st.session_state.get("ml_rep_search", "")),
+            search=_rep_search_value(),
             letter=str(st.session_state.get("ml_rep_f_letter", "Todas")),
             tom=str(st.session_state.get("ml_rep_f_tom", "Todos")),
             ritmo=str(st.session_state.get("ml_rep_f_ritmo", "Todos")),
@@ -747,8 +757,7 @@ def _render_hub(
         ]
     ) if recent else 0
 
-    with st.container(key="ml_rep_search_wrap"):
-        _render_search_bar()
+    _render_search_bar()
     _render_filters_expander(louvores_df)
 
     tab = _list_tab()
@@ -828,8 +837,7 @@ def _render_lista(
                     st.session_state.ml_rep_list_tab = key
                     st.rerun()
 
-    with st.container(key="ml_rep_search_wrap"):
-        _render_search_bar()
+    _render_search_bar()
 
     filtered, fav, _recent = _filtered_repertorio(
         louvores_df,

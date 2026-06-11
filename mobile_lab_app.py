@@ -853,40 +853,10 @@ def render_mobile_lab_escalas(
 
 
 def render_mobile_lab_repertorio(*, louvores_df: pd.DataFrame) -> None:
-    inject_mobile_lab_theme()
-    _render_page_header("Repertório")
-    q = st.text_input("Buscar", placeholder="Nome da música, artista...", key="ml_rep_search")
-    df = louvores_df.copy() if louvores_df is not None else pd.DataFrame()
-    if not df.empty and q.strip():
-        qq = q.strip().lower()
-        df = df[
-            df.get("title", "").astype(str).str.lower().str.contains(qq)
-            | df.get("artist", "").astype(str).str.lower().str.contains(qq)
-        ]
-    if df.empty:
-        st.info("Nenhum louvor encontrado.")
-        return
-    df = df.head(30)
-    for _, r in df.iterrows():
-        title = str(r.get("title", "")).strip()
-        artist = str(r.get("artist", "")).strip()
-        st.markdown(
-            f"""
-            <div class="ml-page" style="padding-bottom:12px;">
-              <div class="ml-glass ml-card" style="display:flex;gap:12px;align-items:center;padding:12px 12px;border-radius:22px;">
-                <div style="width:46px;height:46px;border-radius:16px;background:rgba(139,92,246,.14);border:1px solid rgba(139,92,246,.18);display:flex;align-items:center;justify-content:center;font-size:18px;">
-                  🎵
-                </div>
-                <div style="flex:1;min-width:0;">
-                  <div style="font-weight:900;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{_esc(title)}</div>
-                  <div style="color:rgba(148,163,184,.92);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{_esc(artist)}</div>
-                </div>
-                <div style="width:38px;height:38px;border-radius:16px;display:flex;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,.10);background:rgba(15,23,42,.55);">❤</div>
-              </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+    """Delega para o layout premium de Repertório."""
+    from mobile_repertorio_ui import render_mobile_repertorio_page
+
+    render_mobile_repertorio_page(louvores_df)
 
 
 def render_mobile_lab_playlist(*, playlist_df: pd.DataFrame) -> None:
