@@ -762,17 +762,26 @@ def build_wa_messages_html(chat_df: pd.DataFrame, members_df: pd.DataFrame) -> s
     return "\n".join(parts)
 
 
+def _wa_scroll_end_id(scroll_box_id: str) -> str:
+    return "chat-scroll-end" if scroll_box_id == "chat-scroll-box" else f"{scroll_box_id}-end"
+
+
 def build_wa_messages_html_cached(
-    chat_df: pd.DataFrame, members_df: pd.DataFrame, *, rev: str
+    chat_df: pd.DataFrame,
+    members_df: pd.DataFrame,
+    *,
+    rev: str,
+    html_key: str = _FEED_HTML_KEY,
+    rev_key: str = _FEED_REV_KEY,
 ) -> str:
     if (
-        st.session_state.get(_FEED_REV_KEY) == rev
-        and st.session_state.get(_FEED_HTML_KEY)
+        st.session_state.get(rev_key) == rev
+        and st.session_state.get(html_key)
     ):
-        return str(st.session_state[_FEED_HTML_KEY])
+        return str(st.session_state[html_key])
     html_block = build_wa_messages_html(chat_df, members_df)
-    st.session_state[_FEED_HTML_KEY] = html_block
-    st.session_state[_FEED_REV_KEY] = rev
+    st.session_state[html_key] = html_block
+    st.session_state[rev_key] = rev
     return html_block
 
 
@@ -781,15 +790,30 @@ def render_wa_mobile_messages(
     members_df: pd.DataFrame,
     *,
     rev: str | None = None,
+    html_key: str | None = None,
+    rev_key: str | None = None,
+    scroll_box_id: str = "chat-scroll-box",
+    delete_query_param: str = "ml_del",
+    composer_selector: str = '[class*="st-key-ml_chat_composer"]',
 ) -> None:
     feed_rev = rev if rev is not None else str(st.session_state.get("_chat_rev", ""))
-    html_block = build_wa_messages_html_cached(chat_df, members_df, rev=feed_rev)
+    hk = html_key or _FEED_HTML_KEY
+    rk = rev_key or _FEED_REV_KEY
+    html_block = build_wa_messages_html_cached(
+        chat_df, members_df, rev=feed_rev, html_key=hk, rev_key=rk
+    )
+    scroll_end_id = _wa_scroll_end_id(scroll_box_id)
     st.markdown(
-        f'<div id="chat-scroll-box" class="chat-feed wa-chat-feed">{html_block}'
-        f'<div id="chat-scroll-end" class="wa-feed-bottom-spacer" aria-hidden="true"></div></div>',
+        f'<div id="{scroll_box_id}" class="chat-feed wa-chat-feed">{html_block}'
+        f'<div id="{scroll_end_id}" class="wa-feed-bottom-spacer" aria-hidden="true"></div></div>',
         unsafe_allow_html=True,
     )
-    inject_wa_scroll_and_lightbox()
+    inject_wa_scroll_and_lightbox(
+        scroll_box_id=scroll_box_id,
+        scroll_end_id=scroll_end_id,
+        delete_query_param=delete_query_param,
+        composer_selector=composer_selector,
+    )
 
 
 def render_wa_feed_from_cache(members_df: pd.DataFrame) -> bool:
@@ -855,45 +879,63 @@ def render_wa_list_header_html() -> str:
     """
 
 
-def inject_wa_scroll_nudge_only() -> None:
+def inject_wa_scroll_nudge_only(
+    *,
+    scroll_box_id: str = "chat-scroll-box",
+    scroll_end_id: str | None = None,
+    composer_selector: str = '[class*="st-key-ml_chat_composer"]',
+) -> None:
     """Só rola ao fim após enviar — sem reinjetar todo o script."""
     if not st.session_state.pop("_chat_scroll_bottom", False):
         return
+    end_id = scroll_end_id or _wa_scroll_end_id(scroll_box_id)
     inject_page_script(
-        """
-        (function () {
+        f"""
+        (function () {{
           var doc = document;
-          try {
+          try {{
             if (window.parent && window.parent.document) doc = window.parent.document;
-          } catch (e) {}
-          function syncComposeClearance() {
-            var box = doc.getElementById("chat-scroll-box");
-            var comp = doc.querySelector('[class*="st-key-ml_chat_composer"]');
+          }} catch (e) {{}}
+          function syncComposeClearance() {{
+            var box = doc.getElementById("{scroll_box_id}");
+            var comp = doc.querySelector('{composer_selector}');
             if (!box) return;
             var h = 92;
             if (comp) h = Math.max(72, comp.getBoundingClientRect().height);
             var clearance = Math.ceil(h + 14) + "px";
             doc.documentElement.style.setProperty("--ml-compose-clearance", clearance);
             box.style.paddingBottom = clearance;
-            var end = doc.getElementById("chat-scroll-end");
+            var end = doc.getElementById("{end_id}");
             if (end) end.style.height = clearance;
-          }
+          }}
           syncComposeClearance();
-          var box = doc.getElementById("chat-scroll-box");
+          var box = doc.getElementById("{scroll_box_id}");
           if (box) box.scrollTop = box.scrollHeight + 9999;
-          var end = doc.getElementById("chat-scroll-end");
-          if (end) end.scrollIntoView({ block: "end", behavior: "auto" });
-        })();
+          var end = doc.getElementById("{end_id}");
+          if (end) end.scrollIntoView({{ block: "end", behavior: "auto" }});
+        }})();
         """
     )
 
 
-def inject_wa_scroll_and_lightbox() -> None:
-    if st.session_state.get("_wa_chat_js_ready"):
-        inject_wa_scroll_nudge_only()
+def inject_wa_scroll_and_lightbox(
+    *,
+    scroll_box_id: str = "chat-scroll-box",
+    scroll_end_id: str | None = None,
+    delete_query_param: str = "ml_del",
+    composer_selector: str = '[class*="st-key-ml_chat_composer"]',
+) -> None:
+    end_id = scroll_end_id or _wa_scroll_end_id(scroll_box_id)
+    js_ready_key = f"_wa_chat_js_ready_{scroll_box_id}"
+    if st.session_state.get(js_ready_key):
+        inject_wa_scroll_nudge_only(
+            scroll_box_id=scroll_box_id,
+            scroll_end_id=end_id,
+            composer_selector=composer_selector,
+        )
         return
 
-    st.session_state["_wa_chat_js_ready"] = True
+    st.session_state[js_ready_key] = True
     force = st.session_state.pop("_chat_scroll_bottom", False)
     force_js = "true" if force else "false"
 
@@ -937,19 +979,19 @@ def inject_wa_scroll_and_lightbox() -> None:
             if (window.parent && window.parent.document) doc = window.parent.document;
           }} catch (e) {{}}
           var forceScroll = {force_js};
-          var box = doc.getElementById("chat-scroll-box");
+          var box = doc.getElementById("{scroll_box_id}");
           var jumpBtn = doc.getElementById("wa-jump-bottom");
           var lb = doc.getElementById("wa-lightbox");
           if (!box) return;
 
           function syncComposeClearance() {{
-            var comp = doc.querySelector('[class*="st-key-ml_chat_composer"]');
+            var comp = doc.querySelector('{composer_selector}');
             var h = 92;
             if (comp) h = Math.max(72, comp.getBoundingClientRect().height);
             var clearance = Math.ceil(h + 16) + "px";
             doc.documentElement.style.setProperty("--ml-compose-clearance", clearance);
             box.style.paddingBottom = clearance;
-            var end = doc.getElementById("chat-scroll-end");
+            var end = doc.getElementById("{end_id}");
             if (end) end.style.height = clearance;
           }}
 
@@ -960,7 +1002,7 @@ def inject_wa_scroll_and_lightbox() -> None:
           function scrollToEnd(smooth) {{
             syncComposeClearance();
             box.scrollTop = box.scrollHeight + 99999;
-            var end = doc.getElementById("chat-scroll-end");
+            var end = doc.getElementById("{end_id}");
             if (end) end.scrollIntoView({{ block: "end", behavior: smooth ? "smooth" : "auto" }});
             if (jumpBtn) jumpBtn.classList.remove("is-visible");
           }}
@@ -990,7 +1032,7 @@ def inject_wa_scroll_and_lightbox() -> None:
             }}).observe(box, {{ childList: true, subtree: true }});
           }}
 
-          var comp = doc.querySelector('[class*="st-key-ml_chat_composer"]');
+          var comp = doc.querySelector('{composer_selector}');
           if (comp && !comp.dataset.waPadObs) {{
             comp.dataset.waPadObs = "1";
             new ResizeObserver(function () {{
@@ -1174,7 +1216,7 @@ def inject_wa_scroll_and_lightbox() -> None:
               closeMsgSheet();
               var url = new URL(window.parent.location.href);
               url.searchParams.set(
-                "ml_del",
+                "{delete_query_param}",
                 encodeURIComponent(ts) + "|" + encodeURIComponent(em)
               );
               window.parent.location.href = url.toString();
