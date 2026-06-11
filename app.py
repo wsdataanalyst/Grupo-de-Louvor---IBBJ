@@ -8891,21 +8891,53 @@ def show_escalas_page(
         occ = member_escala_occurrences(my_email, escalas_df, equipe_df)
         if not occ:
             st.info("Você ainda não aparece em nenhuma escala registrada.")
-        else:
-            st.caption(f"{len(occ)} culto(s) no seu histórico de escalas.")
-            for i, (culto_d, eid, ev) in enumerate(occ):
-                row_match = escalas_df[escalas_df["id"].astype(str) == str(eid)]
-                if row_match.empty:
-                    continue
-                render_culto_programa(
-                    row_match.iloc[0],
-                    programa_df,
-                    equipe_df,
-                    members_df,
-                    louvores_df,
-                    ensaio_notice=True,
-                    widget_key_prefix=f"todas_{i}_{eid}",
-                )
+            return
+
+        culto_rows: list[tuple[str, pd.Series]] = []
+        for _culto_d, eid, _ev in occ:
+            row_match = escalas_df[escalas_df["id"].astype(str) == str(eid)]
+            if row_match.empty:
+                continue
+            culto_rows.append((str(eid), row_match.iloc[0]))
+
+        if not culto_rows:
+            st.info("Você ainda não aparece em nenhuma escala registrada.")
+            return
+
+        st.caption(f"{len(culto_rows)} culto(s) no seu histórico de escalas.")
+        eids = [eid for eid, _ in culto_rows]
+
+        def _todas_culto_label(eid: str) -> str:
+            row = next(r for e, r in culto_rows if e == eid)
+            return escala_label_for_user(row, my_email, equipe_df)
+
+        default_idx = 0
+        pref = st.session_state.get("ig_esc_todas_escala_id")
+        if pref:
+            for i, eid in enumerate(eids):
+                if eid == str(pref):
+                    default_idx = i
+                    break
+
+        escolha_id = st.selectbox(
+            "Culto",
+            options=eids,
+            index=default_idx,
+            format_func=_todas_culto_label,
+            key="ig_esc_todas_sel",
+        )
+        st.session_state["ig_esc_todas_escala_id"] = escolha_id
+
+        row = next(r for e, r in culto_rows if e == escolha_id)
+        render_culto_programa(
+            row,
+            programa_df,
+            equipe_df,
+            members_df,
+            louvores_df,
+            ensaio_notice=True,
+            widget_key_prefix=f"todas_{escolha_id}",
+        )
 
     def _body_sequencia() -> None:
         pref = st.session_state.pop("focus_sequencia_escala_id", None)
