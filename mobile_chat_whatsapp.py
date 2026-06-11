@@ -811,14 +811,30 @@ def render_wa_feed_from_cache(members_df: pd.DataFrame) -> bool:
     return True
 
 
-def render_wa_thread_header_html(*, member_count: int, online_hint: str = "") -> str:
-    status = online_hint or f"{member_count} participantes"
-    online_cls = " is-online" if online_hint and "online" in online_hint.lower() else ""
+def render_wa_thread_header_html(
+    *,
+    member_count: int | None = None,
+    online_hint: str = "",
+    title: str | None = None,
+    subtitle: str | None = None,
+    avatar: str | None = None,
+) -> str:
+    header_title = title or GROUP_CHAT_TITLE
+    status = subtitle or online_hint
+    if not status and member_count is not None:
+        status = f"{member_count} participantes"
+    status = status or ""
+    online_cls = (
+        " is-online"
+        if status and "online" in status.lower()
+        else ""
+    )
+    avatar_display = avatar or _WA_GROUP_AVATAR
     return f"""
     <header class="wa-thread-header" aria-label="Cabeçalho do chat">
-      <div class="wa-thread-header__avatar">{_WA_GROUP_AVATAR}</div>
+      <div class="wa-thread-header__avatar">{avatar_display}</div>
       <div class="wa-thread-header__body">
-        <p class="wa-thread-header__title">{_esc(GROUP_CHAT_TITLE)}</p>
+        <p class="wa-thread-header__title">{_esc(header_title)}</p>
         <p class="wa-thread-header__status{online_cls}">{_esc(status)}</p>
       </div>
       <div class="wa-thread-header__actions">
