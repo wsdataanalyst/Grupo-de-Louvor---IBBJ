@@ -728,6 +728,8 @@ def show_mobile_dashboard(
         members_df=members_df,
         louvores_df=louvores_df,
         escalas_df=escalas_df,
+        equipe_df=equipe_df,
+        my_email=str(my_email or ""),
         chat_unread=int(chat_unread),
         user_full_name=str(user_name or ""),
         photo_uri=str(photo_uri or ""),

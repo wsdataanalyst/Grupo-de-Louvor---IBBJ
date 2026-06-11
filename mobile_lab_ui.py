@@ -937,19 +937,12 @@ def _format_ensaio_parts(row: pd.Series) -> tuple[str, str]:
     return date_txt, time_txt
 
 
-def _next_culto(escalas_df: pd.DataFrame) -> dict:
-    if escalas_df is None or escalas_df.empty:
+def _culto_dict_from_row(row: pd.Series) -> dict:
+    dt = pd.to_datetime(row.get("date"), errors="coerce")
+    if pd.isna(dt):
         return {}
-    df = escalas_df.copy()
-    df["_dt"] = pd.to_datetime(df.get("date"), errors="coerce")
-    df = df[df["_dt"].notna()].sort_values("_dt")
-    today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-    df = df[df["_dt"].dt.date >= date.today()]
-    if df.empty:
-        return {}
-    row = df.iloc[0]
-    dt = row["_dt"].to_pydatetime()
-    culto_d = dt.date()
+    py_dt = dt.to_pydatetime()
+    culto_d = py_dt.date()
     ensaio_date, ensaio_time = _format_ensaio_parts(row)
     return {
         "id": str(row.get("id", "")).strip(),
@@ -958,10 +951,79 @@ def _next_culto(escalas_df: pd.DataFrame) -> dict:
         "date": culto_d,
         "date_str": culto_d.strftime("%d/%m/%Y"),
         "date_full": f"{_pt_weekday(culto_d)}, {culto_d.strftime('%d/%m/%Y')}",
-        "time": _format_culto_time(row, dt),
+        "time": _format_culto_time(row, py_dt),
         "ensaio_date": ensaio_date,
         "ensaio_time": ensaio_time,
     }
+
+
+def _next_culto(escalas_df: pd.DataFrame) -> dict:
+    if escalas_df is None or escalas_df.empty:
+        return {}
+    df = escalas_df.copy()
+    df["_dt"] = pd.to_datetime(df.get("date"), errors="coerce")
+    df = df[df["_dt"].notna()].sort_values("_dt")
+    df = df[df["_dt"].dt.date >= date.today()]
+    if df.empty:
+        return {}
+    return _culto_dict_from_row(df.iloc[0])
+
+
+def _user_culto_occurrences(
+    my_email: str,
+    escalas_df: pd.DataFrame,
+    equipe_df: pd.DataFrame,
+) -> list[tuple[date, str, str]]:
+    from escala_member_stats import member_escala_occurrences
+
+    email = str(my_email or "").strip().lower()
+    if not email:
+        return []
+    return member_escala_occurrences(email, escalas_df, equipe_df)
+
+
+def _next_user_culto(
+    my_email: str,
+    escalas_df: pd.DataFrame,
+    equipe_df: pd.DataFrame,
+) -> dict:
+    if escalas_df is None or escalas_df.empty or "id" not in escalas_df.columns:
+        return {}
+    today = date.today()
+    future = [
+        (d, eid, ev)
+        for d, eid, ev in _user_culto_occurrences(my_email, escalas_df, equipe_df)
+        if d >= today
+    ]
+    if not future:
+        return {}
+    future.sort(key=lambda x: x[0])
+    _, eid, _ = future[0]
+    match = escalas_df[escalas_df["id"].astype(str) == str(eid)]
+    if match.empty:
+        return {}
+    return _culto_dict_from_row(match.iloc[0])
+
+
+def _user_cultos_month_counts(
+    my_email: str,
+    escalas_df: pd.DataFrame,
+    equipe_df: pd.DataFrame,
+) -> tuple[int, int]:
+    today = date.today()
+    if today.month == 12:
+        next_month, next_year = 1, today.year + 1
+    else:
+        next_month, next_year = today.month + 1, today.year
+
+    n_mes = 0
+    n_prox = 0
+    for culto_d, _, _ in _user_culto_occurrences(my_email, escalas_df, equipe_df):
+        if culto_d.year == today.year and culto_d.month == today.month:
+            n_mes += 1
+        elif culto_d.year == next_year and culto_d.month == next_month:
+            n_prox += 1
+    return n_mes, n_prox
 
 
 def _my_sugestoes_dashboard_stats(
@@ -1024,6 +1086,7 @@ def render_mobile_lab_dashboard(
     members_df: pd.DataFrame,
     louvores_df: pd.DataFrame,
     escalas_df: pd.DataFrame,
+    equipe_df: pd.DataFrame | None = None,
     sugestoes_df: pd.DataFrame | None = None,
     chat_unread: int = 0,
     user_full_name: str = "",
@@ -1050,18 +1113,14 @@ def render_mobile_lab_dashboard(
 
     first = (str(user_full_name).strip().split(" ") or [""])[:1][0]
     hello = first or "bem-vindo"
-    next_culto = _next_culto(escalas_df)
+    equipe = equipe_df if equipe_df is not None else pd.DataFrame()
+    next_culto = _next_user_culto(my_email, escalas_df, equipe)
+    cultos_mes, cultos_proximo_mes = _user_cultos_month_counts(
+        my_email, escalas_df, equipe
+    )
 
     n_louvores = 0 if louvores_df is None else int(len(louvores_df))
     n_membros = 0 if members_df is None else int(len(members_df))
-
-    # cultos semana (próximos 7 dias)
-    cultos_semana = 0
-    if escalas_df is not None and not escalas_df.empty:
-        dt = pd.to_datetime(escalas_df.get("date"), errors="coerce")
-        start = datetime.now()
-        end = start + timedelta(days=7)
-        cultos_semana = int(((dt >= start) & (dt <= end)).sum())
 
     n_sug_mes, n_sug_aprov = _my_sugestoes_dashboard_stats(sugestoes_df, my_email)
     sug_aprov_txt = (
@@ -1126,8 +1185,8 @@ def render_mobile_lab_dashboard(
           <div class="ml-glass ml-hero ml-glow-purple">
             <div class="ml-hero-inner">
               <div class="ml-pill">📅 PRÓXIMO CULTO</div>
-              <h2>Nenhum culto agendado</h2>
-              <div class="ml-meta"><span>Cadastre a próxima escala em Gerenciar Escalas.</span></div>
+              <h2>Nenhum culto na sua escala</h2>
+              <div class="ml-meta"><span>Você ainda não está escalado em um culto próximo.</span></div>
             </div>
           </div>
         """
@@ -1204,9 +1263,12 @@ def render_mobile_lab_dashboard(
             <div class="ml-glass ml-card ml-metric ml-glow-gold">
               <div class="ml-emoji">📅</div>
               <div class="ml-val">"""
-        + str(cultos_semana)
+        + str(cultos_mes)
         + """</div>
-              <div class="ml-lbl">Cultos esta semana</div>
+              <div class="ml-lbl">Cultos do mês</div>
+              <div class="ml-lbl-sub">Cultos do próximo mês: """
+        + str(cultos_proximo_mes)
+        + """</div>
             </div>
             <div class="ml-glass ml-card ml-metric" style="border:1px solid rgba(167,139,250,.22);">
               <div class="ml-emoji">💡</div>

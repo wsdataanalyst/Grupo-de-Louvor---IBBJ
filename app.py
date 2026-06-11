@@ -6201,6 +6201,7 @@ def show_dashboard(
             members_df=members_df,
             louvores_df=louvores_df,
             escalas_df=escalas_df,
+            equipe_df=equipe_df,
             sugestoes_df=sug_df,
             chat_unread=chat_unread,
             user_full_name=nome,
