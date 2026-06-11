@@ -846,7 +846,10 @@ def inject_wa_scroll_nudge_only() -> None:
     inject_page_script(
         """
         (function () {
-          var doc = window.parent.document;
+          var doc = document;
+          try {
+            if (window.parent && window.parent.document) doc = window.parent.document;
+          } catch (e) {}
           function syncComposeClearance() {
             var box = doc.getElementById("chat-scroll-box");
             var comp = doc.querySelector('[class*="st-key-ml_chat_composer"]');
@@ -913,7 +916,10 @@ def inject_wa_scroll_and_lightbox() -> None:
     inject_page_script(
         f"""
         (function () {{
-          var doc = window.parent.document;
+          var doc = document;
+          try {{
+            if (window.parent && window.parent.document) doc = window.parent.document;
+          }} catch (e) {{}}
           var forceScroll = {force_js};
           var box = doc.getElementById("chat-scroll-box");
           var jumpBtn = doc.getElementById("wa-jump-bottom");

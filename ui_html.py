@@ -31,8 +31,10 @@ def inject_page_script(javascript: str) -> None:
     import streamlit.components.v1 as components
 
     components.html(
-        '<div style="position:fixed;left:0;top:0;width:0;height:0;overflow:hidden;'
-        f'opacity:0;pointer-events:none;">{wrapped}</div>',
+        "<!DOCTYPE html><html><head>"
+        "<style>html,body{margin:0;padding:0;width:0;height:0;overflow:hidden;"
+        "opacity:0;visibility:hidden;}</style></head>"
+        f"<body>{wrapped}</body></html>",
         height=0,
         scrolling=False,
     )

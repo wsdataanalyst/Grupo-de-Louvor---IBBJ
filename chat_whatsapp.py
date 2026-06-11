@@ -33,7 +33,14 @@ def should_force_chat_scroll() -> bool:
 
 
 def rerun_chat_surface(*, full: bool = False) -> None:
-    """Recarrega só o fragment do chat (envio instantâneo); fallback para página inteira."""
+    """Recarrega o chat após envio. Mobile lab: sempre rerun completo (sem fragment)."""
+    try:
+        from mobile_lab import is_mobile_lab_enabled
+
+        if is_mobile_lab_enabled():
+            full = True
+    except Exception:
+        pass
     if full:
         st.rerun()
         return
@@ -342,15 +349,15 @@ def render_mobile_wa_composer(
     if mode:
         with st.container(key="ml_chat_attach_panel"):
             _render_attach_mode_mobile(
-            key_prefix=key_prefix,
-            mode=mode,
-            ak=ak,
-            append_fn=append_fn,
-            audio_dir=audio_dir,
-            audio_prefix=audio_prefix,
-            images_dir=images_dir,
-            image_prefix=image_prefix,
-            data_dir=data_dir,
+                key_prefix=key_prefix,
+                mode=mode,
+                ak=ak,
+                append_fn=append_fn,
+                audio_dir=audio_dir,
+                audio_prefix=audio_prefix,
+                images_dir=images_dir,
+                image_prefix=image_prefix,
+                data_dir=data_dir,
             )
 
     if st.session_state.get(menu_key):
@@ -419,7 +426,12 @@ def render_mobile_wa_composer(
                 st.rerun()
 
     if prompt and prompt.strip():
-        append_fn(message=str(prompt).strip(), message_type="text", media_file="")
+        try:
+            append_fn(message=str(prompt).strip(), message_type="text", media_file="")
+        except Exception as exc:
+            st.error("Não foi possível enviar a mensagem.")
+            st.caption(str(exc))
+            return
         _close_mobile_panels(key_prefix)
         rerun_chat_surface()
 
