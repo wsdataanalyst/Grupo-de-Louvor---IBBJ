@@ -2564,6 +2564,23 @@ def programa_por_escala(programa_df: pd.DataFrame, escala_id: str) -> pd.DataFra
     return prog.sort_values("ordem")
 
 
+def remove_programa_louvor(
+    programa_df: pd.DataFrame,
+    escala_id: str,
+    programa_id: str,
+) -> pd.DataFrame:
+    """Remove louvor da escala, renumera a ordem e grava imediatamente."""
+    pid = str(programa_id).strip()
+    eid = str(escala_id).strip()
+    df = programa_df[programa_df["id"].astype(str) != pid].copy()
+    mask = df["escala_id"].astype(str) == eid
+    remaining = df.loc[mask].sort_values("ordem")
+    for i, idx in enumerate(remaining.index, start=1):
+        df.loc[idx, "ordem"] = int(i)
+    save_data(df, PROGRAMA_FILE)
+    return prepare_programa(load_data(PROGRAMA_FILE, PROGRAMA_COLUMNS))
+
+
 def equipe_por_escala(equipe_df: pd.DataFrame, escala_id: str) -> pd.DataFrame:
     return equipe_df[equipe_df["escala_id"].astype(str) == str(escala_id)].copy()
 
@@ -7331,6 +7348,7 @@ def render_programa_louvores_editor(
     members_df: pd.DataFrame,
     key_prefix: str,
 ):
+    _, programa_df, _, _ = get_escalas_bundle()
     st.subheader("🎶 Louvores do culto")
     st.caption(
         "Busque à esquerda, toque em ➕ e defina a **parte do culto** de cada música em **Selecionados**."
@@ -7354,7 +7372,6 @@ def render_programa_louvores_editor(
                 )
                 c1, c2 = st.columns(2)
                 save_part_action = f"prog_savep_{key_prefix}_{pid}"
-                del_part_action = f"prog_pdel_{key_prefix}_{pid}"
 
                 def _save_programa_parte() -> None:
                     idx_row = programa_df.index[programa_df["id"].astype(str) == pid]
@@ -7365,21 +7382,10 @@ def render_programa_louvores_editor(
                         programa_df.loc[idx_row[0], "parte"] = parte_val
                         save_data(programa_df, PROGRAMA_FILE)
 
-                def _remove_programa_parte() -> None:
-                    nonlocal programa_df
-                    programa_df = programa_df[programa_df["id"].astype(str) != pid]
-                    save_data(programa_df, PROGRAMA_FILE)
-
                 if run_pending_save(
                     save_part_action,
                     _save_programa_parte,
                     success_message="Parte atualizada.",
-                ):
-                    st.rerun()
-                if run_pending_save(
-                    del_part_action,
-                    _remove_programa_parte,
-                    success_message="Louvor removido.",
                 ):
                     st.rerun()
                 with c1:
@@ -7397,8 +7403,10 @@ def render_programa_louvores_editor(
                         key=f"{key_prefix}_pdel_{pid}",
                         use_container_width=True,
                     ):
-                        start_pending_save(del_part_action, "Removendo louvor...")
-                        st.toast("Removendo louvor...", icon="🗑️")
+                        with st.spinner("Removendo louvor..."):
+                            remove_programa_louvor(programa_df, escala_id, pid)
+                        st.session_state.pop(f"{key_prefix}_ep_{pid}", None)
+                        st.toast("Louvor removido.", icon="🗑️")
                         st.rerun()
     else:
         st.info("Nenhum louvor na programação deste culto ainda.")
