@@ -187,7 +187,7 @@ def _render_drawer(current: str) -> None:
             {items}
             <button class="ml-drawer-btn ml-logout" type="button" data-page="logout">🚪 Sair do sistema</button>
             <div style="margin-top:10px;color:rgba(148,163,184,.92);font-size:12px;">
-              Mobile Lab (teste) · {datetime.now().strftime("%d/%m %H:%M")}
+              Grupo de Louvor IBBJ · {datetime.now().strftime("%d/%m %H:%M")}
             </div>
           </div>
         </div>

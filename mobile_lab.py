@@ -1,12 +1,12 @@
-"""Ambiente de testes do layout mobile (nao afeta producao sem ativar)."""
+"""Layout mobile do app — rollout para usuários autenticados."""
 
 from __future__ import annotations
 
 import streamlit as st
 
-# Usuários que entram automaticamente no layout mobile (experiência de membro comum)
+# Beta legado (testes pontuais antes do rollout geral)
 _DEFAULT_MOBILE_LAB_BETA_EMAILS: tuple[str, ...] = ("teste@gmail.com",)
-_BETA_OPT_OUT_KEY = "_mobile_lab_beta_opt_out"
+_MOBILE_OPT_OUT_KEY = "_mobile_lab_beta_opt_out"
 
 
 def _truthy(value) -> bool:
@@ -19,7 +19,7 @@ def _truthy(value) -> bool:
 
 
 def mobile_lab_beta_emails() -> frozenset[str]:
-    """E-mails com laboratório mobile ligado automaticamente ao entrar."""
+    """E-mails beta extras (além do rollout geral)."""
     emails = [e.strip().lower() for e in _DEFAULT_MOBILE_LAB_BETA_EMAILS if e.strip()]
     try:
         raw = st.secrets.get("mobile_lab_beta_emails", [])
@@ -37,12 +37,20 @@ def is_mobile_lab_beta_user(email: str | None = None) -> bool:
     return bool(em) and em in mobile_lab_beta_emails()
 
 
-def apply_mobile_lab_for_beta_user(email: str | None = None) -> bool:
-    """Liga mobile lab na sessão para usuários beta (ex.: teste@gmail.com)."""
-    if not is_mobile_lab_beta_user(email):
-        return False
-    if st.session_state.get(_BETA_OPT_OUT_KEY):
-        return False
+def mobile_lab_rollout_enabled() -> bool:
+    """
+    Rollout geral do app mobile para todos os logados.
+    Desligue temporariamente com `mobile_lab_rollout = false` nos secrets.
+    """
+    try:
+        if st.secrets.get("mobile_lab_rollout") is not None:
+            return _truthy(st.secrets.get("mobile_lab_rollout"))
+    except (FileNotFoundError, KeyError, AttributeError):
+        pass
+    return True
+
+
+def _activate_mobile_lab_session() -> bool:
     st.session_state.mobile_lab = True
     try:
         st.query_params["mobile_lab"] = "1"
@@ -57,13 +65,33 @@ def apply_mobile_lab_for_beta_user(email: str | None = None) -> bool:
     return True
 
 
+def apply_mobile_lab_for_beta_user(email: str | None = None) -> bool:
+    """Liga mobile lab para e-mails beta (legado / testes)."""
+    if not is_mobile_lab_beta_user(email):
+        return False
+    if st.session_state.get(_MOBILE_OPT_OUT_KEY):
+        return False
+    return _activate_mobile_lab_session()
+
+
+def apply_mobile_lab_for_authenticated_user(email: str | None = None) -> bool:
+    """Liga o layout mobile após login para qualquer usuário cadastrado."""
+    em = str(email or st.session_state.get("user_email", "")).strip()
+    if not em or not st.session_state.get("authenticated"):
+        return False
+    if st.session_state.get(_MOBILE_OPT_OUT_KEY):
+        return False
+    if mobile_lab_rollout_enabled():
+        return _activate_mobile_lab_session()
+    return apply_mobile_lab_for_beta_user(email)
+
+
 def is_mobile_lab_enabled() -> bool:
     """
-    Ativa preview mobile quando:
+    Layout mobile ativo quando:
+    - sessão mobile_lab ligada (padrão após login)
     - URL: ?mobile_lab=1
-    - secrets.toml: mobile_lab = true
-    - session: usuario ligou o toggle na sidebar (dev)
-    - session mobile_lab ligada (incl. beta apos login)
+    - secrets: mobile_lab = true
     """
     if _truthy(st.session_state.get("mobile_lab")):
         return True
@@ -84,29 +112,25 @@ def is_mobile_lab_enabled() -> bool:
 
 
 def render_mobile_lab_sidebar_toggle() -> None:
-    """Toggle para devs e usuários beta testarem o layout mobile."""
+    """Toggle do layout clássico — apenas desenvolvedores."""
     from user_feedback import is_dev_viewer
 
-    beta = is_mobile_lab_beta_user()
-    if not is_dev_viewer() and not beta:
+    if not is_dev_viewer():
         return
-    with st.sidebar.expander("Laboratorio mobile", expanded=beta):
-        if beta and not is_dev_viewer():
-            st.caption(
-                "Você está no **preview mobile** (mesma experiência dos membros). "
-                "Desligue abaixo para voltar ao layout clássico."
-            )
-        else:
-            st.caption("Preview do dashboard estilo app. Oficial continua no layout atual.")
+    with st.sidebar.expander("Layout do app", expanded=False):
+        st.caption(
+            "O app mobile é o padrão para todos os usuários. "
+            "Desligue abaixo para testar o layout desktop clássico."
+        )
         on = st.toggle(
-            "Ativar preview mobile",
+            "Usar app mobile",
             value=bool(st.session_state.get("mobile_lab")),
             key="mobile_lab_toggle",
         )
         if on != bool(st.session_state.get("mobile_lab")):
             st.session_state.mobile_lab = on
             if on:
-                st.session_state.pop(_BETA_OPT_OUT_KEY, None)
+                st.session_state.pop(_MOBILE_OPT_OUT_KEY, None)
                 try:
                     st.query_params["mobile_lab"] = "1"
                 except Exception:
@@ -115,11 +139,9 @@ def render_mobile_lab_sidebar_toggle() -> None:
 
                 sync_ml_can_gerenciar()
             else:
-                if beta:
-                    st.session_state[_BETA_OPT_OUT_KEY] = True
+                st.session_state[_MOBILE_OPT_OUT_KEY] = True
                 try:
                     del st.query_params["mobile_lab"]
                 except Exception:
                     pass
             st.rerun()
-        st.caption("Ou abra com `?mobile_lab=1` na URL.")

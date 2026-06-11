@@ -474,10 +474,6 @@ def build_mobile_dashboard_ctx(
 
 def render_mobile_dashboard_shell(ctx: MobileDashboardCtx) -> None:
     inject_ui_html('<div class="ig-mobile-app">')
-    inject_ui_html(
-        '<div class="ig-m-lab-banner">Modo teste mobile — layout preview. '
-        "Desative em Laboratorio mobile ou remova <code>?mobile_lab=1</code>.</div>"
-    )
 
     avatar = (
         f'<img class="ig-m-avatar" src="{_esc(ctx.photo_uri)}" alt="">'

@@ -2838,9 +2838,9 @@ def set_user_session(
         st.session_state.device_session_token = str(device_token).strip()
     session_touch(st.session_state)
     try:
-        from mobile_lab import apply_mobile_lab_for_beta_user
+        from mobile_lab import apply_mobile_lab_for_authenticated_user
 
-        apply_mobile_lab_for_beta_user(str(user_row.get("email", "")))
+        apply_mobile_lab_for_authenticated_user(str(user_row.get("email", "")))
     except Exception:
         pass
 
@@ -10412,7 +10412,9 @@ def _run_app() -> None:
         show_login_page(members_df)
         return
 
-    from mobile_lab import is_mobile_lab_enabled
+    from mobile_lab import apply_mobile_lab_for_authenticated_user, is_mobile_lab_enabled
+
+    apply_mobile_lab_for_authenticated_user()
     from app_data_loader import bootstrap_authenticated_data
 
     try:
