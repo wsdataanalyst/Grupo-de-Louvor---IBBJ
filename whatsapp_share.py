@@ -217,6 +217,112 @@ def inject_share_pdf_whatsapp(
     )
 
 
+def _render_pdf_preview(
+    pdf_bytes: bytes,
+    b64: str,
+    *,
+    mobile: bool,
+    height: int,
+) -> None:
+    """Preview in-app; st.pdf no mobile (iOS) com fallback para iframe."""
+    import streamlit as st
+
+    try:
+        st.pdf(pdf_bytes, height=height)
+        return
+    except Exception:
+        pass
+    st.markdown(
+        f'<iframe src="data:application/pdf;base64,{b64}" width="100%" height="{height}" '
+        f'style="border:1px solid #334155;border-radius:12px;background:#fff;"></iframe>',
+        unsafe_allow_html=True,
+    )
+
+
+def render_pdf_delivery_panel(
+    pdf_bytes: bytes,
+    filename: str,
+    *,
+    b64_cache_key: str,
+    download_key: str,
+    back_key: str,
+    on_back,
+    share_text: str = "",
+    share_element_id: str = "",
+    success_message: str = "PDF pronto! Baixe ou compartilhe abaixo.",
+    back_label: str = "← Voltar ao app",
+    preview_label: str = "👁️ Ver PDF aqui",
+) -> None:
+    """Painel de entrega de PDF — preview no app (mobile), download e WhatsApp."""
+    import streamlit as st
+
+    from mobile_lab import is_mobile_lab_enabled
+
+    mobile = is_mobile_lab_enabled()
+    b64 = pdf_bytes_to_b64_cached(pdf_bytes, b64_cache_key)
+    st.success(success_message)
+
+    def _go_back() -> None:
+        on_back()
+        st.rerun()
+
+    if mobile:
+        if st.button(back_label, use_container_width=True, key=f"{back_key}_top"):
+            _go_back()
+        st.caption(
+            "Veja o PDF abaixo sem sair do app. Para salvar ou enviar, use os botões "
+            "desta tela — no iPhone, **não** abra em nova aba."
+        )
+        with st.expander(preview_label, expanded=True):
+            _render_pdf_preview(pdf_bytes, b64, mobile=True, height=420)
+    else:
+        with st.expander(preview_label, expanded=False):
+            _render_pdf_preview(pdf_bytes, b64, mobile=False, height=480)
+
+    if mobile and share_text and share_element_id and len(pdf_bytes) <= 2_500_000:
+        inject_share_pdf_whatsapp(
+            pdf_bytes,
+            filename,
+            share_text[:300],
+            element_id=share_element_id,
+        )
+
+    c_dl, c_back = st.columns(2, gap="small")
+    with c_dl:
+        st.download_button(
+            "⬇️ Baixar PDF",
+            data=pdf_bytes,
+            file_name=filename,
+            mime="application/pdf",
+            use_container_width=True,
+            key=download_key,
+        )
+    with c_back:
+        if st.button(
+            back_label if not mobile else "← Voltar ao app",
+            use_container_width=True,
+            key=back_key,
+        ):
+            _go_back()
+
+    if (
+        not mobile
+        and share_text
+        and share_element_id
+        and len(pdf_bytes) <= 2_500_000
+    ):
+        inject_share_pdf_whatsapp(
+            pdf_bytes,
+            filename,
+            share_text[:300],
+            element_id=share_element_id,
+        )
+    elif len(pdf_bytes) > 2_500_000:
+        st.caption(
+            "PDF grande — use **Baixar PDF** e anexe manualmente no grupo do WhatsApp."
+        )
+
+
 def share_escala_text(
     event: str,
     culto_date: str,

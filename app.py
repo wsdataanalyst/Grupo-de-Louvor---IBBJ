@@ -5239,6 +5239,36 @@ def generate_sequencia_culto_pdf(
     return pdf_bytes, fname
 
 
+def generate_programa_links_pdf(
+    escala_row,
+    programa_df: pd.DataFrame,
+    equipe_df: pd.DataFrame,
+    members_df: pd.DataFrame,
+    louvores_df: pd.DataFrame | None = None,
+) -> tuple[bytes, str]:
+    """PDF da programação com links (YouTube, kits, cifra) conforme função do usuário."""
+    from programa_links_pdf import (
+        build_programa_culto_links_pdf,
+        suggested_programa_links_filename,
+    )
+
+    _, row_me = get_current_member_row(members_df)
+    roles_me = str(row_me.get("roles", "")) if row_me is not None else str(
+        st.session_state.get("user_roles", "")
+    )
+    bio_me = str(row_me.get("bio", "")) if row_me is not None else ""
+    pdf_bytes = build_programa_culto_links_pdf(
+        escala_row,
+        programa_df,
+        equipe_df,
+        members_df,
+        louvores_df,
+        viewer_roles=roles_me,
+        viewer_bio=bio_me,
+    )
+    return pdf_bytes, suggested_programa_links_filename(escala_row)
+
+
 def render_escala_whatsapp_actions(
     message: str,
     *,
@@ -5313,8 +5343,8 @@ def queue_whatsapp_after_escala_save(
     pdf_bytes = None
     pdf_name = "escala_gdl.pdf"
     try:
-        pdf_bytes, pdf_name = generate_single_escala_pdf(
-            escala_row, programa_df, equipe_df, members_df
+        pdf_bytes, pdf_name = generate_programa_links_pdf(
+            escala_row, programa_df, equipe_df, members_df, louvores_df
         )
     except Exception:
         pass
@@ -5549,16 +5579,90 @@ def render_culto_programa(
     wa_msg = collect_escala_whatsapp_message(
         escala_row, programa_df, equipe_df, members_df, louvores_df
     )
-    pdf_b, pdf_n = None, "escala.pdf"
-    try:
-        pdf_b, pdf_n = generate_single_escala_pdf(
-            escala_row, programa_df, equipe_df, members_df
+    pdf_panel_key = f"{wkey}_pdf_panel"
+    pdf_cache_key = f"{wkey}_pdf_cache"
+    pdf_b64_key = f"{wkey}_pdf_b64"
+    panel_open = bool(st.session_state.get(pdf_panel_key))
+
+    if is_mobile_lab_enabled():
+        from whatsapp_share import (
+            clear_pdf_b64_cache,
+            render_pdf_delivery_panel,
+            whatsapp_group_phone,
+            whatsapp_share_url,
         )
-    except Exception:
-        pass
-    render_escala_whatsapp_actions(
-        wa_msg, pdf_bytes=pdf_b, pdf_filename=pdf_n, key_prefix=f"{wkey}_wa_culto"
-    )
+
+        st.markdown("**📲 Compartilhar escala**")
+        if not panel_open:
+            if st.button(
+                "📄 Gerar PDF da programação (links)",
+                key=f"{wkey}_gen_prog_pdf",
+                use_container_width=True,
+            ):
+                try:
+                    pdf_b, pdf_n = generate_programa_links_pdf(
+                        escala_row,
+                        programa_df,
+                        equipe_df,
+                        members_df,
+                        louvores_df,
+                    )
+                    st.session_state[pdf_cache_key] = {
+                        "bytes": pdf_b,
+                        "name": pdf_n,
+                    }
+                    st.session_state[pdf_panel_key] = True
+                    st.rerun()
+                except Exception as exc:
+                    st.error(f"Não foi possível gerar o PDF: {exc}")
+            st.link_button(
+                "💬 Enviar texto no WhatsApp",
+                whatsapp_share_url(wa_msg, phone=whatsapp_group_phone()),
+                use_container_width=True,
+                key=f"{wkey}_wa_text",
+            )
+        else:
+            cached = st.session_state.get(pdf_cache_key)
+            if not cached:
+                st.session_state[pdf_panel_key] = False
+            else:
+
+                def _close_culto_pdf() -> None:
+                    st.session_state.pop(pdf_cache_key, None)
+                    st.session_state[pdf_panel_key] = False
+                    clear_pdf_b64_cache(pdf_b64_key)
+
+                render_pdf_delivery_panel(
+                    cached["bytes"],
+                    str(cached.get("name") or "programa.pdf"),
+                    b64_cache_key=pdf_b64_key,
+                    download_key=f"{wkey}_dl_pdf",
+                    back_key=f"{wkey}_pdf_back",
+                    on_back=_close_culto_pdf,
+                    share_text=wa_msg,
+                    share_element_id=f"{wkey}_wa_pdf",
+                    back_label="← Voltar à escala",
+                )
+                st.link_button(
+                    "💬 Enviar texto no WhatsApp",
+                    whatsapp_share_url(wa_msg, phone=whatsapp_group_phone()),
+                    use_container_width=True,
+                    key=f"{wkey}_wa_text_panel",
+                )
+    else:
+        pdf_b, pdf_n = None, "programa.pdf"
+        try:
+            pdf_b, pdf_n = generate_programa_links_pdf(
+                escala_row, programa_df, equipe_df, members_df, louvores_df
+            )
+        except Exception as exc:
+            st.warning(f"PDF indisponível: {exc}")
+        render_escala_whatsapp_actions(
+            wa_msg,
+            pdf_bytes=pdf_b,
+            pdf_filename=pdf_n,
+            key_prefix=f"{wkey}_wa_culto",
+        )
 
 
 def _feed_post_badge(post_type: str) -> str:
@@ -8151,7 +8255,7 @@ def _escala_pdf_ready_panel(
     n_selected: int,
 ) -> None:
     """Painel PDF isolado — fechar/baixar sem rerun da página inteira (Fase 4)."""
-    from whatsapp_share import clear_pdf_b64_cache, pdf_bytes_to_b64_cached
+    from whatsapp_share import clear_pdf_b64_cache, render_pdf_delivery_panel
 
     pdf_bytes = st.session_state.get("escala_pdf_bytes")
     if not pdf_bytes:
@@ -8161,40 +8265,22 @@ def _escala_pdf_ready_panel(
         "escala_pdf_filename",
         suggested_filename(period_label, n_selected),
     )
-    b64 = pdf_bytes_to_b64_cached(pdf_bytes, "escala_pdf_b64")
-    st.markdown(
-        f'<a href="data:application/pdf;base64,{b64}" target="_blank" rel="noopener" '
-        f'style="display:inline-block;margin:0.5rem 0;padding:0.6rem 1rem;'
-        f'background:#7c3aed;color:#fff;border-radius:10px;text-decoration:none;font-weight:600;">'
-        f"📄 Abrir PDF em nova aba (não sai do app)</a>",
-        unsafe_allow_html=True,
+
+    def _close_escala_pdf() -> None:
+        st.session_state.pop("escala_pdf_bytes", None)
+        st.session_state.pop("escala_pdf_filename", None)
+        clear_pdf_b64_cache("escala_pdf_b64")
+
+    render_pdf_delivery_panel(
+        pdf_bytes,
+        fname,
+        b64_cache_key="escala_pdf_b64",
+        download_key="pdf_escala_download",
+        back_key="pdf_close",
+        on_back=_close_escala_pdf,
+        back_label="← Voltar ao painel (fechar PDF)",
+        preview_label="👁️ Pré-visualizar PDF aqui",
     )
-    with st.expander("👁️ Pré-visualizar PDF aqui", expanded=False):
-        st.markdown(
-            f'<iframe src="data:application/pdf;base64,{b64}" '
-            f'width="100%" height="480" style="border:1px solid #4c3a6a;border-radius:8px;"></iframe>',
-            unsafe_allow_html=True,
-        )
-    c_dl, c_cls = st.columns(2)
-    with c_dl:
-        st.download_button(
-            "⬇️ Baixar PDF",
-            data=pdf_bytes,
-            file_name=fname,
-            mime="application/pdf",
-            use_container_width=True,
-            key="pdf_escala_download",
-        )
-    with c_cls:
-        if st.button(
-            "← Voltar ao painel (fechar PDF)",
-            use_container_width=True,
-            key="pdf_close",
-        ):
-            st.session_state.pop("escala_pdf_bytes", None)
-            st.session_state.pop("escala_pdf_filename", None)
-            clear_pdf_b64_cache("escala_pdf_b64")
-            _rerun_scope_fragment()
     wa_parts = []
     for _, er in selected_df.iterrows():
         wa_parts.append(

@@ -500,8 +500,6 @@ def _render_lista_export_block(
     from mobile_lab_nav import user_can_gerenciar_escalas
     from whatsapp_share import (
         clear_pdf_b64_cache,
-        inject_share_pdf_whatsapp,
-        pdf_bytes_to_b64_cached,
         whatsapp_group_phone,
         whatsapp_share_url,
     )
@@ -552,46 +550,25 @@ def _render_lista_export_block(
 
         pdf_b = cached["bytes"]
         pdf_n = str(cached.get("name") or "sequencia.pdf")
-        b64 = pdf_bytes_to_b64_cached(pdf_b, b64_key)
 
-        st.success("PDF pronto! Baixe ou compartilhe — use **Voltar** para continuar na sequência.")
-        st.markdown(
-            f'<a href="data:application/pdf;base64,{b64}" target="_blank" rel="noopener" '
-            f'style="display:inline-block;width:100%;text-align:center;margin:0.35rem 0;padding:0.65rem 1rem;'
-            f'background:#7c3aed;color:#fff;border-radius:12px;text-decoration:none;font-weight:700;">'
-            f"📄 Abrir PDF em nova aba</a>",
-            unsafe_allow_html=True,
+        def _close_seq_pdf() -> None:
+            st.session_state.pop(pdf_key, None)
+            st.session_state[panel_key] = False
+            clear_pdf_b64_cache(b64_key)
+
+        from whatsapp_share import render_pdf_delivery_panel
+
+        render_pdf_delivery_panel(
+            pdf_b,
+            pdf_n,
+            b64_cache_key=b64_key,
+            download_key=f"ml_seq_dl_{escala_id}",
+            back_key=f"ml_seq_pdf_close_{escala_id}",
+            on_back=_close_seq_pdf,
+            share_text=wa_msg,
+            share_element_id=f"ml_seq_wa_pdf_{escala_id}",
+            back_label="← Voltar à sequência",
         )
-
-        c_dl, c_back = st.columns(2, gap="small")
-        with c_dl:
-            st.download_button(
-                "⬇️ Baixar PDF",
-                data=pdf_b,
-                file_name=pdf_n,
-                mime="application/pdf",
-                use_container_width=True,
-                key=f"ml_seq_dl_{escala_id}",
-            )
-        with c_back:
-            with st.container(key="ml_seq_pdf_back"):
-                if st.button(
-                    "← Voltar à sequência",
-                    use_container_width=True,
-                    key=f"ml_seq_pdf_close_{escala_id}",
-                ):
-                    st.session_state.pop(pdf_key, None)
-                    st.session_state[panel_key] = False
-                    clear_pdf_b64_cache(b64_key)
-                    st.rerun()
-
-        if len(pdf_b) <= 2_500_000:
-            inject_share_pdf_whatsapp(
-                pdf_b,
-                pdf_n,
-                wa_msg[:300],
-                element_id=f"ml_seq_wa_pdf_{escala_id}",
-            )
 
         with st.container(key="ml_seq_btn_wa"):
             st.link_button(
