@@ -58,7 +58,7 @@ def _lab_nav_items(
             ("Início", "🏠", 0),
             ("Gerenciar Escalas", "🎯", 0),
             ("Escalas", "📅", 0),
-            ("Repertório", "🎵", 0),
+            ("Chat", "💬", max(0, int(chat_unread))),
             ("Notificações", "📰", 0),
         ]
     return [
