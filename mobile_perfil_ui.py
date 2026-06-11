@@ -62,14 +62,15 @@ def mobile_perfil_css() -> str:
       max-width: 900px !important;
     }
 
-    .ml-perf-header{
-      display: flex; gap: 0.85rem; align-items: flex-start;
-      background: #071633; border-radius: 24px; padding: 1rem;
-      border: 1px solid rgba(255,255,255,.06); margin-bottom: 0.85rem;
+    .ml-perf-header, .profile-header{
+      display: flex; gap: 20px; align-items: flex-start;
+      background: #071633; border-radius: 24px; padding: 20px;
+      margin-bottom: 20px;
     }
     .ml-perf-avatar-wrap{ position: relative; flex-shrink: 0; }
+    .ml-perf-header img, .profile-header img,
     .ml-perf-avatar, .ml-perf-avatar-ph{
-      width: 84px; height: 84px; border-radius: 50%;
+      width: 90px; height: 90px; border-radius: 50%;
       object-fit: cover; border: 3px solid #6f4cff;
       display: flex; align-items: center; justify-content: center;
       font-size: 1.8rem; font-weight: 900; color: #e9d5ff;
@@ -129,15 +130,16 @@ def mobile_perfil_css() -> str:
       color: #94a3b8; text-transform: uppercase; letter-spacing: 0.03em;
     }
 
-    .ml-perf-kit{
+    .ml-perf-kit, .kitvoz-card{
       background: linear-gradient(90deg, #4026a7, #1f2b6f);
-      border-radius: 18px; padding: 0.95rem 1rem; margin-bottom: 0.85rem;
-      border: 1px solid rgba(139,92,246,.25); font-weight: 700;
+      border-radius: 18px; padding: 18px;
+      margin-top: 15px; margin-bottom: 20px;
+      font-weight: 600;
       display: flex; align-items: center; gap: 0.65rem;
     }
-    .ml-perf-kit small{
-      display: block; font-weight: 600; color: rgba(226,232,240,.85);
-      font-size: 0.72rem; margin-top: 0.15rem;
+    .ml-perf-kit small, .kitvoz-card small{
+      display: block; font-weight: 600; color: rgba(226,232,240,.9);
+      font-size: 0.82rem; margin-top: 0.2rem;
     }
 
     .ml-perf-level{
@@ -385,7 +387,7 @@ def _render_profile_header(
 
     st.markdown(
         f"""
-        <div class="ml-perf-header">
+        <div class="ml-perf-header profile-header">
           <div class="ml-perf-avatar-wrap">
             {av}
             <div class="ml-perf-cam">📷</div>
@@ -443,11 +445,11 @@ def _render_kit_voz(roles: str, bio: str) -> None:
     st.markdown(
         f"""
         <a href="{_esc(url)}" target="_blank" rel="noopener noreferrer" style="text-decoration:none;color:inherit;">
-          <div class="ml-perf-kit">
+          <div class="ml-perf-kit kitvoz-card">
             <span style="font-size:1.35rem;">🎤</span>
             <div>
               Kit Voz configurado
-              <small>{_esc(nipe)} · toque para abrir no YouTube</small>
+              <small>{_esc(nipe)}</small>
             </div>
           </div>
         </a>
