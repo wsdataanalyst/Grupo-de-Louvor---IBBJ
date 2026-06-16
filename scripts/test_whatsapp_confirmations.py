@@ -1,5 +1,8 @@
+import sys
 import traceback
+from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from whatsapp_confirmations import generate_confirmation_token, confirmation_token_is_valid
 
 secret = "test-secret"
