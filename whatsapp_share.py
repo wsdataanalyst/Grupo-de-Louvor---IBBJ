@@ -47,6 +47,18 @@ def _secret_whatsapp(key: str, default: str = "") -> str:
 
 def whatsapp_group_phone() -> str:
     """Número do grupo ou do líder (DDI+DDD+número, só dígitos). Ex.: 5511999999999"""
+    # Allow quick testing via environment variable without touching secrets
+    try:
+        import os
+
+        env = os.environ.get("WHATSAPP_TEST_GROUP_PHONE") or os.environ.get("WA_TEST_GROUP_PHONE")
+        if env:
+            digits = "".join(c for c in str(env) if c.isdigit())
+            if digits:
+                return digits
+    except Exception:
+        pass
+
     return "".join(c for c in _secret_whatsapp("group_phone") if c.isdigit())
 
 
