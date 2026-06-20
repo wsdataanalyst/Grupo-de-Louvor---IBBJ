@@ -7997,7 +7997,7 @@ def show_escala_completa_editor(
             if run_pending_save(
                 "nova_esc_complete",
                 _save_nova_escala,
-                success_message="Escala salva!",
+                success_message="Escala Criada com Sucesso!",
             ):
                 clear_louvor_picker_state("nova_esc")
                 st.rerun()
