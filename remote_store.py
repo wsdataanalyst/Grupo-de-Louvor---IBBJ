@@ -216,6 +216,35 @@ def fetch_csv_text(name: str) -> str | None:
     return str(content)
 
 
+def fetch_sync_revisions(names: frozenset[str] | set[str]) -> str | None:
+    """Retorna uma revisão remota única para um conjunto de nomes de arquivo."""
+    if not names or not is_remote_enabled():
+        return None
+    try:
+        response = (
+            _get_client()
+            .table(TABLE_NAME)
+            .select("name,updated_at")
+            .in_("name", list(names))
+            .execute()
+        )
+        rows = response.data or []
+        if len(rows) != len(names):
+            return None
+
+        revisions = []
+        for row in sorted(rows, key=lambda item: str(item.get("name", "")).lower()):
+            name = str(row.get("name", "")).strip()
+            updated_at = str(row.get("updated_at", "")).strip()
+            if not name or not updated_at:
+                return None
+            revisions.append(f"{name}:{updated_at}")
+        return "|".join(revisions) if revisions else None
+    except Exception as exc:
+        logger.warning("fetch_sync_revisions failed: %s", exc)
+        return None
+
+
 def should_sync_file(file_path: Path) -> bool:
     """Retorna True para arquivos CSV que devem ser sincronizados com Supabase."""
     return file_path.name in SYNC_CSV_NAMES
