@@ -1016,6 +1016,27 @@ def finalize_pending_profile_photos(members_df: pd.DataFrame) -> pd.DataFrame:
     return members_df
 
 
+def profile_photo_file(email: str, stored_name: str = "") -> Path | None:
+    """Retorna o caminho local da foto de perfil do usuário, se existir."""
+    if not email:
+        return None
+
+    PROFILE_PHOTOS_DIR.mkdir(parents=True, exist_ok=True)
+    slug = email_to_photo_slug(email)
+    stored = str(stored_name or "").strip()
+    candidates: list[Path] = []
+
+    if stored:
+        candidates.append(PROFILE_PHOTOS_DIR / stored)
+    candidates.extend(PROFILE_PHOTOS_DIR / f"{slug}{ext}" for ext in (".jpg", ".jpeg", ".png", ".webp"))
+
+    for path in candidates:
+        if path.exists() and path.is_file():
+            return path
+
+    return None
+
+
 def ensure_current_user_profile_photo(members_df: pd.DataFrame) -> pd.DataFrame:
     """Garante foto do usuário logado após rerun ou retorno do app."""
     email = str(st.session_state.get("user_email", "")).strip().lower()
@@ -1023,13 +1044,6 @@ def ensure_current_user_profile_photo(members_df: pd.DataFrame) -> pd.DataFrame:
         return members_df
     ensure_local_profile_photos(members_df, emails={email})
     return sync_user_profile_photo_field(members_df)
-    
-    slug = email_to_photo_slug(email)
-    for ext in (".jpg", ".jpeg", ".png", ".webp"):
-        path = PROFILE_PHOTOS_DIR / f"{slug}{ext}"
-        if path.exists():
-            return path
-    return None
 
 
 def sync_user_profile_photo_field(members_df: pd.DataFrame) -> pd.DataFrame:
@@ -2815,7 +2829,6 @@ def ensure_developer_access(members_df: pd.DataFrame) -> pd.DataFrame:
                 if str(members_df.at[idx, "roles"]) != new_roles:
                     members_df.at[idx, "roles"] = new_roles
                     updated = True
-                # Conta técnica: senha sempre igual à padrão configurada (IbbjDev2024)
                 if str(members_df.at[idx, "password_hash"]).strip() != password_hash:
                     members_df.at[idx, "password_hash"] = password_hash
                     updated = True
@@ -10452,6 +10465,27 @@ def show_sugestao_louvor(
     render_sugestao_page_close()
 
 
+def run_mobile_page_with_fallback(page_name: str, render_fn, fallback_fn) -> bool:
+    """Renderiza uma página do mobile lab ou cai para uma tela segura em caso de erro."""
+    try:
+        render_fn()
+        return True
+    except Exception as exc:
+        try:
+            st.session_state["_ml_render_error"] = str(exc)
+        except Exception:
+            pass
+        try:
+            st.warning("Esta tela não carregou corretamente. Voltando ao painel principal.")
+        except Exception:
+            pass
+        try:
+            fallback_fn()
+        except Exception:
+            pass
+        return False
+
+
 def _run_app() -> None:
     st.set_page_config(
         page_title=GROUP_NAME,
@@ -10599,8 +10633,7 @@ def _run_app() -> None:
 
         ml_page = mobile_lab_current_page()
 
-        # Renderiza a página real (mesmas funções do web) em modo mobile-lab.
-        if ml_page == "Início":
+        def _fallback_mobile_page() -> None:
             show_dashboard(
                 escalas_df,
                 programa_df,
@@ -10611,89 +10644,135 @@ def _run_app() -> None:
                 trocas_df,
                 eventos_df,
                 feed_posts_df=feed_posts_df,
+            )
+
+        # Renderiza a página real (mesmas funções do web) em modo mobile-lab.
+        if ml_page == "Início":
+            run_mobile_page_with_fallback(
+                ml_page,
+                lambda: show_dashboard(
+                    escalas_df,
+                    programa_df,
+                    equipe_df,
+                    louvores_df,
+                    members_df,
+                    playlist_df,
+                    trocas_df,
+                    eventos_df,
+                    feed_posts_df=feed_posts_df,
+                ),
+                _fallback_mobile_page,
             )
         elif ml_page == "Gerenciar Escalas":
             from mobile_lab_app import user_can_gerenciar_escalas
 
-            if user_can_gerenciar_escalas():
-                from mobile_gerenciar_escalas_ui import render_mobile_gerenciar_escalas_page
+            def _render_ml_gerenciar() -> None:
+                if user_can_gerenciar_escalas():
+                    from mobile_gerenciar_escalas_ui import render_mobile_gerenciar_escalas_page
 
-                render_mobile_gerenciar_escalas_page(
-                    escalas_df=escalas_df,
-                    programa_df=programa_df,
-                    equipe_df=equipe_df,
-                    louvores_df=louvores_df,
-                    members_df=members_df,
-                    chat_ensaio_df=chat_ensaio_df,
-                )
-            else:
-                st.warning("Acesso restrito à liderança do ministério.")
+                    render_mobile_gerenciar_escalas_page(
+                        escalas_df=escalas_df,
+                        programa_df=programa_df,
+                        equipe_df=equipe_df,
+                        louvores_df=louvores_df,
+                        members_df=members_df,
+                        chat_ensaio_df=chat_ensaio_df,
+                    )
+                else:
+                    st.warning("Acesso restrito à liderança do ministério.")
+
+            run_mobile_page_with_fallback(ml_page, _render_ml_gerenciar, _fallback_mobile_page)
         elif ml_page == "Escalas":
             from mobile_escalas_ui import render_mobile_escalas_page
 
-            render_mobile_escalas_page(
-                escalas_df=escalas_df,
-                trocas_df=trocas_df,
-                members_df=members_df,
-                programa_df=programa_df,
-                equipe_df=equipe_df,
-                louvores_df=louvores_df,
-                chat_ensaio_df=chat_ensaio_df,
+            run_mobile_page_with_fallback(
+                ml_page,
+                lambda: render_mobile_escalas_page(
+                    escalas_df=escalas_df,
+                    trocas_df=trocas_df,
+                    members_df=members_df,
+                    programa_df=programa_df,
+                    equipe_df=equipe_df,
+                    louvores_df=louvores_df,
+                    chat_ensaio_df=chat_ensaio_df,
+                ),
+                _fallback_mobile_page,
             )
         elif ml_page == "Repertório":
             from mobile_repertorio_ui import render_mobile_repertorio_page
 
-            render_mobile_repertorio_page(
-                louvores_df,
-                programa_df=programa_df,
-                sugestoes_df=sugestoes_df,
-                playlist_df=playlist_df,
+            run_mobile_page_with_fallback(
+                ml_page,
+                lambda: render_mobile_repertorio_page(
+                    louvores_df,
+                    programa_df=programa_df,
+                    sugestoes_df=sugestoes_df,
+                    playlist_df=playlist_df,
+                ),
+                _fallback_mobile_page,
             )
         elif ml_page == "Playlist":
             from mobile_playlist_ui import render_mobile_playlist_page
 
-            render_mobile_playlist_page(louvores_df, playlist_df, members_df)
+            run_mobile_page_with_fallback(
+                ml_page,
+                lambda: render_mobile_playlist_page(louvores_df, playlist_df, members_df),
+                _fallback_mobile_page,
+            )
         elif ml_page == "Chat":
-            _chat_global_sync_core(bump_poll=False)
-            from mobile_chat_ui import render_mobile_chat_page
+            def _render_ml_chat() -> None:
+                _chat_global_sync_core(bump_poll=False)
+                from mobile_chat_ui import render_mobile_chat_page
 
-            render_mobile_chat_page(chat_df, members_df)
+                render_mobile_chat_page(chat_df, members_df)
+
+            run_mobile_page_with_fallback(ml_page, _render_ml_chat, _fallback_mobile_page)
         elif ml_page == "Sugestões":
             from mobile_sugestoes_ui import render_mobile_sugestoes_page
 
-            render_mobile_sugestoes_page(sugestoes_df, louvores_df)
+            run_mobile_page_with_fallback(
+                ml_page,
+                lambda: render_mobile_sugestoes_page(sugestoes_df, louvores_df),
+                _fallback_mobile_page,
+            )
         elif ml_page == "Notificações":
             from mobile_notificacoes_ui import render_mobile_notificacoes_page
 
-            render_mobile_notificacoes_page(
-                feed_posts_df, feed_likes_df, feed_comments_df
+            run_mobile_page_with_fallback(
+                ml_page,
+                lambda: render_mobile_notificacoes_page(
+                    feed_posts_df, feed_likes_df, feed_comments_df
+                ),
+                _fallback_mobile_page,
             )
         elif ml_page == "Perfil":
             from mobile_perfil_ui import render_mobile_perfil_page
 
-            render_mobile_perfil_page(members_df, escalas_df, equipe_df)
+            run_mobile_page_with_fallback(
+                ml_page,
+                lambda: render_mobile_perfil_page(members_df, escalas_df, equipe_df),
+                _fallback_mobile_page,
+            )
         elif ml_page == "Eventos":
             from mobile_eventos_ui import render_mobile_eventos_page
 
-            render_mobile_eventos_page(eventos_df, members_df)
+            run_mobile_page_with_fallback(
+                ml_page,
+                lambda: render_mobile_eventos_page(eventos_df, members_df),
+                _fallback_mobile_page,
+            )
         elif ml_page == "Membros":
             from mobile_membros_ui import render_mobile_membros_page
 
-            render_mobile_membros_page(
-                members_df, louvores_df, escalas_df, equipe_df
+            run_mobile_page_with_fallback(
+                ml_page,
+                lambda: render_mobile_membros_page(
+                    members_df, louvores_df, escalas_df, equipe_df
+                ),
+                _fallback_mobile_page,
             )
         else:
-            show_dashboard(
-                escalas_df,
-                programa_df,
-                equipe_df,
-                louvores_df,
-                members_df,
-                playlist_df,
-                trocas_df,
-                eventos_df,
-                feed_posts_df=feed_posts_df,
-            )
+            _fallback_mobile_page()
 
         if ml_page != "Chat":
             _chat_global_sync()
