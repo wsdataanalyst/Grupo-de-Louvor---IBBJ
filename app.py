@@ -965,6 +965,57 @@ def ensure_local_profile_photos(
             push_profile_photo_file(dest)
 
 
+def finalize_pending_profile_photos(members_df: pd.DataFrame) -> pd.DataFrame:
+    """Finalize any pending profile photo uploads saved to disk during an upload.
+
+    Files are written as `<slug>.pending.<ext>` to survive app restarts. This routine
+    renames them to `<slug><ext>` and updates `members_df` accordingly.
+    """
+    try:
+        PROFILE_PHOTOS_DIR.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        return members_df
+
+    pending_files = list(PROFILE_PHOTOS_DIR.glob("*.pending.*"))
+    if not pending_files:
+        return members_df
+
+    updated = False
+    for pf in pending_files:
+        name = pf.name
+        parts = name.split(".pending")
+        if not parts:
+            continue
+        slug = parts[0]
+        ext = pf.suffix
+        try:
+            mask = members_df["email"].astype(str).apply(lambda e: email_to_photo_slug(e) == slug)
+        except Exception:
+            mask = pd.Series([False] * len(members_df))
+        if mask.any():
+            idx = members_df[mask].index[0]
+            final_name = f"{slug}{ext}"
+            final_path = PROFILE_PHOTOS_DIR / final_name
+            try:
+                pf.rename(final_path)
+            except Exception:
+                try:
+                    final_path.write_bytes(pf.read_bytes())
+                    pf.unlink(missing_ok=True)
+                except Exception:
+                    continue
+            members_df.at[idx, "profile_photo"] = final_name
+            updated = True
+
+    if updated:
+        try:
+            save_data(members_df, MEMBERS_FILE, quiet=True)
+        except Exception:
+            pass
+
+    return members_df
+
+
 def ensure_current_user_profile_photo(members_df: pd.DataFrame) -> pd.DataFrame:
     """Garante foto do usuário logado após rerun ou retorno do app."""
     email = str(st.session_state.get("user_email", "")).strip().lower()
@@ -972,14 +1023,7 @@ def ensure_current_user_profile_photo(members_df: pd.DataFrame) -> pd.DataFrame:
         return members_df
     ensure_local_profile_photos(members_df, emails={email})
     return sync_user_profile_photo_field(members_df)
-
-
-def profile_photo_file(email: str, stored_name: str = "") -> Path | None:
-    PROFILE_PHOTOS_DIR.mkdir(parents=True, exist_ok=True)
-    if stored_name:
-        path = PROFILE_PHOTOS_DIR / stored_name
-        if path.exists():
-            return path
+    
     slug = email_to_photo_slug(email)
     for ext in (".jpg", ".jpeg", ".png", ".webp"):
         path = PROFILE_PHOTOS_DIR / f"{slug}{ext}"
@@ -6600,10 +6644,31 @@ def show_user_profile(
             key="profile_photo_upload",
         )
         if uploaded is not None:
-            st.session_state["_pending_profile_photo"] = {
-                "name": uploaded.name or "photo.jpg",
-                "bytes": uploaded.getvalue(),
-            }
+            # Persist the uploaded bytes to disk immediately under a pending name
+            # so the upload survives an app restart. The pending file is
+            # finalized on next boot by `finalize_pending_profile_photos`.
+            try:
+                PROFILE_PHOTOS_DIR.mkdir(parents=True, exist_ok=True)
+                upload_name = uploaded.name or "photo.jpg"
+                raw = uploaded.getvalue()
+                ext = Path(upload_name).suffix.lower() or ".jpg"
+                if ext not in (".jpg", ".jpeg", ".png", ".webp"):
+                    ext = ".jpg"
+                slug = email_to_photo_slug(email)
+                pending_fname = f"{slug}.pending{ext}"
+                pending_path = PROFILE_PHOTOS_DIR / pending_fname
+                pending_path.write_bytes(raw)
+                st.session_state["_pending_profile_photo"] = {
+                    "name": upload_name,
+                    "bytes": raw,
+                    "filename": pending_path.name,
+                }
+            except Exception:
+                # Fallback to keeping bytes in session state only
+                st.session_state["_pending_profile_photo"] = {
+                    "name": uploaded.name or "photo.jpg",
+                    "bytes": uploaded.getvalue(),
+                }
         try:
             from mobile_lab import is_mobile_lab_enabled
 
