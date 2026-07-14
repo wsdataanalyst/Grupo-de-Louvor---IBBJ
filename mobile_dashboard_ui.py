@@ -362,7 +362,6 @@ class MobileDashboardCtx:
     user_name: str
     photo_uri: str | None
     notif_count: int
-    chat_unread: int
     n_louvores: int
     n_members: int
     n_cultos_semana: int
@@ -394,7 +393,6 @@ def build_mobile_dashboard_ctx(
     my_email: str,
     user_name: str,
     photo_uri: str | None,
-    chat_unread: int,
     pendencias: int,
     quick_links: list[tuple[str, str]],
 ) -> MobileDashboardCtx:
@@ -429,10 +427,6 @@ def build_mobile_dashboard_ctx(
         alerts.append(
             ("purple", "🔔", "Você foi escalado", f"{my_scale['event']} • {my_scale['when']}", "Agora")
         )
-    if chat_unread > 0:
-        alerts.append(
-            ("blue", "💬", "Nova mensagem no chat", f"{chat_unread} não lida(s)", "Recente")
-        )
     if not feed_posts_df.empty and "created_at" in feed_posts_df.columns:
         try:
             latest = feed_posts_df.sort_values("created_at", ascending=False).iloc[0]
@@ -448,7 +442,6 @@ def build_mobile_dashboard_ctx(
         "Gerenciar Escalas": ("🎯", "ig-m-glow-gold"),
         "Repertório": ("🎵", "ig-m-glow-purple"),
         "Playlist": ("🎧", ""),
-        "Chat": ("💬", "ig-m-glow-blue"),
         "Sugestão de louvor": ("💡", "ig-m-glow-gold"),
         "Escalas": ("📅", "ig-m-glow-gold"),
     }
@@ -459,8 +452,7 @@ def build_mobile_dashboard_ctx(
     return MobileDashboardCtx(
         user_name=_first_name(user_name),
         photo_uri=photo_uri,
-        notif_count=min(9, pendencias + chat_unread),
-        chat_unread=chat_unread,
+        notif_count=min(9, pendencias),
         n_louvores=len(louvores_df),
         n_members=len(members_df),
         n_cultos_semana=cultos_sem,
@@ -661,7 +653,7 @@ def render_mobile_dashboard_actions(ctx: MobileDashboardCtx) -> None:
         ("Dashboard", "🏠"),
         ("Escalas", "📅"),
         ("Repertório", "🎵"),
-        ("Chat", "💬"),
+        ("Playlist", "🎧"),
         ("Perfil", "👤"),
     ]
     cols = st.columns(5)
@@ -710,7 +702,6 @@ def show_mobile_dashboard(
     user_name: str,
     my_email: str,
     photo_uri: str | None,
-    chat_unread: int,
     pendencias: int,
     quick_links: list[tuple[str, str]],
     is_manager: bool = False,
@@ -725,7 +716,6 @@ def show_mobile_dashboard(
         louvores_df=louvores_df,
         escalas_df=escalas_df,
         my_email=str(my_email or ""),
-        chat_unread=int(chat_unread),
         user_full_name=str(user_name or ""),
         photo_uri=str(photo_uri or ""),
         notif_count=int(pendencias),

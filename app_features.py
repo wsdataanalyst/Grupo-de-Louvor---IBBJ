@@ -50,14 +50,11 @@ def count_pending_sugestoes(sugestoes_df: pd.DataFrame) -> int:
 
 
 def inject_app_notification_badges(
-    chat_unread: int,
     sugestoes_pending: int = 0,
     swap_pending: int = 0,
 ) -> None:
     """Badges estilo WhatsApp no emoji do menu + bolinha lateral vermelha."""
     badges: dict[str, int] = {}
-    if chat_unread > 0:
-        badges["Chat"] = min(99, int(chat_unread))
     if sugestoes_pending > 0:
         badges["Sugestão de louvor"] = min(99, int(sugestoes_pending))
     if swap_pending > 0:
@@ -85,7 +82,6 @@ def inject_app_notification_badges(
             }});
             for (var i = 0; i < keys.length; i++) {{
               var menuName = keys[i];
-              if (menuName === "Chat" && raw.toLowerCase().indexOf("ensaio") >= 0) continue;
               if (menuName === "Escalas" && raw.indexOf("Gerenciar") >= 0) continue;
               if (raw.indexOf(menuName) >= 0) return badges[menuName];
             }}
@@ -170,7 +166,6 @@ def render_dashboard_section_end() -> None:
 def quick_nav_css_class(menu_name: str) -> str:
     known = {
         "Escalas": "escalas",
-        "Chat": "chat",
         "Eventos": "eventos",
         "Playlist": "playlist",
         "Feed": "feed",

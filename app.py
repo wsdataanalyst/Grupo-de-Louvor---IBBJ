@@ -27,12 +27,10 @@ from app_time import (
     timestamp_now,
 )
 from chat_media import (
-    ensure_chat_media_columns,
     media_absolute_path,
     save_audio_upload,
     save_image_upload,
 )
-from chat_whatsapp import render_whatsapp_chat_composer
 from data_persistence import (
     backup_csv_if_exists,
     latest_backup,
@@ -141,7 +139,6 @@ from user_feedback import (
     show_technical_error,
 )
 from push_notifications import (
-    notify_chat_message,
     notify_new_escala,
     onesignal_app_id,
     push_config_status,
@@ -174,7 +171,6 @@ MEMBER_COLUMNS = (
     "phone",
     "bio",
 )
-CHAT_FILE = DATA_DIR / "chat.csv"
 ESCALAS_FILE = DATA_DIR / "escalas.csv"
 TROCAS_FILE = DATA_DIR / "trocas_escalas.csv"
 PROGRAMA_FILE = DATA_DIR / "programa_culto.csv"
@@ -219,7 +215,6 @@ FEED_POST_COLUMNS = (
 )
 FEED_LIKE_COLUMNS = ("id", "post_id", "email", "created_at")
 FEED_COMMENT_COLUMNS = ("id", "post_id", "email", "name", "message", "created_at")
-CHAT_ENSAIO_FILE = DATA_DIR / "chat_ensaio.csv"
 
 CULTO_PARTES = [
     "Louvor 01",
@@ -284,18 +279,6 @@ TROCA_COLUMNS = (
     "accepter_email",
     "accepter_name",
 )
-CHAT_COLUMNS = ("timestamp", "email", "name", "message", "message_type", "media_file")
-CHAT_ENSAIO_COLUMNS = (
-    "timestamp",
-    "escala_id",
-    "email",
-    "name",
-    "message",
-    "message_type",
-    "media_file",
-)
-CHAT_AUDIO_DIR = DATA_DIR / "chat_audio"
-CHAT_IMAGES_DIR = DATA_DIR / "chat_images"
 FEED_IMAGES_DIR = DATA_DIR / "feed_images"
 LOUVOR_EXTRA_COLUMNS = (
     "temas",
@@ -305,7 +288,6 @@ LOUVOR_EXTRA_COLUMNS = (
     "validacao_nota",
 )
 LOUVOR_SEQUENCIA_COLUMNS = ("lyrics_text", "cifra_text")
-ENSAIO_AUDIO_DIR = DATA_DIR / "audios_ensaio"
 EVENTO_COLUMNS = (
     "id",
     "title",
@@ -349,7 +331,6 @@ MENU_ITEMS_BASE = [
     ("Eventos", "📅", "Próximos eventos do ministério"),
     ("Sugestão de louvor", "💡", "Sugerir música para o repertório"),
     ("Playlist", "🎧", "Sua playlist de treino"),
-    ("Chat", "💬", "Comunicação"),
     ("Membros", "🎹", "Integrantes do ministério"),
     ("Perfil", "👤", "Sua foto e dados cadastrais"),
 ]
@@ -362,7 +343,6 @@ MENU_HEADERS = {
     "Eventos": "Eventos e novidades",
     "Sugestão de louvor": "Sugerir música ao repertório",
     "Playlist": "Sua playlist pessoal",
-    "Chat": "Chat do grupo",
     "Membros": "Integrantes do grupo",
     "Perfil": "Sua foto e dados cadastrais",
     "Avisos": "Comunicados e avisos do ministério",
@@ -376,7 +356,6 @@ MENU_ACCENTS = {
     "Eventos": "#6b7280",
     "Sugestão de louvor": "#d4af37",
     "Playlist": "#00c2cb",
-    "Chat": "#34d399",
     "Membros": "#9ca3af",
     "Perfil": "#d4af37",
 }
@@ -388,13 +367,12 @@ NAV_GROUP_ORDER = (
         "Ministério",
         ("Escalas", "Gerenciar Escalas", "Repertório", "Playlist", "Sugestão de louvor"),
     ),
-    ("Comunicação", ("Chat", "Eventos", "Avisos")),
+    ("Comunicação", ("Eventos", "Avisos")),
     ("Pessoas", ("Membros", "Perfil")),
 )
 
 DASHBOARD_QUICK_LINKS = (
     "Escalas",
-    "Chat",
     "Eventos",
     "Playlist",
     "Feed",
@@ -1308,31 +1286,6 @@ def delete_feed_comment(comment_id: str) -> None:
     save_data(df[df["id"].astype(str) != str(comment_id)], FEED_COMMENTS_FILE)
 
 
-def delete_own_chat_message(timestamp: str, email: str) -> None:
-    df = prepare_chat(load_data(CHAT_FILE, CHAT_COLUMNS))
-    mask = ~(
-        (df["timestamp"].astype(str) == str(timestamp))
-        & (df["email"].astype(str).str.lower() == email.strip().lower())
-    )
-    save_data(df[mask], CHAT_FILE)
-    load_chat_df.clear()
-
-
-def update_own_chat_message(timestamp: str, email: str, new_text: str) -> None:
-    df = prepare_chat(load_data(CHAT_FILE, CHAT_COLUMNS))
-    email_l = email.strip().lower()
-    mask = (df["timestamp"].astype(str) == str(timestamp)) & (
-        df["email"].astype(str).str.lower() == email_l
-    )
-    if not mask.any():
-        return
-    df.loc[mask, "message"] = str(new_text).strip()
-    df.loc[mask, "message_type"] = "text"
-    df.loc[mask, "media_file"] = ""
-    save_data(df, CHAT_FILE)
-    load_chat_df.clear()
-
-
 def process_feed_queue() -> None:
     """Publica posts agendados (orações 6h, escala da semana, etc.)."""
     if not FEED_QUEUE_FILE.exists():
@@ -1346,32 +1299,6 @@ def process_feed_queue() -> None:
 
     updated = process_due_posts(qdf, _append)
     updated.to_csv(FEED_QUEUE_FILE, index=False)
-
-
-def delete_own_ensaio_message(timestamp: str, escala_id: str, email: str) -> None:
-    df = prepare_chat_ensaio(load_data(CHAT_ENSAIO_FILE, CHAT_ENSAIO_COLUMNS))
-    mask = ~(
-        (df["timestamp"].astype(str) == str(timestamp))
-        & (df["escala_id"].astype(str) == str(escala_id))
-        & (df["email"].astype(str).str.lower() == email.strip().lower())
-    )
-    save_data(df[mask], CHAT_ENSAIO_FILE)
-
-
-def update_own_ensaio_message(
-    timestamp: str, escala_id: str, email: str, new_text: str
-) -> None:
-    df = prepare_chat_ensaio(load_data(CHAT_ENSAIO_FILE, CHAT_ENSAIO_COLUMNS))
-    email_l = email.strip().lower()
-    mask = (df["timestamp"].astype(str) == str(timestamp)) & (
-        df["escala_id"].astype(str) == str(escala_id)
-    ) & (df["email"].astype(str).str.lower() == email_l)
-    if not mask.any():
-        return
-    df.loc[mask, "message"] = str(new_text).strip()
-    df.loc[mask, "message_type"] = "text"
-    df.loc[mask, "media_file"] = ""
-    save_data(df, CHAT_ENSAIO_FILE)
 
 
 def schedule_feed_posts_for_escala(
@@ -1455,41 +1382,6 @@ def feed_data_revision() -> str:
     return "local:" + "|".join(parts)
 
 
-def chat_data_revision() -> str:
-    """Fingerprint do chat.csv (local + nuvem) para detectar mensagens novas."""
-    from remote_store import fetch_sync_revisions, is_remote_enabled
-
-    if is_remote_enabled():
-        try:
-            remote = fetch_sync_revisions(CHAT_LIVE_FILE_NAMES)
-            if remote:
-                return f"remote:{remote}"
-        except Exception:
-            pass
-    try:
-        stat = CHAT_FILE.stat()
-        return f"local:{stat.st_mtime_ns}:{stat.st_size}"
-    except OSError:
-        return "local:missing"
-
-
-def refresh_chat_live() -> pd.DataFrame:
-    """Recarrega chat do disco/nuvem e atualiza cache da sessão."""
-    from chat_runtime import load_chat_df_live
-    from remote_store import is_remote_enabled, pull_file_to_disk
-
-    if is_remote_enabled():
-        try:
-            pull_file_to_disk(CHAT_FILE)
-        except Exception:
-            pass
-    chat_df = load_chat_df_live(force=True)
-    st.session_state["_chat_df_cache"] = chat_df
-    st.session_state._chat_rev = chat_data_revision()
-    update_chat_latest_ts(chat_df)
-    return chat_df
-
-
 def sync_member_name_in_records(
     email: str,
     full_name: str,
@@ -1553,41 +1445,6 @@ def prepare_escalas(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def sort_chat_messages(df: pd.DataFrame) -> pd.DataFrame:
-    """Ordena mensagens pela data/hora real (fuso BR), não pela ordem do CSV."""
-    if df.empty:
-        return df
-    from app_time import LOCAL_TZ, parse_timestamp
-
-    out = df.copy().reset_index(drop=True)
-    keys: list[tuple[datetime, int]] = []
-    for i, row in out.iterrows():
-        ts = parse_timestamp(str(row.get("timestamp", "")))
-        if ts is None:
-            keys.append((datetime(1970, 1, 1, tzinfo=LOCAL_TZ), int(i)))
-        else:
-            keys.append((ts, int(i)))
-    keys.sort()
-    order = [i for _, i in keys]
-    return out.iloc[order].reset_index(drop=True)
-
-
-def prepare_chat(df: pd.DataFrame) -> pd.DataFrame:
-    from app_time import normalize_chat_timestamp_str
-
-    df = ensure_chat_media_columns(df, CHAT_COLUMNS)
-    if df.empty:
-        return df
-    df = df.copy()
-    df["email"] = df["email"].astype(str).str.strip().str.lower()
-    df["timestamp"] = df["timestamp"].apply(normalize_chat_timestamp_str)
-    df = df[df["timestamp"].astype(str).str.strip() != ""].copy()
-    df = df.drop_duplicates(
-        subset=["email", "message", "timestamp"], keep="first"
-    )
-    return sort_chat_messages(df)
-
-
 def prepare_trocas(df: pd.DataFrame) -> pd.DataFrame:
     for column in TROCA_COLUMNS:
         if column not in df.columns:
@@ -1597,10 +1454,6 @@ def prepare_trocas(df: pd.DataFrame) -> pd.DataFrame:
     for column in TROCA_COLUMNS:
         out[column] = out[column].fillna("").astype(str)
     return out
-
-
-def prepare_chat_ensaio(df: pd.DataFrame) -> pd.DataFrame:
-    return ensure_chat_media_columns(df, CHAT_ENSAIO_COLUMNS)
 
 
 def event_plain_text(value, max_len: int = 280) -> str:
@@ -3027,304 +2880,6 @@ def logout_user() -> None:
     inject_login_remember(False)
 
 
-def member_avatar_for_chat(email: str, members_df: pd.DataFrame) -> str | None:
-    email_l = email.strip().lower()
-    stored = ""
-    if not members_df.empty and "email" in members_df.columns:
-        match = members_df[members_df["email"].astype(str).str.lower() == email_l]
-        if not match.empty:
-            stored = str(match.iloc[0].get("profile_photo", ""))
-    path = profile_photo_file(email_l, stored)
-    return str(path) if path else None
-
-
-def update_chat_latest_ts(chat_df: pd.DataFrame) -> None:
-    if chat_df.empty:
-        st.session_state["_chat_latest_ts"] = ""
-        return
-    st.session_state["_chat_latest_ts"] = str(chat_df["timestamp"].max())
-
-
-def chat_has_new_messages() -> bool:
-    return count_unread_chat_messages() > 0
-
-
-def is_user_viewing_chat() -> bool:
-    """True quando o usuário está na tela ativa do chat (mensagens visíveis)."""
-    if str(st.session_state.get("app_menu", "")).strip() == "Chat":
-        return True
-    try:
-        from mobile_lab import is_mobile_lab_enabled
-
-        if not is_mobile_lab_enabled():
-            return False
-        if str(st.session_state.get("ml_page", "")).strip() != "Chat":
-            return False
-        return str(st.session_state.get("ml_chat_view", "list")).strip() == "thread"
-    except Exception:
-        return False
-
-
-def ensure_chat_seen_baseline(chat_df: pd.DataFrame | None = None) -> None:
-    """
-    Primeira sessão: trata o histórico como já visto.
-    O badge só deve contar mensagens novas depois disso.
-    """
-    if str(st.session_state.get("chat_seen_at", "")).strip():
-        return
-    if chat_df is None:
-        chat_df = st.session_state.get("_chat_df_cache")
-    if chat_df is None or chat_df.empty:
-        st.session_state.chat_seen_at = timestamp_now()
-        return
-    st.session_state.chat_seen_at = str(chat_df["timestamp"].max())
-
-
-def count_unread_chat_messages(chat_df: pd.DataFrame | None = None) -> int:
-    """Mensagens de outros integrantes após o último acesso ao chat (thread)."""
-    if is_user_viewing_chat():
-        return 0
-    if chat_df is None:
-        chat_df = st.session_state.get("_chat_df_cache")
-    if chat_df is None or chat_df.empty:
-        return 0
-    ensure_chat_seen_baseline(chat_df)
-    my_email = str(st.session_state.get("user_email", "")).strip().lower()
-    if not my_email:
-        return 0
-    others = chat_df[
-        chat_df["email"].astype(str).str.strip().str.lower() != my_email
-    ].copy()
-    if others.empty:
-        return 0
-    seen = str(st.session_state.get("chat_seen_at", "")).strip()
-    if not seen:
-        return 0
-    seen_ts = parse_timestamp(seen)
-    if not seen_ts:
-        return 0
-    ts = to_local_timestamps(others["timestamp"])
-    seen_cmp = to_local_timestamps(seen_ts).iloc[0]
-    return int((ts > seen_cmp).sum())
-
-
-def mark_chat_seen(chat_df: pd.DataFrame) -> None:
-    if chat_df.empty:
-        st.session_state.chat_seen_at = timestamp_now()
-    else:
-        st.session_state.chat_seen_at = str(chat_df["timestamp"].max())
-    st.session_state.chat_unread_count = 0
-    st.session_state._chat_unread_prev = 0
-    st.session_state.pop("_chat_has_new", None)
-
-
-def mark_chat_scroll_bottom() -> None:
-    st.session_state["_chat_scroll_bottom"] = True
-
-
-def inject_chat_unread_badges(unread: int, *, pulse: bool = False) -> None:
-    """Badge flutuante no item Chat da sidebar e nos atalhos do dashboard."""
-    from notification_badge import format_unread_count, notification_badge_css
-
-    unread = max(0, int(unread))
-    label = format_unread_count(unread)
-    inject_page_html(
-        f"""
-        <style>
-        {notification_badge_css()}
-        section[data-testid="stSidebar"] [data-testid="stRadio"] label {{
-            position: relative !important;
-        }}
-        .chat-unread-badge {{
-            position: absolute;
-            top: 0.15rem;
-            right: 0.35rem;
-            min-width: 1.125rem;
-            height: 1.125rem;
-            padding: 0 0.35rem;
-            border-radius: 999px;
-            background: #ef4444;
-            color: #fff !important;
-            font-size: 0.62rem;
-            font-weight: 800;
-            align-items: center;
-            justify-content: center;
-            line-height: 1;
-            box-shadow: 0 2px 10px rgba(239, 68, 68, 0.55);
-            border: 2px solid rgba(15, 23, 42, 0.95);
-            z-index: 6;
-            pointer-events: none;
-        }}
-        .quick-nav-btn--chat {{
-            position: relative;
-        }}
-        .quick-nav-btn--chat .chat-unread-badge {{
-            top: 0.4rem;
-            right: 0.55rem;
-        }}
-        </style>
-        <script>
-        (function () {{
-          var count = {unread};
-          var label = {label!r};
-          var display = count > 0 ? "inline-flex" : "none";
-          var pulse = {str(pulse and unread > 0).lower()};
-          var doc = window.parent.document;
-          function attach() {{
-            var sidebar = doc.querySelector('[data-testid="stSidebar"]');
-            if (sidebar) {{
-              sidebar.querySelectorAll('[data-testid="stRadio"] label').forEach(function (el) {{
-                var t = (el.innerText || "");
-                if (t.indexOf("Chat") >= 0 && t.toLowerCase().indexOf("ensaio") < 0) {{
-                  var b = el.querySelector(".chat-unread-badge");
-                  if (!b) {{
-                    b = doc.createElement("span");
-                    b.className = "chat-unread-badge";
-                    el.appendChild(b);
-                  }}
-                  b.textContent = label;
-                  b.style.display = display;
-                  b.className = "chat-unread-badge" + (pulse ? " ig-unread-badge--pulse" : "");
-                }}
-              }});
-            }}
-            doc.querySelectorAll(".quick-nav-btn--chat").forEach(function (wrap) {{
-              var b = wrap.querySelector(".chat-unread-badge");
-              if (!b) {{
-                b = doc.createElement("span");
-                b.className = "chat-unread-badge";
-                wrap.appendChild(b);
-              }}
-              b.textContent = label;
-              b.style.display = display;
-              b.className = "chat-unread-badge" + (pulse ? " ig-unread-badge--pulse" : "");
-            }});
-          }}
-          attach();
-          setTimeout(attach, 350);
-          setTimeout(attach, 1100);
-        }})();
-        </script>
-        """,
-        height=0,
-    )
-
-
-def inject_swap_alerts_badges(count: int) -> None:
-    """Badge na sidebar no item Escalas quando há trocas pendentes para o usuário."""
-    count = max(0, int(count))
-    label = "99+" if count > 99 else str(count)
-    show = "flex" if count > 0 else "none"
-    inject_page_html(
-        f"""
-        <style>
-        section[data-testid="stSidebar"] [data-testid="stRadio"] label {{
-            position: relative !important;
-        }}
-        </style>
-        <script>
-        (function () {{
-          var count = {count};
-          var label = {label!r};
-          var display = count > 0 ? "flex" : "none";
-          var doc = window.parent.document;
-          function attach() {{
-            var sidebar = doc.querySelector('[data-testid="stSidebar"]');
-            if (!sidebar) return;
-            sidebar.querySelectorAll('[data-testid="stRadio"] label').forEach(function (el) {{
-              var t = (el.innerText || "");
-              if (t.indexOf("Escalas") >= 0 && t.indexOf("Gerenciar") < 0) {{
-                var b = el.querySelector(".swap-unread-badge");
-                if (!b) {{
-                  b = doc.createElement("span");
-                  b.className = "swap-unread-badge";
-                  el.appendChild(b);
-                }}
-                b.textContent = label;
-                b.style.display = display;
-              }}
-            }});
-          }}
-          attach();
-          setTimeout(attach, 350);
-          setTimeout(attach, 1100);
-        }})();
-        </script>
-        """,
-        height=0,
-    )
-
-
-def inject_chat_scroll_to_bottom():
-    from chat_whatsapp import should_force_chat_scroll
-
-    force = should_force_chat_scroll()
-    force_js = "true" if force else "false"
-    inject_page_html(
-        f"""
-        <script>
-        (function () {{
-          var doc = window.parent.document;
-          var forceScroll = {force_js};
-
-          function scrollContainer(el) {{
-            if (!el) return false;
-            if (el.scrollHeight > el.clientHeight + 8) {{
-              el.scrollTop = el.scrollHeight + 99999;
-              return true;
-            }}
-            return false;
-          }}
-
-          function scrollChat() {{
-            var box = doc.getElementById("chat-scroll-box");
-            var end = doc.getElementById("chat-scroll-end");
-            if (box && scrollContainer(box)) return;
-            var feed = doc.querySelector(".wa-chat-feed, .ig-chat-feed");
-            if (feed && scrollContainer(feed)) return;
-            var col = doc.querySelector(".ig-chat-col--main");
-            if (col && scrollContainer(col)) return;
-            if (end) end.scrollIntoView({{ block: "end", inline: "nearest", behavior: "auto" }});
-            var anchor = doc.getElementById("chat-page-end");
-            if (anchor) anchor.scrollIntoView({{ block: "end" }});
-          }}
-
-          function bindFeedObserver() {{
-            var targets = [
-              doc.getElementById("chat-scroll-box"),
-              doc.querySelector(".wa-chat-feed"),
-              doc.querySelector(".ig-chat-col--main"),
-            ].filter(Boolean);
-            targets.forEach(function (box) {{
-              if (box._chatScrollObs) {{
-                try {{ box._chatScrollObs.disconnect(); }} catch (e) {{}}
-              }}
-              box._chatScrollObs = new MutationObserver(function () {{
-                scrollChat();
-              }});
-              box._chatScrollObs.observe(box, {{
-                childList: true,
-                subtree: true,
-                attributes: true,
-              }});
-            }});
-          }}
-
-          scrollChat();
-          bindFeedObserver();
-          [80, 200, 450, 900, 1500, 2500].forEach(function (ms) {{
-            setTimeout(function () {{
-              scrollChat();
-              bindFeedObserver();
-            }}, ms);
-          }});
-        }})();
-        </script>
-        """,
-        height=0,
-    )
-
-
 def inject_login_remember(save: bool, email: str = "", password: str = ""):
     em = email.replace("\\", "\\\\").replace("'", "\\'")
     pw = password.replace("\\", "\\\\").replace("'", "\\'")
@@ -3462,14 +3017,12 @@ def handle_app_resume_query_params() -> bool:
         clear_load_data_cache()
         st.session_state.pop("_escalas_bundle", None)
         st.session_state.pop("_feed_rev", None)
-        st.session_state.pop("_chat_df_cache", None)
     try:
         from remote_store import is_remote_enabled, pull_file_to_disk
 
         if is_remote_enabled():
             for path in (
                 MEMBERS_FILE,
-                CHAT_FILE,
                 ESCALAS_FILE,
                 PROGRAMA_FILE,
                 EQUIPE_FILE,
@@ -3493,7 +3046,6 @@ def handle_app_resume_query_params() -> bool:
         pass
     try:
         refresh_escalas_bundle()
-        refresh_chat_live()
     except Exception:
         pass
     session_touch(st.session_state)
@@ -3514,10 +3066,7 @@ def catalog_link_label(url: str) -> str:
 
 
 def ensure_media_dirs():
-    CHAT_AUDIO_DIR.mkdir(parents=True, exist_ok=True)
-    CHAT_IMAGES_DIR.mkdir(parents=True, exist_ok=True)
     FEED_IMAGES_DIR.mkdir(parents=True, exist_ok=True)
-    ENSAIO_AUDIO_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def ensure_session_state():
@@ -3630,7 +3179,7 @@ def render_mobile_and_push_panel(
             **iPhone:** abra no **Safari** → Compartilhar → **Adicionar à Tela de Início**
             (não existe APK no iOS).
 
-            **Notificações** (chat e novas escalas): toque no botão abaixo e permita no navegador.
+            **Notificações** (novas escalas): toque no botão abaixo e permita no navegador.
             No iPhone, abra pelo ícone na tela inicial (iOS 16.4+).
             """
         )
@@ -3831,7 +3380,6 @@ def nav_sidebar_button_key(menu_name: str) -> str:
         "Repertório": "repertorio",
         "Playlist": "playlist",
         "Sugestão de louvor": "sugestao_louvor",
-        "Chat": "chat",
         "Eventos": "eventos",
         "Membros": "membros",
         "Perfil": "perfil",
@@ -4037,12 +3585,11 @@ def render_sidebar_tools_panel(members_df: pd.DataFrame | None = None):
 def render_sidebar_footer(
     *,
     members_df: pd.DataFrame | None = None,
-    chat_unread: int = 0,
     sug_badge: int = 0,
     swap_alert_count: int = 0,
 ):
     inject_app_resume_listener()
-    inject_app_notification_badges(chat_unread, sug_badge, swap_alert_count)
+    inject_app_notification_badges(sug_badge, swap_alert_count)
     render_sidebar_tools_panel(members_df)
     if st.sidebar.button(
         "Sair do sistema",
@@ -4072,7 +3619,6 @@ def page_header(menu: str):
         "Repertório",
         "Playlist",
         "Sugestão de louvor",
-        "Chat",
     ):
         return
     items, _, icons = get_menu_items_for_user(st.session_state.user_roles)
@@ -4105,8 +3651,6 @@ def humanize_stat(value: int, label: str) -> tuple[str, str]:
     if n > 0:
         return str(n), label
     label_l = label.lower()
-    if "chat" in label_l or "mensagem" in label_l:
-        return "—", "Sem mensagens no momento"
     if "culto" in label_l:
         return "—", "Nenhum culto nesta semana"
     if "músico" in label_l or "musico" in label_l or "integrante" in label_l:
@@ -4517,13 +4061,6 @@ def show_login_page(members_df: pd.DataFrame):
     st.markdown("</div>", unsafe_allow_html=True)
 
 
-def load_chat_df() -> pd.DataFrame:
-    """Recarrega o chat sem invalidar cache global (Fase 3)."""
-    from chat_runtime import load_chat_df_live
-
-    return load_chat_df_live()
-
-
 ESCALA_LIVE_FILE_NAMES = frozenset(
     {
         "escalas.csv",
@@ -4538,15 +4075,11 @@ MENUS_AUTO_REFRESH_ESCALA = frozenset(
         "Dashboard",
         "Escalas",
         "Gerenciar Escalas",
-        "Chat",
         "Feed",
         "Repertório",
     }
 )
 ESCALA_POLL_SECONDS = 8
-CHAT_POLL_SECONDS = 4
-CHAT_FORCE_RELOAD_EVERY_POLLS = 2
-CHAT_LIVE_FILE_NAMES = frozenset({"chat.csv"})
 FEED_LIVE_FILE_NAMES = frozenset(
     {"feed_posts.csv", "feed_likes.csv", "feed_comments.csv"}
 )
@@ -4680,510 +4213,6 @@ def _feed_global_sync():
         st.session_state._feed_rev = feed_data_revision()
     except Exception:
         pass
-
-
-def _chat_global_sync_core(*, bump_poll: bool = True) -> None:
-    """Sincroniza chat.csv → sessão (sem fragment — seguro no mobile)."""
-    if not st.session_state.get("authenticated"):
-        return
-    try:
-        from app_data_loader import should_run_chat_poll
-        from mobile_lab import is_mobile_lab_enabled
-
-        if not should_run_chat_poll(mobile=is_mobile_lab_enabled()):
-            return
-    except Exception:
-        pass
-
-    if bump_poll:
-        poll = int(st.session_state.get("_chat_poll_count", 0)) + 1
-        st.session_state._chat_poll_count = poll
-        force_reload = poll % CHAT_FORCE_RELOAD_EVERY_POLLS == 0
-    else:
-        force_reload = False
-
-    try:
-        new_rev = chat_data_revision()
-    except Exception:
-        return
-
-    old_rev = st.session_state.get("_chat_rev")
-    rev_changed = old_rev is not None and new_rev != old_rev
-
-    if force_reload or rev_changed or st.session_state.get("_chat_df_cache") is None:
-        refresh_chat_live()
-    else:
-        st.session_state._chat_rev = new_rev
-
-    chat_df = st.session_state.get("_chat_df_cache")
-    if is_user_viewing_chat():
-        mark_chat_seen(chat_df if chat_df is not None else pd.DataFrame())
-        return
-
-    unread = count_unread_chat_messages(chat_df)
-    prev = int(st.session_state.get("chat_unread_count", 0) or 0)
-    st.session_state.chat_unread_count = unread
-    if unread != prev:
-        st.session_state._chat_unread_prev = prev
-
-
-@st.fragment(run_every=timedelta(seconds=CHAT_POLL_SECONDS))
-def _chat_global_sync():
-    """Atualiza contagem de não lidas e badge do menu Chat em tempo quase real."""
-    _chat_global_sync_core()
-
-
-def append_chat_message(
-    *,
-    message: str,
-    message_type: str = "text",
-    media_file: str = "",
-    notify: bool = True,
-) -> pd.DataFrame:
-    cached = st.session_state.get("_chat_df_cache")
-    if isinstance(cached, pd.DataFrame):
-        base = cached.copy()
-    else:
-        base = load_chat_df()
-    new_message = {
-        "timestamp": timestamp_now(),
-        "email": st.session_state.user_email,
-        "name": st.session_state.user_full_name or st.session_state.user_name,
-        "message": message,
-        "message_type": message_type,
-        "media_file": media_file,
-    }
-    updated = pd.concat([base, pd.DataFrame([new_message])], ignore_index=True)
-    updated = prepare_chat(updated)
-    if not save_data(updated, CHAT_FILE, quiet=True):
-        show_technical_error("Não foi possível salvar a mensagem no chat.")
-        return base
-    st.session_state["_chat_df_cache"] = updated
-    update_chat_latest_ts(updated)
-    try:
-        from chat_runtime import chat_data_revision, invalidate_chat_feed_cache
-
-        invalidate_chat_feed_cache()
-        st.session_state["_chat_rev"] = chat_data_revision()
-    except Exception:
-        pass
-    mark_chat_scroll_bottom()
-    if notify:
-        try:
-            notify_chat_message(new_message["name"], new_message["message"])
-        except Exception:
-            pass
-    return updated
-
-
-def _escape_chat_html(text: str) -> str:
-    return (
-        str(text)
-        .replace("&", "&amp;")
-        .replace("<", "&lt;")
-        .replace(">", "&gt;")
-        .replace("\n", "<br>")
-    )
-
-
-def _chat_media_html(mtype: str, media_file: str) -> str:
-    path = media_absolute_path(str(media_file).strip(), DATA_DIR)
-    if not path:
-        return '<p class="chat-text"><em>Mídia indisponível</em></p>'
-    try:
-        size = path.stat().st_size
-    except OSError:
-        return '<p class="chat-text"><em>Mídia indisponível</em></p>'
-    if mtype == "image":
-        if size > 900_000:
-            return '<p class="chat-text">📷 Foto</p>'
-        try:
-            from PIL import Image
-
-            img = Image.open(path).convert("RGB")
-            img.thumbnail((720, 720))
-            buf = io.BytesIO()
-            img.save(buf, format="JPEG", quality=82)
-            b64 = base64.b64encode(buf.getvalue()).decode()
-            return (
-                f'<img src="data:image/jpeg;base64,{b64}" alt="foto" '
-                f'style="max-width:100%;border-radius:8px;" />'
-            )
-        except Exception:
-            return '<p class="chat-text">📷 Foto</p>'
-    if mtype == "audio":
-        if size > 2_000_000:
-            return '<p class="chat-text">🎤 Áudio</p>'
-        ext = path.suffix.lower()
-        mime = {
-            ".webm": "audio/webm",
-            ".ogg": "audio/ogg",
-            ".mp3": "audio/mpeg",
-            ".m4a": "audio/mp4",
-            ".wav": "audio/wav",
-        }.get(ext, "audio/webm")
-        b64 = base64.b64encode(path.read_bytes()).decode()
-        return (
-            f'<audio controls preload="metadata" style="width:min(100%,280px);">'
-            f'<source src="data:{mime};base64,{b64}" type="{mime}"></audio>'
-        )
-    return ""
-
-
-def pending_text_key(key_prefix: str) -> str:
-    """Chave session_state para texto enviado via chat_input (antes do rerun)."""
-    return f"{key_prefix}_pending_text"
-
-
-def _member_roles_lookup(members_df: pd.DataFrame) -> dict[str, str]:
-    out: dict[str, str] = {}
-    if members_df is None or members_df.empty:
-        return out
-    for _, row in members_df.iterrows():
-        em = str(row.get("email", "")).strip().lower()
-        if em:
-            out[em] = str(row.get("roles", ""))
-    return out
-
-
-def render_chat_messages(
-    chat_df: pd.DataFrame,
-    members_df: pd.DataFrame,
-    *,
-    delete_fn=None,
-    update_fn=None,
-    key_prefix: str = "chat",
-    premium: bool = False,
-):
-    from chat_ui import premium_message_html, role_badge_meta
-
-    feed_cls = "chat-feed ig-chat-feed" if premium else "chat-feed"
-    st.markdown(f'<div id="chat-scroll-box" class="{feed_cls}">', unsafe_allow_html=True)
-    if chat_df.empty:
-        if premium:
-            st.markdown(
-                """
-                <div class="ig-chat-empty">
-                    <strong>💬 Nenhuma mensagem ainda</strong>
-                    <div>Envie a primeira mensagem para iniciar a conversa do grupo.</div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-        else:
-            st.caption("💬 Nenhuma mensagem ainda — use o campo abaixo.")
-        st.markdown("</div>", unsafe_allow_html=True)
-        inject_chat_scroll_to_bottom()
-        return
-
-    my_email = st.session_state.user_email.strip().lower()
-    chat_sorted = sort_chat_messages(chat_df)
-    delete_fn = delete_fn or delete_own_chat_message
-    update_fn = update_fn or update_own_chat_message
-    roles_map = _member_roles_lookup(members_df)
-    show_reaction_once = True
-    for _, row in chat_sorted.iterrows():
-        is_me = str(row.get("email", "")).strip().lower() == my_email
-        display_name = "Você" if is_me else str(row.get("name", "Integrante"))
-        time_str = format_local(row.get("timestamp"), "%d/%m %H:%M")
-        email = str(row.get("email", "")).strip().lower()
-        foto = member_photo_html(email, members_df, 34 if premium else 32)
-        css = "me" if is_me else "other"
-        mtype = str(row.get("message_type", "text") or "text").strip().lower()
-        ts = str(row.get("timestamp", ""))
-        if mtype == "audio":
-            body = _chat_media_html("audio", str(row.get("media_file", "")))
-        elif mtype == "image":
-            body = _chat_media_html("image", str(row.get("media_file", "")))
-        else:
-            body = f'<p class="chat-text">{_escape_chat_html(row.get("message", ""))}</p>'
-
-        if premium:
-            role_label, role_cls = role_badge_meta(roles_map.get(email, ""))
-            if is_me:
-                role_label, role_cls = role_badge_meta(
-                    str(st.session_state.get("user_roles", ""))
-                )
-            react = show_reaction_once and not is_me and mtype == "text"
-            if react:
-                show_reaction_once = False
-            st.markdown(
-                premium_message_html(
-                    is_me=is_me,
-                    display_name=display_name,
-                    role_label=role_label,
-                    role_cls=role_cls,
-                    time_str=time_str,
-                    body_html=body,
-                    avatar_html=foto,
-                    show_reaction=react,
-                ),
-                unsafe_allow_html=True,
-            )
-            if is_me and mtype == "text":
-                with st.popover("⋮", use_container_width=True):
-                    st.caption("Sua mensagem")
-                    edit_key = f"{key_prefix}_edit_{ts}"
-                    if st.button(
-                        "✏️ Editar",
-                        key=f"{key_prefix}_edbtn_{ts}",
-                        use_container_width=True,
-                    ):
-                        st.session_state[edit_key] = str(row.get("message", ""))
-                    if st.button(
-                        "🗑️ Apagar",
-                        key=f"{key_prefix}_del_{ts}",
-                        use_container_width=True,
-                    ):
-                        delete_fn(ts, my_email)
-                        st.rerun()
-                if st.session_state.get(f"{key_prefix}_edit_{ts}") is not None:
-                    novo = st.text_input(
-                        "Editar mensagem",
-                        value=st.session_state.get(f"{key_prefix}_edit_{ts}", ""),
-                        key=f"{key_prefix}_editinp_{ts}",
-                    )
-                    ec1, ec2 = st.columns(2)
-                    with ec1:
-                        if st.button(
-                            "Salvar",
-                            key=f"{key_prefix}_save_{ts}",
-                            type="primary",
-                        ):
-                            if novo.strip():
-                                update_fn(ts, my_email, novo.strip())
-                            st.session_state.pop(f"{key_prefix}_edit_{ts}", None)
-                            st.rerun()
-                    with ec2:
-                        if st.button("Cancelar", key=f"{key_prefix}_cancel_{ts}"):
-                            st.session_state.pop(f"{key_prefix}_edit_{ts}", None)
-                            st.rerun()
-            continue
-
-        if is_me and mtype == "text":
-            c_msg, c_act = st.columns([11, 1])
-            with c_msg:
-                st.markdown(
-                    f'<div class="chat-bubble {css}">'
-                    f'<div class="chat-row-head">{foto}'
-                    f'<span class="chat-row-name">{_escape_chat_html(display_name)}</span>'
-                    f'<span class="chat-row-time"> · {time_str}</span></div>'
-                    f"{body}</div>",
-                    unsafe_allow_html=True,
-                )
-            with c_act:
-                with st.popover("⋮", use_container_width=True):
-                    st.caption("Sua mensagem")
-                    edit_key = f"{key_prefix}_edit_{ts}"
-                    if st.button(
-                        "✏️ Editar",
-                        key=f"{key_prefix}_edbtn_{ts}",
-                        use_container_width=True,
-                    ):
-                        st.session_state[edit_key] = str(row.get("message", ""))
-                    if st.button(
-                        "🗑️ Apagar",
-                        key=f"{key_prefix}_del_{ts}",
-                        use_container_width=True,
-                    ):
-                        delete_fn(ts, my_email)
-                        st.rerun()
-            if st.session_state.get(f"{key_prefix}_edit_{ts}") is not None:
-                novo = st.text_input(
-                    "Editar mensagem",
-                    value=st.session_state.get(f"{key_prefix}_edit_{ts}", ""),
-                    key=f"{key_prefix}_editinp_{ts}",
-                )
-                ec1, ec2 = st.columns(2)
-                with ec1:
-                    if st.button("Salvar", key=f"{key_prefix}_save_{ts}", type="primary"):
-                        if novo.strip():
-                            update_fn(ts, my_email, novo.strip())
-                        st.session_state.pop(f"{key_prefix}_edit_{ts}", None)
-                        st.rerun()
-                with ec2:
-                    if st.button("Cancelar", key=f"{key_prefix}_cancel_{ts}"):
-                        st.session_state.pop(f"{key_prefix}_edit_{ts}", None)
-                        st.rerun()
-        else:
-            st.markdown(
-                f'<div class="chat-bubble {css}">'
-                f'<div class="chat-row-head">{foto}'
-                f'<span class="chat-row-name">{_escape_chat_html(display_name)}</span>'
-                f'<span class="chat-row-time"> · {time_str}</span></div>'
-                f"{body}</div>",
-                unsafe_allow_html=True,
-            )
-    st.markdown(
-        '<div id="chat-scroll-end" style="height:1px;"></div></div>',
-        unsafe_allow_html=True,
-    )
-    inject_chat_scroll_to_bottom()
-
-
-def render_chat_composer(
-    *,
-    key_prefix: str,
-    append_fn,
-    audio_dir: Path,
-    audio_prefix: str,
-    images_dir: Path | None = None,
-    image_prefix: str = "chat",
-):
-    """Compositor compacto: mensagem + ➕ anexos."""
-    img_dir = images_dir or CHAT_IMAGES_DIR
-    render_whatsapp_chat_composer(
-        key_prefix=key_prefix,
-        append_fn=append_fn,
-        audio_dir=audio_dir,
-        audio_prefix=audio_prefix,
-        images_dir=img_dir,
-        image_prefix=image_prefix,
-        data_dir=DATA_DIR,
-    )
-    inject_chat_scroll_to_bottom()
-
-
-def show_group_chat(chat_df: pd.DataFrame, members_df: pd.DataFrame):
-    from chat_ui import (
-        CHAT_LIST_TABS,
-        count_chat_media,
-        last_group_preview,
-        render_chat_page_close,
-        render_chat_page_open,
-        render_conv_items_after_search,
-        render_info_panel_html,
-        render_thread_header_html,
-        role_badge_meta,
-    )
-    from ui_html import inject_ui_html
-
-    pending_key = pending_text_key("group_chat")
-    pending = st.session_state.pop(pending_key, None)
-    if pending and str(pending).strip():
-        append_chat_message(message=str(pending).strip(), message_type="text", media_file="")
-
-    chat_df = load_chat_df()
-    mark_chat_seen(chat_df)
-    unread = count_unread_chat_messages(chat_df)
-    preview, prev_time = last_group_preview(chat_df)
-    n_members = len(members_visible_to_group(members_df))
-    imgs, auds, _ = count_chat_media(chat_df)
-
-    from mobile_ui import mobile_hdr_close, mobile_hdr_open
-
-    render_chat_page_open()
-    mobile_hdr_open()
-    hdr_l, hdr_r = st.columns([4, 1])
-    with hdr_l:
-        inject_ui_html(
-            """
-            <div class="ig-chat-header" style="margin-bottom:0.85rem;">
-                <div class="ig-chat-header-left">
-                    <div class="ig-chat-header-ico"></div>
-                    <div>
-                        <h1 class="ig-chat-header-title">Chat</h1>
-                        <p class="ig-chat-header-sub">Converse com sua equipe e ministério</p>
-                    </div>
-                </div>
-            </div>
-            """
-        )
-    with hdr_r:
-        st.markdown('<div style="padding-top:1.1rem">', unsafe_allow_html=True)
-        st.button(
-            "+ Novo grupo",
-            key="chat_new_group_btn",
-            disabled=True,
-            help="Criação de novos grupos em breve.",
-            use_container_width=True,
-        )
-        st.markdown("</div>", unsafe_allow_html=True)
-    mobile_hdr_close()
-
-    inject_ui_html('<div class="ig-chat-mobile-order ig-m-layout-stack">')
-    col_l, col_m, col_r = st.columns([0.92, 1.75, 0.95])
-
-    with col_l:
-        inject_ui_html('<div class="ig-chat-col ig-chat-col--list">')
-        list_tab = st.radio(
-            "Filtro",
-            list(CHAT_LIST_TABS),
-            horizontal=True,
-            label_visibility="collapsed",
-            key="chat_list_tab",
-        )
-        st.text_input(
-            "Buscar conversas",
-            placeholder="Buscar conversas...",
-            key="chat_search_conv",
-            label_visibility="collapsed",
-        )
-        render_conv_items_after_search(
-            preview=preview,
-            time_str=prev_time,
-            unread=unread,
-            list_tab=list_tab,
-        )
-        inject_ui_html("</div>")
-
-    with col_m:
-        inject_ui_html('<div class="ig-chat-col ig-chat-col--main">')
-        render_thread_header_html(n_members)
-        _chat_group_live(members_df, premium=True)
-        inject_ui_html("</div>")
-
-    with col_r:
-        member_rows: list[tuple[str, str, str, str]] = []
-        visible = members_visible_to_group(members_df)
-        online_n = min(6, len(visible)) if not visible.empty else 0
-        if not visible.empty:
-            for _, row in visible.sort_values(
-                by=["first_name", "last_name"],
-                key=lambda s: s.str.lower(),
-            ).head(8).iterrows():
-                email = str(row["email"]).strip().lower()
-                nome = member_display_name(row)
-                rl, rc = role_badge_meta(str(row.get("roles", "")))
-                av = member_photo_html(email, members_df, 28)
-                member_rows.append((av, nome, rl, rc))
-        render_info_panel_html(
-            member_rows,
-            media_images=imgs,
-            media_audio=auds,
-            online_label=str(online_n) if online_n else "0",
-        )
-
-    inject_ui_html("</div>")
-    render_chat_page_close()
-
-
-@st.fragment(run_every=timedelta(seconds=4))
-def _chat_group_live(members_df: pd.DataFrame, *, premium: bool = False):
-    """Atualiza o histórico a cada poucos segundos para refletir mensagens de outros integrantes."""
-    chat_df = load_chat_df()
-    st.session_state["_chat_df_cache"] = chat_df
-    if is_user_viewing_chat():
-        mark_chat_seen(chat_df)
-    else:
-        st.session_state.chat_unread_count = count_unread_chat_messages(chat_df)
-
-    def _append(**kwargs):
-        append_chat_message(**kwargs)
-
-    render_chat_messages(chat_df, members_df, premium=premium)
-    if premium:
-        st.markdown('<div class="ig-chat-compose-wrap">', unsafe_allow_html=True)
-    render_chat_composer(
-        key_prefix="group_chat",
-        append_fn=_append,
-        audio_dir=CHAT_AUDIO_DIR,
-        audio_prefix="chat",
-        images_dir=CHAT_IMAGES_DIR,
-        image_prefix="chat",
-    )
-    if premium:
-        st.markdown("</div>", unsafe_allow_html=True)
 
 
 def render_team_grid_html(
@@ -6459,16 +5488,14 @@ def show_dashboard(
             "Escalas",
             "Repertório",
             "Playlist",
-            "Chat",
             "Sugestão de louvor",
         ]
         quick = [(n, icons.get(n, "🎵")) for n in quick_names if n in available]
         can_ger = sync_ml_can_gerenciar(quick_links=quick)
-        chat_unread = int(st.session_state.get("chat_unread_count", 0))
         sug_df = st.session_state.get("_sugestoes_df_cache", pd.DataFrame())
         sug_badge = count_pending_sugestoes(sug_df) if (is_mgr or can_ger) else count_sugestoes_news_for_user(sug_df, my_email)
         escala_badge = 1 if (minhas is not None and len(minhas) > 0) else 0
-        pend = int(chat_unread) + int(sug_badge) + int(escala_badge)
+        pend = int(sug_badge) + int(escala_badge)
         from mobile_lab_ui import render_mobile_lab_dashboard
 
         render_mobile_lab_dashboard(
@@ -6476,7 +5503,6 @@ def show_dashboard(
             louvores_df=louvores_df,
             escalas_df=escalas_df,
             sugestoes_df=sug_df,
-            chat_unread=chat_unread,
             user_full_name=nome,
             photo_uri=profile_photo_to_data_uri(
                 my_email, str(st.session_state.get("user_profile_photo", ""))
@@ -7747,7 +6773,6 @@ def show_escala_completa_editor(
     equipe_df: pd.DataFrame,
     louvores_df: pd.DataFrame,
     members_df: pd.DataFrame,
-    chat_ensaio_df: pd.DataFrame | None = None,
     *,
     external_planner_panel: bool = False,
     premium_layout: bool = False,
@@ -8225,127 +7250,6 @@ def show_escala_completa_editor(
     )
 
 
-def list_ensaio_audio_files(escala_id: str) -> list[Path]:
-    folder = ENSAIO_AUDIO_DIR / str(escala_id)
-    if not folder.is_dir():
-        return []
-    exts = {".webm", ".ogg", ".mp3", ".m4a", ".wav", ".mp4"}
-    files = [p for p in folder.iterdir() if p.is_file() and p.suffix.lower() in exts]
-    return sorted(files, key=lambda p: p.stat().st_mtime)
-
-
-def render_ensaio_chat(
-    escala_id: str,
-    chat_ensaio_df: pd.DataFrame,
-    members_df: pd.DataFrame,
-    *,
-    title: str = "",
-    subtitle: str = "",
-    equipe_df: pd.DataFrame | None = None,
-    escala_row: dict | pd.Series | None = None,
-):
-    from mobile_lab import is_mobile_lab_enabled
-
-    if is_mobile_lab_enabled():
-        from mobile_ensaio_chat_ui import render_mobile_ensaio_chat
-
-        render_mobile_ensaio_chat(
-            escala_id,
-            members_df,
-            title=title or "Chat do ensaio",
-            subtitle=subtitle or "Equipe deste culto",
-            equipe_df=equipe_df,
-            escala_row=escala_row,
-        )
-        return
-
-    _render_ensaio_chat_web(escala_id, chat_ensaio_df, members_df)
-
-
-@st.fragment(run_every=timedelta(seconds=4))
-def _ensaio_chat_live_web(escala_id: str, members_df: pd.DataFrame) -> None:
-    subset = prepare_chat_ensaio(load_data(CHAT_ENSAIO_FILE, CHAT_ENSAIO_COLUMNS))
-    subset = subset[subset["escala_id"].astype(str) == str(escala_id)].copy()
-    my_email = st.session_state.user_email.strip().lower()
-
-    def _del_ensaio(ts, em):
-        delete_own_ensaio_message(ts, escala_id, em)
-
-    def _upd_ensaio(ts, em, txt):
-        update_own_ensaio_message(ts, escala_id, em, txt)
-
-    render_chat_messages(
-        subset,
-        members_df,
-        delete_fn=_del_ensaio,
-        update_fn=_upd_ensaio,
-        key_prefix=f"ensaio_{escala_id}",
-        premium=True,
-    )
-    ensaio_dir = ENSAIO_AUDIO_DIR / str(escala_id)
-    ensaio_dir.mkdir(parents=True, exist_ok=True)
-    render_chat_composer(
-        key_prefix=f"ensaio_{escala_id}",
-        append_fn=_append_ensaio_message_fn(escala_id),
-        audio_dir=ensaio_dir,
-        audio_prefix=f"ensaio_{escala_id}",
-        images_dir=CHAT_IMAGES_DIR,
-        image_prefix=f"ensaio_{escala_id}",
-    )
-
-
-def _append_ensaio_message_fn(escala_id: str):
-    def _append(**kwargs):
-        fresh = prepare_chat_ensaio(load_data(CHAT_ENSAIO_FILE, CHAT_ENSAIO_COLUMNS))
-        base = {
-            "timestamp": timestamp_now(),
-            "escala_id": escala_id,
-            "email": st.session_state.user_email,
-            "name": st.session_state.user_full_name or st.session_state.user_name,
-        }
-        nova = {**base, **kwargs}
-        subset_ids = fresh["escala_id"].astype(str) == str(escala_id)
-        others = fresh[~subset_ids] if subset_ids.any() else fresh
-        escala_rows = fresh[subset_ids] if subset_ids.any() else pd.DataFrame()
-        updated = pd.concat(
-            [others, escala_rows, pd.DataFrame([nova])], ignore_index=True
-        )
-        if save_data(updated, CHAT_ENSAIO_FILE):
-            mark_chat_scroll_bottom()
-            st.rerun()
-
-    return _append
-
-
-def _render_ensaio_chat_web(
-    escala_id: str,
-    chat_ensaio_df: pd.DataFrame,
-    members_df: pd.DataFrame,
-):
-    st.subheader("💬 Chat do ensaio")
-    st.caption(
-        "Chat do ensaio · **+** galeria/câmera sob demanda · **segure** o mic para gravar."
-    )
-    saved = list_ensaio_audio_files(escala_id)
-    if saved:
-        with st.expander(f"🎧 Áudios de ensaio ({len(saved)})", expanded=False):
-            for path in saved:
-                st.caption(path.name)
-                st.audio(str(path))
-
-    pending_key = pending_text_key(f"ensaio_{escala_id}")
-    pending = st.session_state.pop(pending_key, None)
-    if pending and str(pending).strip():
-        _append_ensaio_message_fn(escala_id)(
-            message=str(pending).strip(), message_type="text", media_file=""
-        )
-        return
-
-    st.markdown('<div class="ig-chat-compose-wrap">', unsafe_allow_html=True)
-    _ensaio_chat_live_web(escala_id, members_df)
-    st.markdown("</div>", unsafe_allow_html=True)
-
-
 def _rerun_scope_fragment() -> None:
     from ui_rerun import rerun_scope_fragment
 
@@ -8570,7 +7474,6 @@ def show_gerenciar_escalas(
     equipe_df: pd.DataFrame,
     louvores_df: pd.DataFrame,
     members_df: pd.DataFrame,
-    chat_ensaio_df: pd.DataFrame,
     *,
     mobile_shell: bool = False,
 ):
@@ -8630,7 +7533,6 @@ def show_gerenciar_escalas(
                 equipe_df,
                 louvores_df,
                 members_df,
-                chat_ensaio_df,
                 external_planner_panel=True,
                 premium_layout=True,
             )
@@ -8652,7 +7554,6 @@ def show_gerenciar_escalas(
                     equipe_df,
                     louvores_df,
                     members_df,
-                    chat_ensaio_df,
                     external_planner_panel=True,
                     premium_layout=True,
                 )
@@ -9164,7 +8065,6 @@ def show_escalas_page(
     programa_df: pd.DataFrame,
     equipe_df: pd.DataFrame,
     louvores_df: pd.DataFrame,
-    chat_ensaio_df: pd.DataFrame,
 ):
     from escalas_ui import (
         apply_pending_escalas_tab,
@@ -10563,7 +9463,6 @@ def _run_app() -> None:
     apply_music_theme()
 
     _data = bootstrap_authenticated_data(mobile=is_mobile_lab_enabled())
-    chat_df = _data.chat_df
     escalas_df = _data.escalas_df
     trocas_df = _data.trocas_df
     programa_df = _data.programa_df
@@ -10575,17 +9474,10 @@ def _run_app() -> None:
     louvores_df = _data.louvores_df
     eventos_df = _data.eventos_df
     sugestoes_df = _data.sugestoes_df
-    chat_ensaio_df = _data.chat_ensaio_df
     members_df = _data.members_df
 
     inject_mobile_app_shell()
     ensure_media_dirs()
-    update_chat_latest_ts(chat_df)
-    st.session_state["_chat_df_cache"] = chat_df
-    ensure_chat_seen_baseline(chat_df)
-    _initial_unread = count_unread_chat_messages(chat_df)
-    st.session_state.chat_unread_count = _initial_unread
-    st.session_state._chat_unread_prev = 0
 
     if not session_is_valid(st.session_state):
         logout_user()
@@ -10623,13 +9515,12 @@ def _run_app() -> None:
         photo_hdr = profile_photo_to_data_uri(
             email_hdr, str(st.session_state.get("user_profile_photo", "")).strip()
         )
-        chat_unread = int(st.session_state.get("chat_unread_count", 0))
         sug_badge = (
             count_pending_sugestoes(sugestoes_df)
             if is_scale_manager(st.session_state.user_roles)
             else count_sugestoes_news_for_user(sugestoes_df, email_hdr)
         )
-        notif_hdr = int(chat_unread) + int(sug_badge)
+        notif_hdr = int(sug_badge)
 
         ml_page = mobile_lab_current_page()
 
@@ -10676,7 +9567,6 @@ def _run_app() -> None:
                         equipe_df=equipe_df,
                         louvores_df=louvores_df,
                         members_df=members_df,
-                        chat_ensaio_df=chat_ensaio_df,
                     )
                 else:
                     st.warning("Acesso restrito à liderança do ministério.")
@@ -10694,7 +9584,6 @@ def _run_app() -> None:
                     programa_df=programa_df,
                     equipe_df=equipe_df,
                     louvores_df=louvores_df,
-                    chat_ensaio_df=chat_ensaio_df,
                 ),
                 _fallback_mobile_page,
             )
@@ -10719,14 +9608,6 @@ def _run_app() -> None:
                 lambda: render_mobile_playlist_page(louvores_df, playlist_df, members_df),
                 _fallback_mobile_page,
             )
-        elif ml_page == "Chat":
-            def _render_ml_chat() -> None:
-                _chat_global_sync_core(bump_poll=False)
-                from mobile_chat_ui import render_mobile_chat_page
-
-                render_mobile_chat_page(chat_df, members_df)
-
-            run_mobile_page_with_fallback(ml_page, _render_ml_chat, _fallback_mobile_page)
         elif ml_page == "Sugestões":
             from mobile_sugestoes_ui import render_mobile_sugestoes_page
 
@@ -10774,19 +9655,9 @@ def _run_app() -> None:
         else:
             _fallback_mobile_page()
 
-        if ml_page != "Chat":
-            _chat_global_sync()
-        chat_unread = int(st.session_state.get("chat_unread_count", 0))
-        prev_unread = int(st.session_state.get("_chat_unread_prev", 0))
-        badge_pulse = chat_unread > prev_unread and chat_unread > 0
-        if chat_unread != prev_unread:
-            st.session_state._chat_unread_prev = chat_unread
-
         render_mobile_lab_nav(
             ml_page,
-            chat_unread=chat_unread,
             can_gerenciar=bool(st.session_state.get("ml_can_gerenciar")),
-            badge_pulse=badge_pulse,
         )
         if mobile_lab_request_logout() or st.session_state.pop("request_logout", False):
             logout_user()
@@ -10797,7 +9668,6 @@ def _run_app() -> None:
 
     render_mobile_lab_sidebar_toggle()
     menu = render_sidebar_navigation()
-    chat_unread = int(st.session_state.get("chat_unread_count", 0))
     user_email = str(st.session_state.get("user_email", ""))
     if is_scale_manager(st.session_state.user_roles):
         sug_badge = count_pending_sugestoes(sugestoes_df)
@@ -10815,10 +9685,8 @@ def _run_app() -> None:
         swap_alert_count = 0
     _escalas_global_sync()
     _feed_global_sync()
-    _chat_global_sync()
     render_sidebar_footer(
         members_df=members_df,
-        chat_unread=chat_unread,
         sug_badge=sug_badge,
         swap_alert_count=swap_alert_count,
     )
@@ -10828,7 +9696,7 @@ def _run_app() -> None:
     photo_hdr = profile_photo_to_data_uri(
         email_hdr, str(st.session_state.get("user_profile_photo", "")).strip()
     )
-    notif_hdr = int(chat_unread) + int(sug_badge) + int(swap_alert_count)
+    notif_hdr = int(sug_badge) + int(swap_alert_count)
     from dashboard_ui import render_global_header
 
     render_global_header(
@@ -10847,7 +9715,6 @@ def _run_app() -> None:
         "Repertório",
         "Playlist",
         "Sugestão de louvor",
-        "Chat",
     ):
         page_header(menu)
 
@@ -10875,7 +9742,7 @@ def _run_app() -> None:
 
     if menu == "Gerenciar Escalas":
         show_gerenciar_escalas(
-            escalas_df, programa_df, equipe_df, louvores_df, members_df, chat_ensaio_df
+            escalas_df, programa_df, equipe_df, louvores_df, members_df
         )
 
     elif menu == "Dashboard":
@@ -10913,7 +9780,6 @@ def _run_app() -> None:
             programa_df,
             equipe_df,
             louvores_df,
-            chat_ensaio_df,
         )
 
     elif menu == "Eventos":
@@ -10924,9 +9790,6 @@ def _run_app() -> None:
 
     elif menu == "Playlist":
         show_playlist_page(louvores_df, playlist_df, members_df)
-
-    elif menu == "Chat":
-        show_group_chat(chat_df, members_df)
 
     elif menu == "Perfil":
         show_user_profile(members_df, escalas_df, equipe_df)

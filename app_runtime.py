@@ -12,7 +12,7 @@ def _candidate_app_modules() -> list[ModuleType]:
     Módulos que podem ser o app.py principal.
 
     Preferimos __main__ (streamlit run app.py) antes de app, porque no Cloud
-    ``import app`` pode ficar incompleto e faltar funções como is_user_viewing_chat.
+    ``import app`` pode ficar incompleto e faltar funções como save_data.
     """
     found: list[ModuleType] = []
     for key in ("__main__", "app"):
@@ -29,7 +29,7 @@ def _candidate_app_modules() -> list[ModuleType]:
 
 def main_app_module() -> ModuleType:
     for mod in _candidate_app_modules():
-        if hasattr(mod, "load_chat_df"):
+        if hasattr(mod, "save_data"):
             return mod
     raise ImportError(
         "Módulo principal do app não encontrado. Execute com: streamlit run app.py"

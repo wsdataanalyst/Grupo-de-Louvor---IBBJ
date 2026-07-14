@@ -1,4 +1,4 @@
-"""Áudio, imagem e mídia para chats (grupo e ensaio)."""
+"""Upload de áudio e imagem para o app (usado pelo Feed)."""
 
 from __future__ import annotations
 
@@ -6,25 +6,8 @@ import io
 import uuid
 from pathlib import Path
 
-CHAT_MEDIA_COLUMNS_EXTRA = ("message_type", "media_file")
-
 AUDIO_EXTS = {".webm", ".ogg", ".mp3", ".m4a", ".wav", ".mp4", ".aac"}
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".heic", ".heif"}
-
-
-def ensure_chat_media_columns(df, base_columns: tuple):
-    import pandas as pd
-
-    cols = list(base_columns)
-    for c in CHAT_MEDIA_COLUMNS_EXTRA:
-        if c not in cols:
-            cols.append(c)
-    if df.empty:
-        return pd.DataFrame(columns=cols)
-    for c in cols:
-        if c not in df.columns:
-            df[c] = ""
-    return df[list(cols)].copy()
 
 
 def _save_bytes(

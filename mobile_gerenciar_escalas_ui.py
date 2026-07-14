@@ -146,7 +146,6 @@ def render_mobile_gerenciar_escalas_page(
     equipe_df,
     louvores_df,
     members_df,
-    chat_ensaio_df,
 ) -> None:
     """Entrada Mobile Lab — página fixa Gerenciar Escalas."""
     if not user_can_gerenciar_escalas():
@@ -193,7 +192,6 @@ def render_mobile_gerenciar_escalas_page(
         equipe_df=equipe_df,
         louvores_df=louvores_df,
         members_df=members_df,
-        chat_ensaio_df=chat_ensaio_df,
     )
     try:
         show_gerenciar_escalas(**_ger_kwargs, mobile_shell=True)

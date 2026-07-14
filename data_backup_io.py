@@ -1,4 +1,4 @@
-"""Exportar e restaurar a pasta data/ (cadastros, escalas, chat, etc.)."""
+"""Exportar e restaurar a pasta data/ (cadastros, escalas, etc.)."""
 
 from __future__ import annotations
 

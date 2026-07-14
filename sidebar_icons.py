@@ -53,9 +53,6 @@ _NAV_PATHS: dict[str, str] = {
         '<path d="M10 22h4"/>'
         '<path d="M12 2a7 7 0 0 0-4 12.5V16h8v-1.5A7 7 0 0 0 12 2z"/>'
     ),
-    "chat": (
-        '<path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/>'
-    ),
     "eventos": (
         '<rect x="3" y="4" width="18" height="18" rx="2"/>'
         '<path d="M16 2v4M8 2v4M3 10h18"/>'

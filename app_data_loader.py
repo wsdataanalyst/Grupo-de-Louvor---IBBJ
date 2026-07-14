@@ -29,7 +29,6 @@ _EMPTY_DF = pd.DataFrame()
 @dataclass
 class AppDataBundle:
     members_df: pd.DataFrame
-    chat_df: pd.DataFrame
     sugestoes_df: pd.DataFrame
     escalas_df: pd.DataFrame
     programa_df: pd.DataFrame
@@ -41,7 +40,6 @@ class AppDataBundle:
     feed_posts_df: pd.DataFrame
     feed_likes_df: pd.DataFrame
     feed_comments_df: pd.DataFrame
-    chat_ensaio_df: pd.DataFrame
 
 
 def current_app_route(*, mobile: bool) -> str:
@@ -92,10 +90,6 @@ def _needs_louvores_content(route: str, *, mobile: bool) -> bool:
     )
 
 
-def _needs_chat_ensaio(route: str, *, mobile: bool) -> bool:
-    return route in ("Escalas", "Gerenciar Escalas")
-
-
 def _needs_feed(route: str, *, mobile: bool) -> bool:
     if mobile:
         return route in ("Início", "Notificações")
@@ -126,12 +120,6 @@ def _needs_sugestoes(route: str, *, mobile: bool) -> bool:
     )
 
 
-def _needs_chat(route: str, *, mobile: bool) -> bool:
-    if mobile:
-        return route == "Chat"
-    return route == "Chat"
-
-
 def _needs_escalas_core(route: str, *, mobile: bool) -> bool:
     if mobile:
         return route in (
@@ -147,7 +135,6 @@ def _needs_escalas_core(route: str, *, mobile: bool) -> bool:
         "Gerenciar Escalas",
         "Perfil",
         "Membros",
-        "Chat",
         "Feed",
         "Repertório",
     )
@@ -175,7 +162,6 @@ def invalidate_all_session_df_caches() -> None:
 # CSVs que devem refletir dados ao voltar do background (PWA / aba em segundo plano).
 RESUME_DATA_FILE_NAMES: tuple[str, ...] = (
     "members.csv",
-    "chat.csv",
     "escalas.csv",
     "programa_culto.csv",
     "escala_equipe.csv",
@@ -185,7 +171,6 @@ RESUME_DATA_FILE_NAMES: tuple[str, ...] = (
     "feed_likes.csv",
     "feed_comments.csv",
     "sugestoes_louvor.csv",
-    "chat_ensaio.csv",
 )
 
 
@@ -197,8 +182,6 @@ def invalidate_resume_data_caches() -> None:
         "_members_df_cache",
         "_members_rev",
         "_escalas_bundle",
-        "_chat_df_cache",
-        "_chat_rev",
         "_escalas_rev",
         "_feed_rev",
         "_sugestoes_df_cache",
@@ -281,10 +264,6 @@ def bootstrap_authenticated_data(*, mobile: bool) -> AppDataBundle:
     Preserva funções: páginas recebem DataFrames vazios preparados quando não carregados.
     """
     from app import (
-        CHAT_COLUMNS,
-        CHAT_ENSAIO_COLUMNS,
-        CHAT_ENSAIO_FILE,
-        CHAT_FILE,
         ESCALA_COLUMNS,
         ESCALAS_FILE,
         EQUIPE_COLUMNS,
@@ -308,8 +287,6 @@ def bootstrap_authenticated_data(*, mobile: bool) -> AppDataBundle:
         load_data,
         load_feed_bundle,
         load_members_df,
-        prepare_chat,
-        prepare_chat_ensaio,
         prepare_escalas,
         prepare_equipe,
         prepare_eventos,
@@ -320,7 +297,6 @@ def bootstrap_authenticated_data(*, mobile: bool) -> AppDataBundle:
         prepare_sugestoes,
         prepare_trocas,
     )
-    from chat_runtime import load_chat_df_live
 
     route = current_app_route(mobile=mobile)
 
@@ -334,15 +310,6 @@ def bootstrap_authenticated_data(*, mobile: bool) -> AppDataBundle:
         st.session_state["_members_rev"] = file_local_revision(MEMBERS_FILE)
         members_df = prepare_members(members_df)
         members_df = ensure_current_user_profile_photo(members_df)
-
-    if _needs_chat(route, mobile=mobile):
-        chat_df = load_chat_df_live()
-    else:
-        cached_chat = st.session_state.get("_chat_df_cache")
-        if isinstance(cached_chat, pd.DataFrame):
-            chat_df = cached_chat
-        else:
-            chat_df = prepare_chat(_EMPTY_DF.copy())
 
     cached_sug = st.session_state.get("_sugestoes_df_cache")
     if _needs_sugestoes(route, mobile=mobile) or not isinstance(cached_sug, pd.DataFrame):
@@ -407,18 +374,8 @@ def bootstrap_authenticated_data(*, mobile: bool) -> AppDataBundle:
     if _needs_feed(route, mobile=mobile):
         feed_posts_df, feed_likes_df, feed_comments_df = load_feed_bundle()
 
-    chat_ensaio_df = _EMPTY_DF.copy()
-    if _needs_chat_ensaio(route, mobile=mobile):
-        chat_ensaio_df = load_data_session_cached(
-            CHAT_ENSAIO_FILE,
-            CHAT_ENSAIO_COLUMNS,
-            loader=load_data,
-            preparer=prepare_chat_ensaio,
-        )
-
     return AppDataBundle(
         members_df=members_df,
-        chat_df=chat_df,
         sugestoes_df=sugestoes_df,
         escalas_df=escalas_df,
         programa_df=programa_df,
@@ -430,29 +387,6 @@ def bootstrap_authenticated_data(*, mobile: bool) -> AppDataBundle:
         feed_posts_df=feed_posts_df,
         feed_likes_df=feed_likes_df,
         feed_comments_df=feed_comments_df,
-        chat_ensaio_df=chat_ensaio_df,
-    )
-
-
-def should_run_chat_poll(*, mobile: bool) -> bool:
-    route = current_app_route(mobile=mobile)
-    if mobile:
-        return route in (
-            "Início",
-            "Chat",
-            "Escalas",
-            "Gerenciar Escalas",
-            "Notificações",
-        )
-    return route in (
-        "Dashboard",
-        "Chat",
-        "Escalas",
-        "Gerenciar Escalas",
-        "Feed",
-        "Avisos",
-        "Notificações",
-        "Início",
     )
 
 
@@ -464,7 +398,6 @@ def should_run_escalas_poll(*, mobile: bool) -> bool:
         "Dashboard",
         "Escalas",
         "Gerenciar Escalas",
-        "Chat",
         "Feed",
         "Repertório",
     )

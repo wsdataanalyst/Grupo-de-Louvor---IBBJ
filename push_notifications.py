@@ -1,4 +1,4 @@
-"""Notificações push (OneSignal) para chat e novas escalas."""
+"""Notificações push (OneSignal) para novas escalas."""
 
 from __future__ import annotations
 
@@ -114,15 +114,6 @@ def send_push(
         return False, str(exc)
 
 
-def notify_chat_message(author: str, text: str) -> bool:
-    ok, _ = send_push(
-        "💬 Novas mensagens no chat",
-        f"{author} enviou uma nova mensagem no chat do grupo.",
-        extra={"type": "chat"},
-    )
-    return ok
-
-
 def notify_new_escala(
     event: str,
     culto_date: str,
@@ -149,6 +140,6 @@ def notify_new_escala(
 def send_test_notification() -> tuple[bool, str]:
     return send_push(
         "🎵 Louvor IBBJ",
-        "Notificações ativas! Você receberá avisos de chat e novas escalas.",
+        "Notificações ativas! Você receberá avisos de novas escalas.",
         extra={"type": "test"},
     )

@@ -22,7 +22,6 @@ LAB_PAGES = (
     "Escalas",
     "Repertório",
     "Playlist",
-    "Chat",
     "Sugestões",
     "Notificações",
     "Perfil",
@@ -40,7 +39,6 @@ _WEB_MENU_TO_ML_PAGE: dict[str, str] = {
     "Repertório": "Repertório",
     "Playlist": "Playlist",
     "Sugestão de louvor": "Sugestões",
-    "Chat": "Chat",
     "Perfil": "Perfil",
     "Eventos": "Eventos",
     "Membros": "Membros",
@@ -48,7 +46,7 @@ _WEB_MENU_TO_ML_PAGE: dict[str, str] = {
 
 
 def _lab_nav_items(
-    *, can_gerenciar: bool, chat_unread: int
+    *, can_gerenciar: bool
 ) -> list[tuple[str, str, int]]:
     """
     Bottom nav (5 itens). Liderança: Gerenciar em 2º lugar (destaque dourado).
@@ -58,14 +56,14 @@ def _lab_nav_items(
             ("Início", "🏠", 0),
             ("Gerenciar Escalas", "🎯", 0),
             ("Escalas", "📅", 0),
-            ("Chat", "💬", max(0, int(chat_unread))),
+            ("Repertório", "🎵", 0),
             ("Notificações", "📰", 0),
         ]
     return [
         ("Início", "🏠", 0),
         ("Escalas", "📅", 0),
         ("Repertório", "🎵", 0),
-        ("Chat", "💬", max(0, int(chat_unread))),
+        ("Playlist", "🎼", 0),
         ("Notificações", "📰", 0),
     ]
 
@@ -84,7 +82,6 @@ DRAWER_MENU_SPEC: tuple[tuple[str, tuple[_DrawerItem, ...]], ...] = (
             ("👥", "Membros", "Membros", "Membros", None),
             ("📖", "Repertório", "Repertório", "Repertório", None),
             ("🎼", "Playlist", "Playlist", "Playlist", None),
-            ("💬", "Chat", "Chat", "Chat", None),
             ("📰", "Feed", "Notificações", "Feed", None),
         ),
     ),
@@ -666,7 +663,6 @@ def _render_drawer(current: str) -> None:
         ("📅", "Escalas"),
         ("🎵", "Repertório"),
         ("🎧", "Playlist"),
-        ("💬", "Chat"),
         ("💡", "Sugestões"),
         ("🔔", "Notificações"),
         ("👤", "Perfil"),
@@ -727,9 +723,7 @@ def mobile_lab_current_page() -> str:
 def render_mobile_lab_nav(
     current: str,
     *,
-    chat_unread: int = 0,
     can_gerenciar: bool | None = None,
-    badge_pulse: bool = False,
 ) -> None:
     """
     Bottom navigation premium — um único nível (botões Streamlit estilizados).
@@ -737,7 +731,7 @@ def render_mobile_lab_nav(
     Navegação interna via session_state (sem links / sem abrir outro navegador).
     """
     from mobile_lab_ui import inject_mobile_lab_hide_streamlit_chrome
-    from notification_badge import chat_notification_counter_html, notification_badge_css
+    from notification_badge import notification_badge_css
 
     inject_mobile_lab_theme()
     st.markdown(f"<style>{notification_badge_css()}</style>", unsafe_allow_html=True)
@@ -755,7 +749,7 @@ def render_mobile_lab_nav(
 
     _render_drawer_streamlit(current, can_gerenciar=can_gerenciar)
 
-    items = _lab_nav_items(can_gerenciar=can_gerenciar, chat_unread=chat_unread)
+    items = _lab_nav_items(can_gerenciar=can_gerenciar)
 
     st.markdown(
         '<span id="ml-bottom-nav-start" aria-hidden="true"></span>',
@@ -763,7 +757,6 @@ def render_mobile_lab_nav(
     )
     with st.container(key="ml_bottom_nav"):
         cols = st.columns(5, gap="small")
-        nav_unread = max(0, int(chat_unread))
         for col, (page, icon, _badge_unused) in zip(cols, items):
             with col:
                 short = {
@@ -771,7 +764,7 @@ def render_mobile_lab_nav(
                     "Gerenciar Escalas": "Gerenciar",
                     "Escalas": "Escalas",
                     "Repertório": "Música",
-                    "Chat": "Chat",
+                    "Playlist": "Playlist",
                     "Notificações": "Feed",
                     "Perfil": "Perfil",
                 }.get(page, page)
@@ -781,11 +774,7 @@ def render_mobile_lab_nav(
                 label = f"{icon}\n{short}"
                 if page == "Gerenciar Escalas" and current != page:
                     label = f"🎯\n{short}"
-                wrap_key = (
-                    "ml_nav_chat_wrap"
-                    if page == "Chat"
-                    else f"ml_nav_{page.replace(' ', '_')}_wrap"
-                )
+                wrap_key = f"ml_nav_{page.replace(' ', '_')}_wrap"
                 with st.container(key=wrap_key):
                     if st.button(
                         label,
@@ -798,13 +787,6 @@ def render_mobile_lab_nav(
                             pin=(page == "Gerenciar Escalas"),
                         )
                         st.rerun()
-                    if page == "Chat" and nav_unread > 0:
-                        st.markdown(
-                            chat_notification_counter_html(
-                                nav_unread, pulse=badge_pulse
-                            ),
-                            unsafe_allow_html=True,
-                        )
 
 
 def _render_page_header(title: str) -> None:
@@ -836,7 +818,6 @@ def render_mobile_lab_escalas(
     programa_df: pd.DataFrame,
     equipe_df: pd.DataFrame,
     louvores_df: pd.DataFrame,
-    chat_ensaio_df: pd.DataFrame,
 ) -> None:
     """Delega para o layout premium de Escalas."""
     from mobile_escalas_ui import render_mobile_escalas_page
@@ -848,7 +829,6 @@ def render_mobile_lab_escalas(
         programa_df=programa_df,
         equipe_df=equipe_df,
         louvores_df=louvores_df,
-        chat_ensaio_df=chat_ensaio_df,
     )
 
 
@@ -885,35 +865,6 @@ def render_mobile_lab_playlist(*, playlist_df: pd.DataFrame) -> None:
                 <div class="ml-glow-purple" style="width:42px;height:42px;border-radius:18px;display:flex;align-items:center;justify-content:center;background:linear-gradient(90deg, rgba(124,58,237,1), rgba(139,92,246,1));font-weight:900;">
                   ▶
                 </div>
-              </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-
-def render_mobile_lab_chat_list(*, chat_df: pd.DataFrame) -> None:
-    inject_mobile_lab_theme()
-    _render_page_header("Chat")
-    df = chat_df.copy() if chat_df is not None else pd.DataFrame()
-    # Mock simples: mostra últimas mensagens
-    if df.empty:
-        st.info("Sem mensagens ainda.")
-        return
-    df = df.tail(10)
-    for _, r in df.iloc[::-1].iterrows():
-        sender = str(r.get("name", "") or r.get("email", "") or "Equipe").strip()
-        msg = str(r.get("message", "")).strip()
-        st.markdown(
-            f"""
-            <div class="ml-page" style="padding-bottom:12px;">
-              <div class="ml-glass ml-card" style="display:flex;gap:12px;align-items:center;padding:12px;border-radius:24px;">
-                <div style="width:46px;height:46px;border-radius:18px;background:rgba(34,197,94,.10);border:1px solid rgba(34,197,94,.18);display:flex;align-items:center;justify-content:center;">👥</div>
-                <div style="flex:1;min-width:0;">
-                  <div style="font-weight:900;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{_esc(sender)}</div>
-                  <div style="color:rgba(148,163,184,.92);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{_esc(msg)}</div>
-                </div>
-                <div style="min-width:22px;height:22px;border-radius:999px;background:rgba(139,92,246,1);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;">•</div>
               </div>
             </div>
             """,

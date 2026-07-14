@@ -14,7 +14,6 @@ APP_MENU_TO_ML_PAGE: dict[str, str] = {
     "Repertório": "Repertório",
     "Playlist": "Playlist",
     "Sugestão de louvor": "Sugestões",
-    "Chat": "Chat",
     "Perfil": "Perfil",
     "Eventos": "Eventos",
     "Membros": "Membros",
@@ -144,15 +143,6 @@ def navigate_ml_page(page: str, *, pin: bool = False) -> None:
         unpin_ml_page()
     if page not in ML_PAGES:
         page = "Início"
-    if page == "Chat":
-        st.session_state.ml_chat_view = "thread"
-        st.session_state.pop("_ml_chat_thread_open", None)
-        try:
-            from chat_whatsapp import mark_chat_scroll_bottom
-
-            mark_chat_scroll_bottom()
-        except Exception:
-            pass
     st.session_state.ml_page = page
     persist_ml_page_query(page)
     if pin or page == "Gerenciar Escalas":

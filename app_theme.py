@@ -832,23 +832,6 @@ def ibbj_theme_css() -> str:
             padding: 0.65rem 0.75rem 1rem;
         }
 
-        /* Chat */
-        #chat-scroll-box {
-            background: var(--ig-bg-elevated) !important;
-            border: 1px solid var(--ig-border) !important;
-        }
-        .chat-row-name { color: #fff !important; }
-        .chat-row-time, .chat-meta { color: var(--ig-text-muted) !important; }
-        .chat-bubble.other {
-            background: var(--ig-bg-card) !important;
-            border: 1px solid var(--ig-border) !important;
-        }
-        .chat-bubble.other .chat-text { color: var(--ig-text) !important; }
-        .chat-bubble.me {
-            background: linear-gradient(135deg, #178f88, var(--ig-teal)) !important;
-        }
-        .chat-bubble.me .chat-text { color: #fff !important; }
-
         .verse-of-day {
             background: var(--ig-bg-card) !important;
             border: 1px solid var(--ig-border) !important;
@@ -1417,7 +1400,6 @@ def compile_ibbj_theme_css() -> str:
     from feed_ui import feed_page_css
     from gerenciar_escalas_ui import gerenciar_escalas_page_css
     from playlist_ui import playlist_page_css
-    from chat_ui import chat_page_css
     from mobile_ui import mobile_first_css
     from sugestao_louvor_ui import sugestao_louvor_page_css
     from repertorio_ui import repertorio_page_css
@@ -1434,7 +1416,6 @@ def compile_ibbj_theme_css() -> str:
         + repertorio_page_css()
         + playlist_page_css()
         + sugestao_louvor_page_css()
-        + chat_page_css()
         + mobile_first_css()
         + sequencia_culto_css()
     )

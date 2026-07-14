@@ -85,27 +85,6 @@ def mobile_first_css() -> str:
                 min-width: 0 !important;
             }}
 
-            /* Chat mobile: barra de digitação em uma linha */
-            body:has(#ml-chat-page) [class*="st-key-ml_chat_compose_main"] [data-testid="stHorizontalBlock"] {{
-                flex-wrap: nowrap !important;
-            }}
-            body:has(#ml-chat-page) [class*="st-key-ml_chat_compose_main"] [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {{
-                flex: 0 0 auto !important;
-                width: auto !important;
-                max-width: none !important;
-            }}
-            body:has(#ml-chat-page) [class*="st-key-ml_chat_compose_main"] [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:nth-child(3) {{
-                flex: 1 1 auto !important;
-                min-width: 0 !important;
-            }}
-
-            body:has(#ml-chat-page) [data-testid="stMain"] [data-testid="stVerticalBlock"] {{
-                gap: 0.15rem !important;
-            }}
-            body:has(#ml-chat-page) [data-testid="element-container"] {{
-                margin-bottom: 0 !important;
-            }}
-
             /* Linhas que devem ficar lado a lado (2 colunas no máximo) */
             .ig-m-row-2 [data-testid="stHorizontalBlock"] {{
                 flex-wrap: nowrap !important;
@@ -132,31 +111,8 @@ def mobile_first_css() -> str:
                 top: auto !important;
             }}
 
-            /* Chat: ordem mobile — conversa → lista → info */
-            .ig-chat-mobile-order > [data-testid="stHorizontalBlock"] {{
-                display: flex !important;
-                flex-direction: column !important;
-            }}
-            .ig-chat-mobile-order > [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:nth-child(1) {{
-                order: 2;
-            }}
-            .ig-chat-mobile-order > [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:nth-child(2) {{
-                order: 1;
-            }}
-            .ig-chat-mobile-order > [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:nth-child(3) {{
-                order: 3;
-            }}
-            .ig-chat-col--list {{
-                min-height: auto !important;
-                max-height: 42vh;
-            }}
-            #chat-scroll-box.ig-chat-feed {{
-                min-height: 38vh !important;
-                max-height: 50vh !important;
-            }}
-
             /* Páginas premium — largura total */
-            .ig-sug-page, .ig-pl-page, .ig-chat-page, .ig-rep-page,
+            .ig-sug-page, .ig-pl-page, .ig-rep-page,
             .ig-esc-ge-page, .ig-escalas-page, .ig-feed-page, .ig-ger-page {{
                 max-width: 100% !important;
                 margin-left: 0 !important;
@@ -182,10 +138,10 @@ def mobile_first_css() -> str:
 
             /* Hero e títulos */
             .ig-hero-title, .ig-sug-header-title, .ig-pl-header-title,
-            .ig-chat-header-title, .ig-rep-header-title {{
+            .ig-rep-header-title {{
                 font-size: 1.2rem !important;
             }}
-            .ig-hero-card, .ig-sug-header, .ig-pl-header, .ig-chat-header {{
+            .ig-hero-card, .ig-sug-header, .ig-pl-header {{
                 padding: 1rem !important;
             }}
             .ig-hero-verse {{
@@ -211,7 +167,7 @@ def mobile_first_css() -> str:
             [data-testid="stMain"] [data-testid="stLinkButton"] > a {{
                 min-height: 2.75rem !important;
             }}
-            input, textarea, select, [data-testid="stChatInput"] textarea {{
+            input, textarea, select {{
                 font-size: 16px !important;
             }}
 

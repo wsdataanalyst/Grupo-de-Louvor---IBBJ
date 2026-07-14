@@ -19,7 +19,7 @@ class MobilePageFallbackTests(unittest.TestCase):
             calls.append("fallback")
 
         result = module.run_mobile_page_with_fallback(
-            "Chat",
+            "Escalas",
             failing_renderer,
             fallback_renderer,
         )

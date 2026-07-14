@@ -35,8 +35,6 @@ SYNC_CSV_NAMES = frozenset(
         "playlist.csv",
         "eventos.csv",
         "sugestoes_louvor.csv",
-        "chat.csv",
-        "chat_ensaio.csv",
         "password_reset_tokens.csv",
     }
 )

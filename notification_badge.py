@@ -1,4 +1,4 @@
-"""Componentes reutilizáveis de badge de notificação (chat e menus)."""
+"""Componentes reutilizáveis de badge de notificação (menus e navegação)."""
 
 from __future__ import annotations
 
@@ -45,16 +45,6 @@ def unread_message_badge_html(count: int, *, pulse: bool = False) -> str:
     )
 
 
-def chat_notification_counter_html(count: int, *, pulse: bool = False) -> str:
-    """Badge para ícone do Chat na navegação."""
-    return notification_badge_html(
-        count,
-        css_class="ig-unread-badge ig-unread-badge--nav",
-        pulse=pulse,
-        title="Chat — não lidas",
-    )
-
-
 def notification_badge_css() -> str:
     """Estilos globais para badges (nav, lista de conversas, sidebar)."""
     return """
@@ -89,14 +79,6 @@ def notification_badge_css() -> str:
       position: static;
       margin-left: auto;
       flex-shrink: 0;
-    }
-  .ig-chat-conv.is-unread {
-      background: rgba(239, 68, 68, 0.08) !important;
-      border: 1px solid rgba(239, 68, 68, 0.22) !important;
-    }
-    .ig-chat-conv.is-unread .ig-chat-conv-name {
-      color: #fecaca !important;
-      font-weight: 800 !important;
     }
     .ig-unread-badge--pulse {
       animation: ig-badge-pulse 0.85s ease-out 2;

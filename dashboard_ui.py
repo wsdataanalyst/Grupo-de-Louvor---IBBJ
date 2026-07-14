@@ -166,7 +166,7 @@ def render_global_header(
     photo_uri: str | None = None,
     notif_count: int = 0,
 ) -> None:
-    """Barra de busca global (Chat, notificações e perfil ficam só no menu lateral)."""
+    """Barra de busca global (notificações e perfil ficam só no menu lateral)."""
     _ = (user_name, photo_uri, notif_count)
     st.text_input(
         "Busca global",

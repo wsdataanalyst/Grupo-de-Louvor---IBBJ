@@ -45,14 +45,6 @@ def parse_timestamp(value: str) -> datetime | None:
     return dt.astimezone(LOCAL_TZ)
 
 
-def normalize_chat_timestamp_str(value) -> str:
-    """Gravação uniforme no CSV para ordenação correta do chat."""
-    ts = parse_timestamp(str(value))
-    if ts:
-        return ts.strftime("%Y-%m-%d %H:%M:%S.%f")
-    return ""
-
-
 def to_local_timestamps(values) -> pd.Series:
     """Normaliza timestamps para America/Sao_Paulo (comparações no pandas)."""
     if isinstance(values, pd.Series):

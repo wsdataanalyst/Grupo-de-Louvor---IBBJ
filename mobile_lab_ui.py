@@ -182,8 +182,7 @@ def mobile_lab_css() -> str:
     /* Marcadores invisíveis do shell não empurram o conteúdo */
     #ml-mobile-lab-mode,
     #ml-streamlit-shield,
-    #ml-bottom-nav-start,
-    #ml-chat-page {
+    #ml-bottom-nav-start {
       display: block !important;
       height: 0 !important;
       max-height: 0 !important;
@@ -196,8 +195,7 @@ def mobile_lab_css() -> str:
     }
     body:has(#ml-mobile-lab-mode) [data-testid="element-container"]:has(#ml-mobile-lab-mode),
     body:has(#ml-mobile-lab-mode) [data-testid="element-container"]:has(#ml-streamlit-shield),
-    body:has(#ml-mobile-lab-mode) [data-testid="element-container"]:has(#ml-bottom-nav-start),
-    body:has(#ml-mobile-lab-mode) [data-testid="element-container"]:has(#ml-chat-page) {
+    body:has(#ml-mobile-lab-mode) [data-testid="element-container"]:has(#ml-bottom-nav-start) {
       margin: 0 !important;
       padding: 0 !important;
       min-height: 0 !important;
@@ -505,16 +503,6 @@ def mobile_lab_css() -> str:
     }
     body:has(#ml-bottom-nav-start) [class*="st-key-ml_bottom_nav"] .stButton > button[kind="primary"] p{
       color: rgba(233,213,255,.98) !important;
-    }
-    body:has(#ml-bottom-nav-start) [class*="st-key-ml_nav_chat_wrap"]{
-      position: relative !important;
-    }
-    body:has(#ml-bottom-nav-start) [class*="st-key-ml_nav_chat_wrap"] .ig-unread-badge--nav{
-      position: absolute !important;
-      top: 0.05rem !important;
-      right: 0.35rem !important;
-      z-index: 20 !important;
-      pointer-events: none !important;
     }
     body:has(#ml-bottom-nav-start) [class*="st-key-ml_nav_Gerenciar_Escalas"] .stButton > button[kind="primary"],
     body:has(#ml-bottom-nav-start) [class*="st-key-ml_nav_Gerenciar_Escalas"] .stButton > button[kind="primary"] p{
@@ -1070,7 +1058,6 @@ _ML_MENU_TO_PAGE: dict[str, str] = {
     "Escalas": "Escalas",
     "Repertório": "Repertório",
     "Playlist": "Playlist",
-    "Chat": "Chat",
     "Sugestão de louvor": "Sugestões",
     "Sugestões": "Sugestões",
     "Notificações": "Notificações",
@@ -1088,7 +1075,6 @@ def render_mobile_lab_dashboard(
     escalas_df: pd.DataFrame,
     equipe_df: pd.DataFrame | None = None,
     sugestoes_df: pd.DataFrame | None = None,
-    chat_unread: int = 0,
     user_full_name: str = "",
     photo_uri: str = "",
     my_email: str = "",
@@ -1318,7 +1304,6 @@ def render_mobile_lab_dashboard(
     default_quick: list[tuple[str, str]] = [
         ("Repertório", "🎵"),
         ("Playlist", "🎧"),
-        ("Chat", "💬"),
         ("Sugestão de louvor", "💡"),
     ]
     candidates = list(quick_links) if quick_links else default_quick
@@ -1337,10 +1322,6 @@ def render_mobile_lab_dashboard(
         if idx % 2 == 0:
             cols = st.columns(2, gap="small")
         label = f"{icon}\n{name}"
-        if page == "Chat" and int(chat_unread) > 0:
-            from notification_badge import format_unread_count
-
-            label = f"{icon}\n({format_unread_count(int(chat_unread))})\nChat"
         if name == "Sugestão de louvor":
             label = f"{icon}\nSugestões"
         btn_key = f"ml_quick_nav_{idx}"
