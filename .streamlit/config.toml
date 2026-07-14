@@ -1,7 +1,7 @@
 [client]
 # viewer: oculta Deploy/Manage app e opções de dev (incl. dono no Streamlit Cloud)
 toolbarMode = "viewer"
-showErrorDetails = false
+showErrorDetails = true
 
 [browser]
 gatherUsageStats = false
